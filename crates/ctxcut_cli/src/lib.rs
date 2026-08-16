@@ -4,6 +4,8 @@ pub mod diff;
 pub mod route;
 pub mod stats;
 
+pub use diff::{run_diff_slicer, run_diff_slicer_in};
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
@@ -139,7 +141,7 @@ pub fn run_cli() -> Result<()> {
             format,
         } => {
             let opts = SliceOptions::default();
-            let results = diff::run_diff_slicer(staged, &opts)?;
+            let results = run_diff_slicer(staged, &opts)?;
 
             if results.is_empty() {
                 println!("No modified symbols detected in git diff.");

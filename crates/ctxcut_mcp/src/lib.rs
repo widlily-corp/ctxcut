@@ -87,6 +87,10 @@ fn handle_mcp_request(method: &str, req: &Value) -> Value {
                     "inputSchema": {
                         "type": "object",
                         "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "Optional repository path (defaults to current working directory)"
+                            },
                             "staged": {
                                 "type": "boolean",
                                 "description": "Whether to inspect staged changes only (default: false)"
@@ -159,9 +163,11 @@ fn execute_tool_call(name: &str, args: &Value) -> Value {
 
         "get_diff_slice" => {
             let staged = args.get("staged").and_then(Value::as_bool).unwrap_or(false);
+            let path_opt = args.get("path").and_then(Value::as_str);
+            let repo_path = path_opt.map(Path::new);
             let opts = SliceOptions::default();
 
-            match ctxcut_cli::diff::run_diff_slicer(staged, &opts) {
+            match ctxcut_cli::run_diff_slicer_in(repo_path, staged, &opts) {
                 Ok(slices) => {
                     let rendered = if slices.is_empty() {
                         "No modified symbols detected in git diff.".to_string()

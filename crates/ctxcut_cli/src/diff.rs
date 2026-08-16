@@ -8,7 +8,12 @@ use tree_sitter::Node;
 
 /// Extracts contextual slices for symbols modified in Git diff.
 pub fn run_diff_slicer(staged: bool, opts: &SliceOptions) -> Result<Vec<SliceResult>> {
-    let diff_output = get_git_diff(staged)?;
+    run_diff_slicer_in(None, staged, opts)
+}
+
+/// Extracts contextual slices for symbols modified in Git diff within a specific directory.
+pub fn run_diff_slicer_in(repo_dir: Option<&Path>, staged: bool, opts: &SliceOptions) -> Result<Vec<SliceResult>> {
+    let diff_output = get_git_diff(repo_dir, staged)?;
     if diff_output.trim().is_empty() {
         return Ok(Vec::new());
     }
@@ -22,7 +27,12 @@ pub fn run_diff_slicer(staged: bool, opts: &SliceOptions) -> Result<Vec<SliceRes
     let mut results = Vec::new();
 
     for (file_rel_path, changed_lines) in modified_ranges {
-        let file_path = PathBuf::from(&file_rel_path);
+        let file_path = if let Some(dir) = repo_dir {
+            dir.join(&file_rel_path)
+        } else {
+            PathBuf::from(&file_rel_path)
+        };
+
         if !file_path.exists() {
             continue;
         }
@@ -53,8 +63,11 @@ pub fn run_diff_slicer(staged: bool, opts: &SliceOptions) -> Result<Vec<SliceRes
     Ok(results)
 }
 
-fn get_git_diff(staged: bool) -> Result<String> {
+fn get_git_diff(repo_dir: Option<&Path>, staged: bool) -> Result<String> {
     let mut cmd = Command::new("git");
+    if let Some(dir) = repo_dir {
+        cmd.current_dir(dir);
+    }
     cmd.arg("diff");
     if staged {
         cmd.arg("--staged");
