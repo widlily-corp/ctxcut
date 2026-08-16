@@ -1,0 +1,24 @@
+[package]
+name = "ctxcut_cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Command-line interface and terminal UI for ctxcut"
+
+[lints]
+workspace = true
+
+[dependencies]
+ctxcut_core = { workspace = true }
+clap = { workspace = true }
+colored = { workspace = true }
+arboard = { workspace = true }
+ignore = { workspace = true }
+anyhow = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
