@@ -180,7 +180,7 @@ pub fn run_cli() -> Result<()> {
 
 fn handle_slice_command(target: &str, opts: &SliceOptions) -> Result<Vec<SliceResult>> {
     let (file_part, symbol_part) = target
-        .split_once(':')
+        .rsplit_once(':')
         .context("Invalid target format. Expected `<file_path>:<symbol_name>` (e.g. `src/orders.ts:payOrder`)")?;
 
     let file_path = Path::new(file_part);
