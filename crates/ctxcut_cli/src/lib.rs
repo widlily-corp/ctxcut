@@ -18,9 +18,24 @@ use ctxcut_core::{ContextSlicer, MarkdownFormatter, SliceOptions, SliceResult};
 #[derive(Parser, Debug)]
 #[command(name = "ctxcut", version, about = "AST-powered contextual code slicer")]
 pub struct Cli {
+    /// Launch Model Context Protocol (MCP) server over STDIO.
+    #[arg(long, global = true)]
+    pub mcp: bool,
+
+    /// Optional log file path for structured JSONL observability in MCP mode.
+    #[arg(long, global = true, env = "CTXCUT_LOG_FILE")]
+    pub log_file: Option<PathBuf>,
+
     /// Subcommand to execute.
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
+}
+
+/// Options passed to the MCP server runner.
+#[derive(Debug, Clone, Default)]
+pub struct McpOptions {
+    /// Optional log file path for structured JSONL observability.
+    pub log_file: Option<PathBuf>,
 }
 
 /// Supported CLI subcommands.
@@ -107,15 +122,35 @@ pub enum Commands {
     },
 
     /// Launch Model Context Protocol (MCP) server over STDIO.
-    Mcp,
+    Mcp {
+        /// Optional log file path for structured JSONL observability.
+        #[arg(long, env = "CTXCUT_LOG_FILE")]
+        log_file: Option<PathBuf>,
+    },
 }
 
-/// Executes the CLI application.
-pub fn run_cli() -> Result<()> {
+/// Executes the CLI application with a custom MCP server runner.
+pub fn run_cli_handler<F>(mcp_runner: F) -> Result<()>
+where
+    F: FnOnce(McpOptions) -> Result<()>,
+{
     let cli = Cli::parse();
 
+    if cli.mcp {
+        return mcp_runner(McpOptions {
+            log_file: cli.log_file,
+        });
+    }
+
     match cli.command {
-        Commands::Slice {
+        Some(Commands::Mcp { log_file }) => {
+            let resolved_log = log_file.or(cli.log_file);
+            mcp_runner(McpOptions {
+                log_file: resolved_log,
+            })
+        }
+
+        Some(Commands::Slice {
             target,
             clip,
             output,
@@ -123,7 +158,7 @@ pub fn run_cli() -> Result<()> {
             depth,
             no_types,
             no_calls,
-        } => {
+        }) => {
             let opts = SliceOptions {
                 depth,
                 include_types: !no_types,
@@ -131,15 +166,15 @@ pub fn run_cli() -> Result<()> {
             };
 
             let results = handle_slice_command(&target, &opts)?;
-            handle_output(&results, &format, clip, output.as_deref())?;
+            handle_output(&results, &format, clip, output.as_deref())
         }
 
-        Commands::Diff {
+        Some(Commands::Diff {
             staged,
             clip,
             output,
             format,
-        } => {
+        }) => {
             let opts = SliceOptions::default();
             let results = run_diff_slicer(staged, &opts)?;
 
@@ -148,36 +183,51 @@ pub fn run_cli() -> Result<()> {
             } else {
                 handle_output(&results, &format, clip, output.as_deref())?;
             }
+            Ok(())
         }
 
-        Commands::Stats { path, format } => {
+        Some(Commands::Stats { path, format }) => {
             let report = stats::calculate_stats(&path)?;
             if format.eq_ignore_ascii_case("json") {
                 println!("{}", serde_json::to_string_pretty(&report)?);
             } else {
                 println!("{}", stats::format_stats_text(&report));
             }
+            Ok(())
         }
 
-        Commands::Route {
+        Some(Commands::Route {
             method,
             path: route_path,
             clip,
             output,
             format,
-        } => {
+        }) => {
             let opts = SliceOptions::default();
             let current_dir = std::env::current_dir()?;
             let result = route::resolve_route_slice(&current_dir, &method, &route_path, &opts)?;
-            handle_output(&[result], &format, clip, output.as_deref())?;
+            handle_output(&[result], &format, clip, output.as_deref())
         }
 
-        Commands::Mcp => {
-            println!("Use `ctxcut mcp` or `--mcp` to launch MCP server.");
+        None => {
+            use clap::CommandFactory;
+            Cli::command().print_help()?;
+            println!();
+            Ok(())
         }
     }
+}
 
-    Ok(())
+/// Executes the CLI application.
+pub fn run_cli() -> Result<()> {
+    run_cli_handler(|opts| {
+        eprintln!(
+            "{} MCP server runner invoked without stdio handler. Use the `ctxcut` binary.",
+            "Error:".red().bold()
+        );
+        let _ = opts;
+        Ok(())
+    })
 }
 
 fn handle_slice_command(target: &str, opts: &SliceOptions) -> Result<Vec<SliceResult>> {
@@ -190,7 +240,11 @@ fn handle_slice_command(target: &str, opts: &SliceOptions) -> Result<Vec<SliceRe
         bail!("Source file not found: `{}`", file_path.display());
     }
 
-    let symbols: Vec<&str> = symbol_part.split(',').map(str::trim).filter(|s| !s.is_empty()).collect();
+    let symbols: Vec<&str> = symbol_part
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
     if symbols.is_empty() {
         bail!("No symbol name specified in target: `{}`", target);
     }
@@ -218,7 +272,11 @@ fn handle_output(
     if let Some(out_file) = output_path {
         fs::write(out_file, &rendered)
             .with_context(|| format!("Failed to write output to `{}`", out_file.display()))?;
-        println!("{} Sliced context saved to `{}`", "✔".green(), out_file.display());
+        println!(
+            "{} Sliced context saved to `{}`",
+            "✔".green(),
+            out_file.display()
+        );
     }
 
     if clip {

@@ -229,19 +229,37 @@ impl McpClient {
 
     /// Starts `ctxcut mcp` child process with specific working directory.
     pub fn start_in_dir(cwd: impl AsRef<Path>) -> io::Result<Self> {
+        Self::start_with_options(Some(cwd.as_ref()), &[], &[])
+    }
+
+    /// Starts `ctxcut mcp` child process with explicit directory, extra CLI arguments, and environment variables.
+    pub fn start_with_options(
+        cwd: Option<&Path>,
+        extra_args: &[&str],
+        envs: &[(&str, &str)],
+    ) -> io::Result<Self> {
         let runner = CliRunner::new();
         let mut cmd = if let Some(ref bin) = runner.bin_path {
             let mut c = Command::new(bin);
             c.arg("mcp");
+            c.args(extra_args);
             c
         } else {
             let mut c = Command::new("cargo");
             c.args(["run", "--quiet", "--bin", "ctxcut", "--", "mcp"]);
+            c.args(extra_args);
             c
         };
 
-        cmd.current_dir(cwd)
-            .stdin(Stdio::piped())
+        if let Some(dir) = cwd {
+            cmd.current_dir(dir);
+        }
+
+        for (k, v) in envs {
+            cmd.env(k, v);
+        }
+
+        cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit());
 
@@ -259,6 +277,18 @@ impl McpClient {
             reader: BufReader::new(stdout),
             request_id: AtomicU64::new(1),
         })
+    }
+
+    /// Starts `ctxcut mcp` with `--log-file <path>`.
+    pub fn start_with_log_file(log_file: impl AsRef<Path>) -> io::Result<Self> {
+        let path_str = log_file.as_ref().to_string_lossy().to_string();
+        Self::start_with_options(None, &["--log-file", &path_str], &[])
+    }
+
+    /// Starts `ctxcut mcp` with `CTXCUT_LOG_FILE=<path>` environment variable.
+    pub fn start_with_env_log_file(log_file: impl AsRef<Path>) -> io::Result<Self> {
+        let path_str = log_file.as_ref().to_string_lossy().to_string();
+        Self::start_with_options(None, &[], &[("CTXCUT_LOG_FILE", &path_str)])
     }
 
     /// Sends a raw JSON string line to MCP stdin and reads JSON-RPC response.
