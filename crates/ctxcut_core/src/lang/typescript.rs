@@ -71,7 +71,7 @@ impl LanguageAdapter for TypeScriptAdapter {
         opts: &SliceOptions,
     ) -> Result<Vec<ExtractedType>> {
         let ts_lang = self.tree_sitter_language(file_path);
-        TypeHoister::hoist_types(target_node, root, source, file_path, opts, ts_lang)
+        TypeHoister::hoist_types(target_node, root, source, file_path, opts, &ts_lang)
     }
 
     fn strip_calls<'a>(
@@ -82,6 +82,6 @@ impl LanguageAdapter for TypeScriptAdapter {
         file_path: &Path,
     ) -> Result<Vec<CallSignatureStub>> {
         let ts_lang = self.tree_sitter_language(file_path);
-        SignatureStripper::strip_calls(target_node, root, source, file_path, ts_lang)
+        SignatureStripper::strip_calls(target_node, root, source, file_path, &ts_lang)
     }
 }

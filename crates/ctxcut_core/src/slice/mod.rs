@@ -45,7 +45,7 @@ impl ContextSlicer {
 
         let adapter = LanguageRegistry::for_path(file_path)?;
         let ts_lang = adapter.tree_sitter_language(file_path);
-        let tree = ParserManager::parse_source(&source, ts_lang, file_path)?;
+        let tree = ParserManager::parse_source(&source, &ts_lang, file_path)?;
         let root = tree.root_node();
 
         // 1. Locate target symbol
