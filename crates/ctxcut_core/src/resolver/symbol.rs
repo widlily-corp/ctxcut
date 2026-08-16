@@ -35,6 +35,11 @@ impl SymbolLocator {
             if let Some((sym, node)) = Self::find_any_method(root, source, member_query, file_path, language) {
                 return Ok((sym, node));
             }
+
+            // 4. Source-level resilient fallback for files with severe syntax corruption
+            if let Some(sym) = fallback_source_scan(source, member_query, file_path, language) {
+                return Ok((sym, root));
+            }
         }
 
         let available = Self::list_all_symbols(root, source);
@@ -293,6 +298,118 @@ fn find_symbol_recursive<'a>(
         }
     }
     None
+}
+
+fn fallback_source_scan(
+    source: &str,
+    target_name: &str,
+    file_path: &Path,
+    language: &str,
+) -> Option<ExtractedSymbol> {
+    if target_name.trim().is_empty() {
+        return None;
+    }
+
+    let prefixes = [
+        ("function", "function"),
+        ("async function", "function"),
+        ("const", "variable"),
+        ("let", "variable"),
+        ("var", "variable"),
+        ("class", "class"),
+        ("interface", "interface"),
+        ("type", "type"),
+        ("enum", "enum"),
+        ("func", "function"),
+        ("def", "function"),
+        ("async def", "function"),
+        ("fn", "function"),
+    ];
+
+    let mut start_line = 1;
+    let mut found_kind = "function";
+    let mut start_offset = None;
+
+    for (line_idx, line) in source.lines().enumerate() {
+        for (keyword, kind) in &prefixes {
+            let pat = format!("{keyword} {target_name}");
+            if let Some(pos) = line.find(&pat) {
+                // Verify preceding char is boundary
+                if pos > 0 {
+                    let prev = line.as_bytes()[pos - 1];
+                    if prev.is_ascii_alphanumeric() || prev == b'_' {
+                        continue;
+                    }
+                }
+                // Verify following char is boundary
+                let after = &line[pos + pat.len()..];
+                if let Some(c) = after.chars().next() {
+                    if c.is_alphanumeric() || c == '_' {
+                        continue;
+                    }
+                }
+
+                start_line = line_idx + 1;
+                found_kind = kind;
+
+                let mut offset = 0;
+                for (i, l) in source.lines().enumerate() {
+                    if i == line_idx {
+                        break;
+                    }
+                    offset += l.len() + 1;
+                }
+                start_offset = Some(offset + pos);
+                break;
+            }
+        }
+        if start_offset.is_some() {
+            break;
+        }
+    }
+
+    let start_b = start_offset?;
+    let remainder = &source[start_b..];
+
+    let mut brace_count = 0;
+    let mut started_brace = false;
+    let mut end_b = remainder.len();
+
+    for (idx, ch) in remainder.char_indices() {
+        if ch == '{' {
+            brace_count += 1;
+            started_brace = true;
+        } else if ch == '}' {
+            brace_count -= 1;
+            if started_brace && brace_count == 0 {
+                end_b = idx + 1;
+                break;
+            }
+        }
+    }
+
+    let body = remainder[..end_b].trim_end().to_string();
+    let end_line = start_line + body.lines().count().max(1) - 1;
+
+    let signature = if let Some((sig, _)) = body.split_once('{') {
+        format!("{};", sig.trim())
+    } else if let Some((sig, _)) = body.split_once('\n') {
+        sig.trim().to_string()
+    } else {
+        body.clone()
+    };
+
+    Some(ExtractedSymbol {
+        name: target_name.to_string(),
+        kind: found_kind.to_string(),
+        file_path: file_path.to_string_lossy().to_string(),
+        start_line,
+        end_line,
+        doc_comment: None,
+        signature,
+        body,
+        language: language.to_string(),
+    })
 }
 
 fn unwrap_export(node: Node<'_>) -> Node<'_> {

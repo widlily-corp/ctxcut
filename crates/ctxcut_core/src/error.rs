@@ -35,7 +35,7 @@ pub enum CoreError {
     },
 
     /// The requested symbol could not be found in the AST.
-    #[error("Symbol '{symbol}' was not found in '{path}'. Available symbols: {available_symbols:?}")]
+    #[error("{}", format_symbol_not_found(.symbol, .path, .available_symbols))]
     SymbolNotFound {
         /// Symbol identifier searched for.
         symbol: String,
@@ -60,24 +60,73 @@ pub enum CoreError {
     #[error("Tree-sitter query error: {0}")]
     QueryError(String),
 
-    /// BPE Tokenization failure.
-    #[error("BPE tokenization error: {0}")]
-    TokenizerError(String),
+    /// Clipboard operation failed.
+    #[error("Clipboard error: {0}")]
+    ClipboardError(String),
 
-    /// Invalid slicing configuration options.
-    #[error("Invalid slice options: {0}")]
-    InvalidOptions(String),
-
-    /// JSON serialization or deserialization error.
-    #[error("JSON serialization error: {0}")]
-    SerializationError(#[from] serde_json::Error),
+    /// Output formatting error.
+    #[error("Formatting error: {0}")]
+    FormattingError(String),
 }
 
-impl From<tree_sitter::QueryError> for CoreError {
-    fn from(err: tree_sitter::QueryError) -> Self {
-        Self::QueryError(format!("{err:?}"))
+fn format_symbol_not_found(symbol: &str, path: &std::path::Path, available: &[String]) -> String {
+    let mut msg = format!("Symbol '{}' was not found in '{}'.", symbol, path.display());
+
+    // Find best fuzzy match
+    if let Some(best) = find_best_suggestion(symbol, available) {
+        msg.push_str(&format!(" Did you mean '{}'?", best));
     }
+
+    if !available.is_empty() {
+        msg.push_str(&format!(" Available symbols: {:?}", available));
+    }
+
+    msg
 }
 
-/// A specialized Result type for `ctxcut_core` operations.
-pub type Result<T, E = CoreError> = std::result::Result<T, E>;
+fn find_best_suggestion<'a>(query: &str, candidates: &'a [String]) -> Option<&'a str> {
+    let query_lower = query.to_lowercase();
+    for candidate in candidates {
+        let cand_name = candidate.split('.').last().unwrap_or(candidate);
+        let cand_lower = cand_name.to_lowercase();
+
+        if cand_lower == query_lower
+            || cand_lower.starts_with(&query_lower)
+            || query_lower.starts_with(&cand_lower)
+            || edit_distance(&query_lower, &cand_lower) <= 2
+        {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+fn edit_distance(s1: &str, s2: &str) -> usize {
+    let v1: Vec<char> = s1.chars().collect();
+    let v2: Vec<char> = s2.chars().collect();
+    let len1 = v1.len();
+    let len2 = v2.len();
+
+    let mut dp = vec![vec![0; len2 + 1]; len1 + 1];
+
+    for i in 0..=len1 {
+        dp[i][0] = i;
+    }
+    for j in 0..=len2 {
+        dp[0][j] = j;
+    }
+
+    for i in 1..=len1 {
+        for j in 1..=len2 {
+            let cost = if v1[i - 1] == v2[j - 1] { 0 } else { 1 };
+            dp[i][j] = (dp[i - 1][j] + 1)
+                .min(dp[i][j - 1] + 1)
+                .min(dp[i - 1][j - 1] + cost);
+        }
+    }
+
+    dp[len1][len2]
+}
+
+/// Specialized Result alias for `ctxcut_core`.
+pub type Result<T> = std::result::Result<T, CoreError>;
