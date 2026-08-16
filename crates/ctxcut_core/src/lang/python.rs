@@ -759,6 +759,7 @@ fn extract_python_imports(root: Node<'_>, source: &str) -> std::collections::Has
 }
 
 /// Resolves a Python import specifier to its target file path on disk.
+/// Resolves a Python relative or local module specifier (e.g. `.schemas`) to a file path on disk.
 pub fn resolve_python_module_path(from_file: &Path, specifier: &str) -> Option<PathBuf> {
     let parent_dir = from_file.parent().unwrap_or_else(|| Path::new("."));
 
@@ -813,7 +814,7 @@ pub fn resolve_python_module_path(from_file: &Path, specifier: &str) -> Option<P
     None
 }
 
-/// Checks if a type name is a Python built-in type or standard library typing primitive.
+/// Returns true if the type name matches a Python built-in, exception, or typing construct.
 pub fn is_builtin_python_type(name: &str) -> bool {
     matches!(
         name,
@@ -845,7 +846,7 @@ pub fn is_builtin_python_type(name: &str) -> bool {
     )
 }
 
-/// Checks if a function name is a Python built-in function or common utility.
+/// Returns true if the identifier matches a Python built-in function or common logger method.
 pub fn is_builtin_python_func(name: &str) -> bool {
     matches!(
         name,
