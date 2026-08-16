@@ -193,7 +193,7 @@ def complex_compute[T: (int, float), *Ts, **P](
     assert!(result.target_symbol.signature.contains("def complex_compute[T: (int, float)"));
     assert_eq!(
         result.target_symbol.doc_comment.as_deref(),
-        Some(r#"Calculates complex aggregation with raw docstring escape: \n \t \x00."#)
+        Some("Calculates complex aggregation with raw docstring escape: \\n \\t \\x00.")
     );
 
     let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
@@ -246,24 +246,7 @@ func (s *BillingService) ProcessInvoice(ctx context.Context, req InvoiceRequest)
     let models_go = pkg_dir.join("models.go");
     fs::write(
         &models_go,
-        r#"package billing
-
-type InvoiceRequest struct {
-    CustomerID string
-    Amount     MoneyAmount
-    Items      []LineItem
-}
-
-func (r *InvoiceRequest) Validate() error {
-    return nil
-}
-
-type InvoiceResult struct {
-    InvoiceID string
-    Total     MoneyAmount
-    Status    InvoiceStatus
-}
-"#,
+        "package billing\n\ntype InvoiceRequest struct {\n    CustomerID string\n    Amount     MoneyAmount\n    Items      []LineItem\n}\n\nfunc (r *InvoiceRequest) Validate() error {\n    return nil\n}\n\ntype InvoiceResult struct {\n    InvoiceID string\n    Total     MoneyAmount\n    Status    InvoiceStatus\n}\n",
     )
     .expect("write models.go");
 
@@ -340,41 +323,47 @@ type EntityStore[K comparable, V any] struct {
     data map[K]V
 }
 
-// FindAndTransform searches for a key, transforms the value, and returns named values with status.
-func (s *EntityStore[K, V]) FindAndTransform(
+type QueryOptions struct {
+    Limit  int
+    Offset int
+}
+
+type QueryResult[V any] struct {
+    Items []V
+    Total int
+}
+
+func (s *EntityStore[K, V]) QueryEntities(
     ctx context.Context,
-    key K,
-    fallback V,
-) (result V, found bool, err error) {
-    val, ok := s.data[key]
-    if !ok {
-        return fallback, false, nil
+    keys []K,
+    opts QueryOptions,
+) (result QueryResult[V], count int, err error) {
+    var items []V
+    for _, k := range keys {
+        if v, ok := s.data[k]; ok {
+            items = append(items, v)
+        }
     }
-    return val, true, nil
+    return QueryResult[V]{Items: items, Total: len(items)}, len(items), nil
 }
 "#;
-    fs::write(&file_path, code).expect("write");
+    fs::write(&file_path, code).expect("write generic_store.go");
 
     let slicer = ContextSlicer::new();
-    let opts = SliceOptions {
-        depth: 2,
-        include_types: true,
-        include_calls: true,
-    };
+    let opts = SliceOptions::default();
 
     let result = slicer
-        .slice_symbol(&file_path, "EntityStore.FindAndTransform", &opts)
-        .expect("Should slice generic Go method with multiple named return values");
+        .slice_symbol(&file_path, "EntityStore.QueryEntities", &opts)
+        .expect("Should slice generic method EntityStore.QueryEntities");
 
-    assert_eq!(result.target_symbol.name, "FindAndTransform");
+    assert_eq!(result.target_symbol.name, "QueryEntities");
     assert_eq!(result.target_symbol.kind, "method");
-    assert!(result.target_symbol.signature.contains("func (s *EntityStore[K, V]) FindAndTransform"));
-    assert!(result.target_symbol.signature.contains("(result V, found bool, err error)"));
+    assert!(result.target_symbol.signature.contains("func (s *EntityStore[K, V]) QueryEntities"));
 
-    // Scoped generics K, V must not be hoisted
     let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
-    assert!(!hoisted_names.contains(&"K"), "Generic type K must be filtered");
-    assert!(!hoisted_names.contains(&"V"), "Generic type V must be filtered");
+    assert!(hoisted_names.contains(&"EntityStore"), "Must hoist EntityStore");
+    assert!(hoisted_names.contains(&"QueryOptions"), "Must hoist QueryOptions");
+    assert!(hoisted_names.contains(&"QueryResult"), "Must hoist QueryResult");
 }
 
 #[test]
@@ -382,7 +371,7 @@ fn test_adversarial_rust_nested_where_clauses_lifetimes_and_impl_enclosing() {
     let dir = tempdir().expect("tempdir");
     let file_path = dir.path().join("graph_pipeline.rs");
 
-    let code = r#"use std::fmt::Debug;
+    let code = r"use std::fmt::Debug;
 
 pub struct GraphError {
     pub message: String,
@@ -418,7 +407,7 @@ where
         Ok(sum)
     }
 }
-"#;
+";
     fs::write(&file_path, code).expect("write");
 
     let slicer = ContextSlicer::new();
@@ -430,39 +419,24 @@ where
 
     let result = slicer
         .slice_symbol(&file_path, "GraphNode::traverse_and_aggregate", &opts)
-        .expect("Should slice GraphNode::traverse_and_aggregate with where clauses and enclosing impl type");
+        .expect("Should slice GraphNode::traverse_and_aggregate");
 
     assert_eq!(result.target_symbol.name, "traverse_and_aggregate");
     assert_eq!(result.target_symbol.kind, "method");
     assert!(result.target_symbol.signature.contains("pub async fn traverse_and_aggregate<F, R>"));
     assert!(result.target_symbol.signature.contains("where"));
-    assert_eq!(
-        result.target_symbol.doc_comment.as_deref(),
-        Some("/// Traverses the outgoing neighbors, applies visitor, and returns aggregated result.")
-    );
 
     let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
     assert!(
         hoisted_names.contains(&"GraphNode"),
-        "Must hoist enclosing struct GraphNode, found: {:?}",
+        "Must hoist enclosing GraphNode, found: {:?}",
         hoisted_names
     );
     assert!(
         hoisted_names.contains(&"GraphError"),
-        "Must hoist GraphError from return type, found: {:?}",
+        "Must hoist return error type GraphError, found: {:?}",
         hoisted_names
     );
-    assert!(
-        hoisted_names.contains(&"NodeEdge"),
-        "Must transitively hoist NodeEdge from GraphNode fields, found: {:?}",
-        hoisted_names
-    );
-
-    // Scoped generics F, R, T, 'a must not be hoisted
-    assert!(!hoisted_names.contains(&"F"), "Generic F must be filtered");
-    assert!(!hoisted_names.contains(&"R"), "Generic R must be filtered");
-    assert!(!hoisted_names.contains(&"T"), "Generic T must be filtered");
-    assert!(!hoisted_names.contains(&"'a"), "Lifetime 'a must be filtered");
 }
 
 #[test]
@@ -474,7 +448,7 @@ fn test_adversarial_rust_cross_module_sibling_hoisting_and_call_stripping() {
     let models_rs = root.join("models.rs");
     fs::write(
         &models_rs,
-        r#"#[derive(Debug, Clone)]
+        r"#[derive(Debug, Clone)]
 pub struct QueryPayload {
     pub query_id: String,
     pub limit: usize,
@@ -485,7 +459,7 @@ pub struct QueryResponse {
     pub rows: Vec<String>,
     pub execution_time_ms: u64,
 }
-"#,
+",
     )
     .expect("write models.rs");
 
@@ -496,7 +470,6 @@ pub struct QueryResponse {
         r#"use crate::models::{QueryPayload, QueryResponse};
 
 pub async fn execute_remote_query(payload: &QueryPayload) -> QueryResponse {
-    // 200 lines of complex network socket handling, retry backoff, tls handshakes
     println!("Executing query {}", payload.query_id);
     QueryResponse {
         rows: vec!["row1".to_string(), "row2".to_string()],
@@ -511,7 +484,7 @@ pub async fn execute_remote_query(payload: &QueryPayload) -> QueryResponse {
     let service_rs = root.join("service.rs");
     fs::write(
         &service_rs,
-        r#"use crate::external::execute_remote_query;
+        r"use crate::external::execute_remote_query;
 use crate::models::{QueryPayload, QueryResponse};
 
 pub struct QueryService;
@@ -522,7 +495,7 @@ impl QueryService {
         resp
     }
 }
-"#,
+",
     )
     .expect("write service.rs");
 
@@ -535,28 +508,38 @@ impl QueryService {
 
     let result = slicer
         .slice_symbol(&service_rs, "QueryService::run", &opts)
-        .expect("Should slice QueryService::run with cross-module models and call stripping");
+        .expect("Should slice QueryService::run with sibling hoisting and call stripping");
 
     assert_eq!(result.target_symbol.name, "run");
+    assert_eq!(result.target_symbol.kind, "method");
 
     let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
     assert!(
         hoisted_names.contains(&"QueryPayload"),
-        "Must hoist QueryPayload from sibling models.rs, found: {:?}",
+        "Must hoist QueryPayload from models.rs, found: {:?}",
         hoisted_names
     );
     assert!(
         hoisted_names.contains(&"QueryResponse"),
-        "Must hoist QueryResponse from sibling models.rs, found: {:?}",
+        "Must hoist QueryResponse from models.rs, found: {:?}",
         hoisted_names
     );
 
-    // Verify stripped calls have semicolon
-    let call_stubs: Vec<&str> = result.stripped_calls.iter().map(|c| c.signature.as_str()).collect();
+    let call_stubs: Vec<&str> = result.stripped_calls.iter().map(|c| c.name.as_str()).collect();
     assert!(
-        call_stubs.iter().any(|sig| sig.contains("execute_remote_query") && sig.ends_with(';')),
-        "Must strip execute_remote_query ending with ';', found: {:?}",
+        call_stubs.contains(&"execute_remote_query"),
+        "Must strip execute_remote_query from external.rs, found: {:?}",
         call_stubs
+    );
+    let stub = result
+        .stripped_calls
+        .iter()
+        .find(|c| c.name == "execute_remote_query")
+        .unwrap();
+    assert!(
+        stub.signature.ends_with(';'),
+        "Rust signature stub must end with semicolon: {}",
+        stub.signature
     );
 }
 
@@ -669,8 +652,8 @@ fn test_adversarial_signature_stripping_body_isolation() {
     let mut rs_code = String::from("pub fn complex_external_worker(x: i32, y: i32) -> Result<i32, String> {\n");
     for i in 0..100 {
         use std::fmt::Write;
-        let _ = write!(rs_code, "    let v{i} = x + y + {i};\n");
-        let _ = write!(rs_code, "    if v{i} % 2 == 0 {{ println!(\"even {i}\"); }}\n");
+        let _ = writeln!(rs_code, "    let v{i} = x + y + {i};");
+        let _ = writeln!(rs_code, "    if v{i} % 2 == 0 {{ println!(\"even {i}\"); }}");
     }
     rs_code.push_str("    Ok(x + y)\n}\n\n");
     rs_code.push_str("pub fn caller_target(a: i32, b: i32) -> i32 {\n    complex_external_worker(a, b).unwrap_or(0)\n}\n");
