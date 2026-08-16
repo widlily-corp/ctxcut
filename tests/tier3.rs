@@ -18,3 +18,6 @@ mod test_multi_symbol_clip;
 
 #[path = "tier3_cross_feature/test_installers.rs"]
 mod test_installers;
+
+#[path = "tier3_cross_feature/test_ide_setup.rs"]
+mod test_ide_setup;

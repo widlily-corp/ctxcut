@@ -3,10 +3,15 @@
 pub mod diff;
 pub mod metrics;
 pub mod route;
+pub mod setup_mcp;
 pub mod stats;
 
 pub use diff::{run_diff_slicer, run_diff_slicer_in};
 pub use metrics::{render_dashboard, run_metrics_command};
+pub use setup_mcp::{
+    format_setup_report, get_ide_config_paths, merge_mcp_config, run_setup_mcp, safe_merge_json,
+    setup_ide_mcp, IdeTarget, MergeStatus, SetupMcpOptions, SetupResult,
+};
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -140,6 +145,64 @@ pub enum Commands {
         #[arg(long, env = "CTXCUT_LOG_FILE")]
         log_file: Option<PathBuf>,
     },
+
+    /// Configure IDEs to use ctxcut as an MCP server.
+    SetupMcp {
+        /// Target IDE to configure (antigravity, claude, cursor, vscode, all).
+        #[arg(long, default_value = "all")]
+        ide: IdeTarget,
+
+        /// Path to custom MCP JSON configuration file to update.
+        #[arg(long)]
+        custom_path: Option<PathBuf>,
+
+        /// Configure project/workspace level MCP settings instead of global.
+        #[arg(long)]
+        workspace: bool,
+
+        /// Workspace root directory path (defaults to current directory).
+        #[arg(long)]
+        workspace_dir: Option<PathBuf>,
+
+        /// Remove/uninstall ctxcut from the MCP configuration instead of adding.
+        #[arg(long)]
+        remove: bool,
+
+        /// Use absolute executable path instead of `ctxcut` binary name.
+        #[arg(long)]
+        use_absolute_path: bool,
+
+        /// Preview changes without modifying configuration files on disk.
+        #[arg(long)]
+        dry_run: bool,
+    },
+
+    /// Initialize ctxcut and configure IDE MCP settings (alias for setup-mcp).
+    Init {
+        /// Target IDE to configure (antigravity, claude, cursor, vscode, all).
+        #[arg(long, default_value = "all")]
+        ide: IdeTarget,
+
+        /// Path to custom MCP JSON configuration file to update.
+        #[arg(long)]
+        custom_path: Option<PathBuf>,
+
+        /// Configure project/workspace level MCP settings instead of global.
+        #[arg(long)]
+        workspace: bool,
+
+        /// Workspace root directory path (defaults to current directory).
+        #[arg(long)]
+        workspace_dir: Option<PathBuf>,
+
+        /// Use absolute executable path instead of `ctxcut` binary name.
+        #[arg(long)]
+        use_absolute_path: bool,
+
+        /// Preview changes without modifying configuration files on disk.
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 /// Executes the CLI application with a custom MCP server runner.
@@ -240,6 +303,51 @@ where
             let result = route::resolve_route_slice(&current_dir, &method, &route_path, &opts)?;
             TelemetryLogger::record_slice(&result, "cli_route", None);
             handle_output(&[result], &format, clip, output.as_deref())
+        }
+
+        Some(Commands::SetupMcp {
+            ide,
+            custom_path,
+            workspace,
+            workspace_dir,
+            remove,
+            use_absolute_path,
+            dry_run,
+        }) => {
+            let options = SetupMcpOptions {
+                ide,
+                custom_path,
+                workspace,
+                workspace_dir,
+                remove,
+                use_absolute_path,
+                dry_run,
+            };
+            let results = run_setup_mcp(&options)?;
+            print!("{}", format_setup_report(&results));
+            Ok(())
+        }
+
+        Some(Commands::Init {
+            ide,
+            custom_path,
+            workspace,
+            workspace_dir,
+            use_absolute_path,
+            dry_run,
+        }) => {
+            let options = SetupMcpOptions {
+                ide,
+                custom_path,
+                workspace,
+                workspace_dir,
+                remove: false,
+                use_absolute_path,
+                dry_run,
+            };
+            let results = run_setup_mcp(&options)?;
+            print!("{}", format_setup_report(&results));
+            Ok(())
         }
 
         None => {
