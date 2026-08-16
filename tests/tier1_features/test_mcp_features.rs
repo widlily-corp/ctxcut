@@ -193,7 +193,7 @@ fn test_mcp_unknown_tool_error_handling() {
     client.initialize().expect("MCP initialize must succeed");
 
     // Act
-    let res = client.call_tool("non_existent_tool", json!({}));
+    let _res = client.call_tool("non_existent_tool", json!({}));
 
     // Assert
     // Subsequent valid call must still work, proving server did not crash
