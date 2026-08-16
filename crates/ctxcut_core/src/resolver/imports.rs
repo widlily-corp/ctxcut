@@ -30,15 +30,19 @@ impl ImportResolver {
                 let specifier = child
                     .child_by_field_name("source")
                     .map(|s| AstUtils::node_text(s, source).trim_matches(['\'', '"', '`']))
+                    .or_else(|| {
+                        AstUtils::find_descendants_by_kind(child, "string")
+                            .first()
+                            .map(|s| AstUtils::node_text(*s, source).trim_matches(['\'', '"', '`']))
+                    })
                     .unwrap_or("");
 
                 if specifier.is_empty() {
                     continue;
                 }
 
-                // Check import clause
-                if let Some(clause) = child.child_by_field_name("import_clause") {
-                    // Default import: import Foo from './foo'
+                // Default import: import Foo from './foo'
+                for clause in AstUtils::find_children_by_kind(child, "import_clause") {
                     if let Some(first_child) = clause.named_child(0) {
                         if first_child.kind() == "identifier" {
                             let name = AstUtils::node_text(first_child, source).to_string();
@@ -52,50 +56,50 @@ impl ImportResolver {
                             );
                         }
                     }
+                }
 
-                    // Named imports: import { A, B as C } from './foo'
-                    for named in AstUtils::find_descendants_by_kind(clause, "import_specifier") {
-                        let name_node = named.child_by_field_name("name").or_else(|| named.named_child(0));
-                        let alias_node = named.child_by_field_name("alias").or_else(|| {
-                            if named.named_child_count() > 1 {
-                                named.named_child(1)
-                            } else {
-                                None
-                            }
-                        });
-
-                        if let Some(name_n) = name_node {
-                            let orig_name = AstUtils::node_text(name_n, source).to_string();
-                            let local_name = if let Some(alias_n) = alias_node {
-                                AstUtils::node_text(alias_n, source).to_string()
-                            } else {
-                                orig_name.clone()
-                            };
-
-                            map.insert(
-                                local_name.clone(),
-                                ImportMapping {
-                                    local_name,
-                                    imported_name: orig_name,
-                                    specifier: specifier.to_string(),
-                                },
-                            );
+                // Named imports: import { A, B as C } from './foo'
+                for named in AstUtils::find_descendants_by_kind(child, "import_specifier") {
+                    let name_node = named.child_by_field_name("name").or_else(|| named.named_child(0));
+                    let alias_node = named.child_by_field_name("alias").or_else(|| {
+                        if named.named_child_count() > 1 {
+                            named.named_child(1)
+                        } else {
+                            None
                         }
+                    });
+
+                    if let Some(name_n) = name_node {
+                        let orig_name = AstUtils::node_text(name_n, source).to_string();
+                        let local_name = if let Some(alias_n) = alias_node {
+                            AstUtils::node_text(alias_n, source).to_string()
+                        } else {
+                            orig_name.clone()
+                        };
+
+                        map.insert(
+                            local_name.clone(),
+                            ImportMapping {
+                                local_name,
+                                imported_name: orig_name,
+                                specifier: specifier.to_string(),
+                            },
+                        );
                     }
+                }
 
-                    // Namespace import: import * as Ns from './foo'
-                    for ns in AstUtils::find_descendants_by_kind(clause, "namespace_import") {
-                        if let Some(id) = ns.named_child(0) {
-                            let ns_name = AstUtils::node_text(id, source).to_string();
-                            map.insert(
-                                ns_name.clone(),
-                                ImportMapping {
-                                    local_name: ns_name.clone(),
-                                    imported_name: "*".to_string(),
-                                    specifier: specifier.to_string(),
-                                },
-                            );
-                        }
+                // Namespace import: import * as Ns from './foo'
+                for ns in AstUtils::find_descendants_by_kind(child, "namespace_import") {
+                    if let Some(id) = ns.named_child(0) {
+                        let ns_name = AstUtils::node_text(id, source).to_string();
+                        map.insert(
+                            ns_name.clone(),
+                            ImportMapping {
+                                local_name: ns_name.clone(),
+                                imported_name: "*".to_string(),
+                                specifier: specifier.to_string(),
+                            },
+                        );
                     }
                 }
             }
@@ -106,13 +110,13 @@ impl ImportResolver {
 
     /// Resolves a module specifier to an existing file path on disk.
     pub fn resolve_module_path(from_file: &Path, specifier: &str) -> Option<PathBuf> {
-        // Only relative and absolute file paths are resolved locally
         if !specifier.starts_with('.') && !specifier.starts_with('/') && !specifier.starts_with('\\') {
             return None;
         }
 
         let parent_dir = from_file.parent().unwrap_or_else(|| Path::new("."));
-        let base_path = parent_dir.join(specifier);
+        let joined = parent_dir.join(specifier);
+        let base_path = normalize_path(&joined);
 
         // 1. Direct path exists
         if base_path.is_file() {
@@ -126,7 +130,6 @@ impl ImportResolver {
             if candidate.is_file() {
                 return Some(candidate);
             }
-            // In case specifier had dots like `foo.service`
             let candidate_str = format!("{}.{}", base_path.display(), ext);
             let candidate_path = PathBuf::from(candidate_str);
             if candidate_path.is_file() {
@@ -157,6 +160,11 @@ impl ImportResolver {
                 let specifier = child
                     .child_by_field_name("source")
                     .map(|s| AstUtils::node_text(s, source).trim_matches(['\'', '"', '`']))
+                    .or_else(|| {
+                        AstUtils::find_descendants_by_kind(child, "string")
+                            .first()
+                            .map(|s| AstUtils::node_text(*s, source).trim_matches(['\'', '"', '`']))
+                    })
                     .unwrap_or("");
 
                 if specifier.is_empty() {
@@ -196,4 +204,18 @@ impl ImportResolver {
 
         reexports
     }
+}
+
+fn normalize_path(path: &Path) -> PathBuf {
+    let mut components = Vec::new();
+    for comp in path.components() {
+        match comp {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                components.pop();
+            }
+            c => components.push(c),
+        }
+    }
+    components.into_iter().collect()
 }

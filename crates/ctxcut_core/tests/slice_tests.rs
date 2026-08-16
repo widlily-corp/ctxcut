@@ -2,8 +2,7 @@
 
 use std::path::PathBuf;
 use ctxcut_core::{
-    ContextSlicer, CoreError, JsonFormatter, MarkdownFormatter, SliceOptions, SliceResult,
-    SupportedLanguage, TokenCounter,
+    ContextSlicer, CoreError, SliceOptions, SliceResult, SupportedLanguage,
 };
 
 fn fixture_path(rel: &str) -> PathBuf {

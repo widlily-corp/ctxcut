@@ -54,7 +54,13 @@ impl LanguageAdapter for TypeScriptAdapter {
         symbol_query: &str,
         file_path: &Path,
     ) -> Result<(ExtractedSymbol, Node<'a>)> {
-        let lang_name = self.language_variant.as_str();
+        let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        let lang_name = match ext.to_lowercase().as_str() {
+            "tsx" => "tsx",
+            "jsx" => "jsx",
+            "js" | "mjs" | "cjs" => "javascript",
+            _ => "typescript",
+        };
         SymbolLocator::locate(root, source, symbol_query, file_path, lang_name)
     }
 
