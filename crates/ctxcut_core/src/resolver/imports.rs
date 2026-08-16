@@ -55,8 +55,14 @@ impl ImportResolver {
 
                     // Named imports: import { A, B as C } from './foo'
                     for named in AstUtils::find_descendants_by_kind(clause, "import_specifier") {
-                        let name_node = named.child_by_field_name("name");
-                        let alias_node = named.child_by_field_name("alias");
+                        let name_node = named.child_by_field_name("name").or_else(|| named.named_child(0));
+                        let alias_node = named.child_by_field_name("alias").or_else(|| {
+                            if named.named_child_count() > 1 {
+                                named.named_child(1)
+                            } else {
+                                None
+                            }
+                        });
 
                         if let Some(name_n) = name_node {
                             let orig_name = AstUtils::node_text(name_n, source).to_string();
@@ -158,17 +164,27 @@ impl ImportResolver {
                 }
 
                 // Check for wildcard `export * from './sub'`
-                let has_star = child.named_children(&mut child.walk()).any(|c| c.kind() == "asterisk");
-                if has_star || child.child_by_field_name("declaration").is_none() && AstUtils::find_descendants_by_kind(child, "export_specifier").is_empty() {
+                let has_star = child.children(&mut child.walk()).any(|c| c.kind() == "*" || c.kind() == "asterisk");
+                let has_no_specs = AstUtils::find_descendants_by_kind(child, "export_specifier").is_empty();
+                if has_star || (child.child_by_field_name("declaration").is_none() && has_no_specs) {
                     reexports.push((None, specifier.to_string()));
                 }
 
                 // Check for named re-exports: `export { A, B as C } from './sub'`
                 for spec in AstUtils::find_descendants_by_kind(child, "export_specifier") {
-                    if let Some(name_node) = spec.child_by_field_name("name") {
-                        let orig_name = AstUtils::node_text(name_node, source).to_string();
-                        let exported_name = if let Some(alias_node) = spec.child_by_field_name("alias") {
-                            AstUtils::node_text(alias_node, source).to_string()
+                    let name_node = spec.child_by_field_name("name").or_else(|| spec.named_child(0));
+                    let alias_node = spec.child_by_field_name("alias").or_else(|| {
+                        if spec.named_child_count() > 1 {
+                            spec.named_child(1)
+                        } else {
+                            None
+                        }
+                    });
+
+                    if let Some(name_n) = name_node {
+                        let orig_name = AstUtils::node_text(name_n, source).to_string();
+                        let exported_name = if let Some(alias_n) = alias_node {
+                            AstUtils::node_text(alias_n, source).to_string()
                         } else {
                             orig_name
                         };
