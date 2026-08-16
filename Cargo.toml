@@ -26,6 +26,52 @@ ctxcut_cli = { workspace = true }
 ctxcut_mcp = { workspace = true }
 anyhow = { workspace = true }
 
+[dev-dependencies]
+criterion = { workspace = true }
+tree-sitter = { workspace = true }
+tree-sitter-typescript = { workspace = true }
+tree-sitter-javascript = { workspace = true }
+tree-sitter-python = { workspace = true }
+tree-sitter-go = { workspace = true }
+tree-sitter-rust = { workspace = true }
+insta = { workspace = true }
+tempfile = { workspace = true }
+tiktoken-rs = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[[test]]
+name = "tier1"
+path = "tests/tier1.rs"
+
+[[test]]
+name = "tier2"
+path = "tests/tier2.rs"
+
+[[test]]
+name = "tier3"
+path = "tests/tier3.rs"
+
+[[test]]
+name = "tier4"
+path = "tests/tier4.rs"
+
+[[bench]]
+name = "parse_benchmark"
+harness = false
+
+[[bench]]
+name = "extraction_benchmark"
+harness = false
+
+[[bench]]
+name = "hoisting_benchmark"
+harness = false
+
+[[bench]]
+name = "e2e_slice_benchmark"
+harness = false
+
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
@@ -44,6 +90,9 @@ ctxcut_mcp = { path = "crates/ctxcut_mcp", version = "0.1.0" }
 tree-sitter = "0.24"
 tree-sitter-typescript = "0.23"
 tree-sitter-javascript = "0.23"
+tree-sitter-python = "0.23"
+tree-sitter-go = "0.23"
+tree-sitter-rust = "0.23"
 
 # Tokenization & Serialization
 tiktoken-rs = "0.6"

@@ -9,7 +9,7 @@ use criterion::{
 };
 use ctxcut_core::{ContextSlicer, SliceOptions};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 fn ensure_benchmark_fixtures() -> Vec<(&'static str, PathBuf, &'static str)> {
     let tmp_dir = std::env::temp_dir().join("ctxcut_bench_fixtures");
