@@ -373,6 +373,7 @@ dependencies = [
  "insta",
  "serde",
  "serde_json",
+ "streaming-iterator",
  "tempfile",
  "tiktoken-rs",
  "tree-sitter",

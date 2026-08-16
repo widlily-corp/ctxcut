@@ -6,6 +6,7 @@
 use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput,
 };
+use streaming_iterator::StreamingIterator;
 use tree_sitter::{Node, Parser, Query, QueryCursor};
 
 fn find_symbol_by_query<'a>(
@@ -17,7 +18,7 @@ fn find_symbol_by_query<'a>(
     let mut cursor = QueryCursor::new();
     let mut matches = cursor.matches(query, root, source);
 
-    while let Some(m) = matches.next_mut() {
+    while let Some(m) = matches.next() {
         for capture in m.captures {
             let captured_text = &source[capture.node.byte_range()];
             if captured_text == target_name.as_bytes() {
