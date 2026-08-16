@@ -1,11 +1,7 @@
 //! Integration tests for `ctxcut_cli::setup_mcp` module.
 
 use std::fs;
-use std::path::PathBuf;
-use ctxcut_cli::setup_mcp::{
-    get_ide_config_paths, safe_merge_json, setup_ide_mcp, IdeTarget, MergeStatus,
-    SetupMcpOptions, SetupResult,
-};
+use ctxcut_cli::setup_mcp::{safe_merge_json, MergeStatus};
 use serde_json::{json, Value};
 use tempfile::{tempdir, NamedTempFile};
 

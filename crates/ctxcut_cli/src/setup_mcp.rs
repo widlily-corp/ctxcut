@@ -5,6 +5,7 @@
 //! and VS Code / Cline / Roo Code.
 
 use std::fmt;
+use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -351,7 +352,8 @@ pub fn safe_merge_json(
         }
     };
 
-    let formatted = serde_json::to_string_pretty(&root)? + "\n";
+    let mut formatted = serde_json::to_string_pretty(&root)?;
+    formatted.push('\n');
 
     // Atomic write via temporary file
     let tmp_path = format!("{}.tmp.{}", path.display(), std::process::id());
@@ -594,20 +596,21 @@ pub fn get_roo_code_settings_path() -> Option<PathBuf> {
 /// Formats setup results into a terminal table.
 pub fn format_setup_report(results: &[SetupResult]) -> String {
     let mut out = String::new();
-    out.push_str("\n");
+    out.push('\n');
     out.push_str(&"=".repeat(80));
-    out.push_str("\n");
+    out.push('\n');
     out.push_str("                       CTXCUT IDE MCP CONFIGURATOR                      \n");
     out.push_str(&"=".repeat(80));
-    out.push_str("\n");
-    out.push_str(&format!(
+    out.push('\n');
+    let _ = write!(
+        out,
         " {:<22} {:<16} {}\n",
         "TARGET IDE".bold(),
         "STATUS".bold(),
         "CONFIG PATH".bold()
-    ));
+    );
     out.push_str(&"-".repeat(80));
-    out.push_str("\n");
+    out.push('\n');
 
     let mut created_count = 0;
     let mut updated_count = 0;
@@ -643,27 +646,29 @@ pub fn format_setup_report(results: &[SetupResult]) -> String {
             }
         };
 
-        out.push_str(&format!(
-            " {:<22} {:<16} {}\n",
+        let _ = writeln!(
+            out,
+            " {:<22} {:<16} {}",
             res.ide_name,
             status_str,
             res.config_path.display()
-        ));
+        );
     }
 
     out.push_str(&"-".repeat(80));
-    out.push_str("\n");
-    out.push_str(&format!(
-        " Summary: {} targets processed ({} configured, {} updated, {} up-to-date, {} removed, {} failed)\n",
+    out.push('\n');
+    let _ = writeln!(
+        out,
+        " Summary: {} targets processed ({} configured, {} updated, {} up-to-date, {} removed, {} failed)",
         results.len(),
         created_count,
         updated_count,
         up_to_date_count,
         removed_count,
         failed_count
-    ));
+    );
     out.push_str(&"=".repeat(80));
-    out.push_str("\n");
+    out.push('\n');
 
     out
 }
