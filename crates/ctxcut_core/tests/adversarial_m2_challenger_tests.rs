@@ -13,7 +13,6 @@
 //! 4. Token reduction invariant verification
 
 use std::fs;
-use std::path::Path;
 use tempfile::tempdir;
 use ctxcut_core::model::SliceOptions;
 use ctxcut_core::slice::ContextSlicer;
@@ -585,7 +584,7 @@ def entry_point(root: ModelA) -> ModelC:
 
     // 2. Go 3-way circular types: NodeA -> NodeB -> NodeC -> NodeA
     let go_file = dir.path().join("cycle_3way.go");
-    let go_code = r#"package cycle
+    let go_code = r"package cycle
 
 type NodeC struct {
     ToA *NodeA
@@ -602,12 +601,12 @@ type NodeA struct {
 func TraverseCycle(start *NodeA) *NodeC {
     return start.ToB.ToC
 }
-"#;
+";
     fs::write(&go_file, go_code).expect("write go cycle");
 
     // 3. Rust 3-way circular types: StructA -> StructB -> StructC -> StructA
     let rs_file = dir.path().join("cycle_3way.rs");
-    let rs_code = r#"pub struct StructC {
+    let rs_code = r"pub struct StructC {
     pub a: Option<Box<StructA>>,
 }
 
@@ -622,7 +621,7 @@ pub struct StructA {
 pub fn traverse_cycle(start: &StructA) -> &StructC {
     &start.b.c
 }
-"#;
+";
     fs::write(&rs_file, rs_code).expect("write rs cycle");
 
     let slicer = ContextSlicer::new();
@@ -638,7 +637,7 @@ pub fn traverse_cycle(start: &StructA) -> &StructC {
     assert!(py_hoisted.contains(&"ModelA") && py_hoisted.contains(&"ModelB") && py_hoisted.contains(&"ModelC"));
     // Ensure no duplicates
     let mut py_dedup = py_hoisted.clone();
-    py_dedup.sort();
+    py_dedup.sort_unstable();
     py_dedup.dedup();
     assert_eq!(py_hoisted.len(), py_dedup.len(), "Python hoisted types must have no duplicates");
 
@@ -647,7 +646,7 @@ pub fn traverse_cycle(start: &StructA) -> &StructC {
     let go_hoisted: Vec<&str> = go_res.hoisted_types.iter().map(|t| t.name.as_str()).collect();
     assert!(go_hoisted.contains(&"NodeA") && go_hoisted.contains(&"NodeB") && go_hoisted.contains(&"NodeC"));
     let mut go_dedup = go_hoisted.clone();
-    go_dedup.sort();
+    go_dedup.sort_unstable();
     go_dedup.dedup();
     assert_eq!(go_hoisted.len(), go_dedup.len(), "Go hoisted types must have no duplicates");
 
@@ -656,7 +655,7 @@ pub fn traverse_cycle(start: &StructA) -> &StructC {
     let rs_hoisted: Vec<&str> = rs_res.hoisted_types.iter().map(|t| t.name.as_str()).collect();
     assert!(rs_hoisted.contains(&"StructA") && rs_hoisted.contains(&"StructB") && rs_hoisted.contains(&"StructC"));
     let mut rs_dedup = rs_hoisted.clone();
-    rs_dedup.sort();
+    rs_dedup.sort_unstable();
     rs_dedup.dedup();
     assert_eq!(rs_hoisted.len(), rs_dedup.len(), "Rust hoisted types must have no duplicates");
 }
@@ -669,8 +668,9 @@ fn test_adversarial_signature_stripping_body_isolation() {
     let rs_file = dir.path().join("massive_body.rs");
     let mut rs_code = String::from("pub fn complex_external_worker(x: i32, y: i32) -> Result<i32, String> {\n");
     for i in 0..100 {
-        rs_code.push_str(&format!("    let v{i} = x + y + {i};\n"));
-        rs_code.push_str(&format!("    if v{i} % 2 == 0 {{ println!(\"even {i}\"); }}\n"));
+        use std::fmt::Write;
+        let _ = write!(rs_code, "    let v{i} = x + y + {i};\n");
+        let _ = write!(rs_code, "    if v{i} % 2 == 0 {{ println!(\"even {i}\"); }}\n");
     }
     rs_code.push_str("    Ok(x + y)\n}\n\n");
     rs_code.push_str("pub fn caller_target(a: i32, b: i32) -> i32 {\n    complex_external_worker(a, b).unwrap_or(0)\n}\n");
@@ -704,12 +704,12 @@ fn test_adversarial_python_cross_file_transitive_hoisting() {
     // models.py
     fs::write(
         root.join("models.py"),
-        r#"from .types import PriorityTier
+        r"from .types import PriorityTier
 
 class UserAccount:
     id: str
     tier: PriorityTier
-"#,
+",
     )
     .expect("write models.py");
 
@@ -729,11 +729,11 @@ class PriorityTier(str, Enum):
     let main_py = root.join("main.py");
     fs::write(
         &main_py,
-        r#"from .models import UserAccount
+        r"from .models import UserAccount
 
 def process_account(acc: UserAccount) -> bool:
     return True
-"#,
+",
     )
     .expect("write main.py");
 
@@ -763,24 +763,24 @@ fn test_adversarial_rust_cross_file_transitive_hoisting() {
     // types.rs
     fs::write(
         root.join("types.rs"),
-        r#"pub enum DeviceKind {
+        r"pub enum DeviceKind {
     Mobile,
     Desktop,
 }
-"#,
+",
     )
     .expect("write types.rs");
 
     // models.rs
     fs::write(
         root.join("models.rs"),
-        r#"use crate::types::DeviceKind;
+        r"use crate::types::DeviceKind;
 
 pub struct DeviceSession {
     pub session_id: String,
     pub kind: DeviceKind,
 }
-"#,
+",
     )
     .expect("write models.rs");
 
@@ -788,7 +788,7 @@ pub struct DeviceSession {
     let service_rs = root.join("service.rs");
     fs::write(
         &service_rs,
-        r#"use crate::models::DeviceSession;
+        r"use crate::models::DeviceSession;
 
 pub struct SessionService;
 
@@ -797,7 +797,7 @@ impl SessionService {
         true
     }
 }
-"#,
+",
     )
     .expect("write service.rs");
 
@@ -818,4 +818,5 @@ impl SessionService {
         hoisted
     );
 }
+
 
