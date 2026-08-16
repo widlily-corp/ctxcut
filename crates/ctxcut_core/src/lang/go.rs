@@ -517,14 +517,12 @@ fn extract_package_name(root: Node<'_>, source: &str) -> String {
 
 fn find_sibling_package_files(file_path: &Path, expected_pkg: &str) -> Vec<PathBuf> {
     let mut siblings = Vec::new();
-    let parent_dir = match file_path.parent() {
-        Some(p) => p,
-        None => return siblings,
+    let Some(parent_dir) = file_path.parent() else {
+        return siblings;
     };
 
-    let entries = match fs::read_dir(parent_dir) {
-        Ok(e) => e,
-        Err(_) => return siblings,
+    let Ok(entries) = fs::read_dir(parent_dir) else {
+        return siblings;
     };
 
     for entry in entries.flatten() {
@@ -548,7 +546,7 @@ fn find_sibling_package_files(file_path: &Path, expected_pkg: &str) -> Vec<PathB
     siblings
 }
 
-/// Checks if a type name is a Go built-in primitive or standard type.
+/// Returns true if the type name matches a Go built-in primitive or interface type.
 pub fn is_builtin_go_type(name: &str) -> bool {
     matches!(
         name,
@@ -577,7 +575,7 @@ pub fn is_builtin_go_type(name: &str) -> bool {
     )
 }
 
-/// Checks if a function name is a Go built-in function.
+/// Returns true if the identifier matches a Go built-in function.
 pub fn is_builtin_go_func(name: &str) -> bool {
     matches!(
         name,

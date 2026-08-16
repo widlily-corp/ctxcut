@@ -538,7 +538,7 @@ fn find_sibling_rust_modules(file_path: &Path) -> Vec<PathBuf> {
     siblings
 }
 
-/// Checks if a type name is a Rust primitive or standard library core type.
+/// Returns true if the identifier matches a known Rust primitive, std type, or trait.
 pub fn is_builtin_rust_type(name: &str) -> bool {
     matches!(
         name,
@@ -555,7 +555,7 @@ pub fn is_builtin_rust_type(name: &str) -> bool {
     )
 }
 
-/// Checks if a method or macro name is a Rust standard library built-in method or common utility.
+/// Returns true if the identifier matches a standard library method or macro.
 pub fn is_builtin_rust_method(name: &str) -> bool {
     matches!(
         name,
