@@ -15,3 +15,6 @@ mod test_mcp_chaining;
 
 #[path = "tier3_cross_feature/test_multi_symbol_clip.rs"]
 mod test_multi_symbol_clip;
+
+#[path = "tier3_cross_feature/test_installers.rs"]
+mod test_installers;

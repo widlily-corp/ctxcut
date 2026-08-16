@@ -1,0 +1,177 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to release (e.g. v0.1.0)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build-binaries:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: tar.gz
+            bin_name: ctxcut
+          - target: x86_64-apple-darwin
+            os: macos-13
+            archive: tar.gz
+            bin_name: ctxcut
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+            bin_name: ctxcut
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            archive: zip
+            bin_name: ctxcut.exe
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve Release Version
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VER="${{ github.event.inputs.version }}"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            VER="${GITHUB_REF#refs/tags/}"
+          else
+            VER="v$(grep -m1 '^version' Cargo.toml | cut -d '"' -f2)"
+          fi
+          # Ensure leading v prefix
+          if [[ "$VER" != v* ]]; then
+            VER="v$VER"
+          fi
+          echo "VERSION=$VER" >> $GITHUB_ENV
+          echo "Building ctxcut for target ${{ matrix.target }} at version $VER"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Strip binary (Linux & macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
+          strip target/${{ matrix.target }}/release/${{ matrix.bin_name }} || true
+
+      - name: Package release archive (Unix)
+        if: matrix.archive == 'tar.gz'
+        run: |
+          STAGE_DIR="stage-${{ matrix.target }}"
+          mkdir -p "$STAGE_DIR"
+          cp "target/${{ matrix.target }}/release/${{ matrix.bin_name }}" "$STAGE_DIR/"
+          cp README.md LICENSE "$STAGE_DIR/"
+          
+          # Versioned and unversioned archive names
+          ARCHIVE_VERSIONED="ctxcut-${{ env.VERSION }}-${{ matrix.target }}.tar.gz"
+          ARCHIVE_CANONICAL="ctxcut-${{ matrix.target }}.tar.gz"
+          
+          tar -czf "$ARCHIVE_VERSIONED" -C "$STAGE_DIR" .
+          cp "$ARCHIVE_VERSIONED" "$ARCHIVE_CANONICAL"
+          
+          shasum -a 256 "$ARCHIVE_VERSIONED" > "${ARCHIVE_VERSIONED}.sha256"
+          shasum -a 256 "$ARCHIVE_CANONICAL" > "${ARCHIVE_CANONICAL}.sha256"
+
+      - name: Package release archive (Windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          $StageDir = "stage-${{ matrix.target }}"
+          New-Item -ItemType Directory -Path $StageDir -Force | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/${{ matrix.bin_name }}" -Destination $StageDir
+          Copy-Item "README.md", "LICENSE" -Destination $StageDir
+          
+          $ArchiveVersioned = "ctxcut-${{ env.VERSION }}-${{ matrix.target }}.zip"
+          $ArchiveCanonical = "ctxcut-${{ matrix.target }}.zip"
+          
+          Compress-Archive -Path "$StageDir\*" -DestinationPath $ArchiveVersioned -Force
+          Copy-Item $ArchiveVersioned -Destination $ArchiveCanonical -Force
+          
+          $HashVersioned = (Get-FileHash -Path $ArchiveVersioned -Algorithm SHA256).Hash.ToLower()
+          "$HashVersioned  $ArchiveVersioned" | Out-File -FilePath "${ArchiveVersioned}.sha256" -Encoding ascii
+          
+          $HashCanonical = (Get-FileHash -Path $ArchiveCanonical -Algorithm SHA256).Hash.ToLower()
+          "$HashCanonical  $ArchiveCanonical" | Out-File -FilePath "${ArchiveCanonical}.sha256" -Encoding ascii
+
+      - name: Upload binary artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: assets-${{ matrix.target }}
+          path: |
+            ctxcut-${{ env.VERSION }}-${{ matrix.target }}.*
+            ctxcut-${{ matrix.target }}.*
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve Release Tag
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            TAG="${{ github.event.inputs.version }}"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="v$(grep -m1 '^version' Cargo.toml | cut -d '"' -f2)"
+          fi
+          if [[ "$TAG" != v* ]]; then
+            TAG="v$TAG"
+          fi
+          echo "RELEASE_TAG=$TAG" >> $GITHUB_ENV
+
+      - name: Download all built artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Generate consolidated checksums.txt
+        run: |
+          cd artifacts
+          cat *.sha256 | sort -u > checksums.txt
+          echo "Generated checksums:"
+          cat checksums.txt
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ctxcut ${{ env.RELEASE_TAG }}
+          files: |
+            artifacts/ctxcut-*.tar.gz
+            artifacts/ctxcut-*.zip
+            artifacts/ctxcut-*.sha256
+            artifacts/checksums.txt
+          generate_release_notes: true
+          draft: false
+          prerelease: false

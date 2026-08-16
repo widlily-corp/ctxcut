@@ -12,6 +12,7 @@ pub mod model;
 pub mod parser;
 pub mod resolver;
 pub mod slice;
+pub mod telemetry;
 pub mod tokenizer;
 
 pub use error::{CoreError, Result};
@@ -28,6 +29,11 @@ pub use resolver::{
     ImportMapping, ImportResolver, SignatureStripper, SymbolLocator, TypeHoister,
 };
 pub use slice::ContextSlicer;
+pub use telemetry::{
+    current_rfc3339_timestamp, format_rfc3339, LanguageMetric, ModelTierSavings, SourceMetric,
+    TelemetryEvent, TelemetryLogger, TelemetrySummary, ECONOMY_PRICE_PER_MILLION_TOKENS,
+    FRONTIER_PRICE_PER_MILLION_TOKENS, STANDARD_PRICE_PER_MILLION_TOKENS,
+};
 pub use tokenizer::{
     calculate_savings_percentage, count_lines, count_tokens, get_bpe_tokenizer, TokenCounter,
 };

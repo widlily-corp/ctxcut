@@ -57,6 +57,10 @@ path = "tests/tier3.rs"
 name = "tier4"
 path = "tests/tier4.rs"
 
+[[test]]
+name = "tier5"
+path = "tests/tier5.rs"
+
 [[bench]]
 name = "parse_benchmark"
 harness = false

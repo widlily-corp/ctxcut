@@ -11,7 +11,7 @@ use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 use anyhow::Result;
-use ctxcut_core::{ContextSlicer, MarkdownFormatter, SliceOptions};
+use ctxcut_core::{ContextSlicer, MarkdownFormatter, SliceOptions, TelemetryLogger};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -293,10 +293,15 @@ fn execute_symbol_slice(args: &Value) -> (Value, Option<Value>, Option<String>, 
         );
     };
 
+    let start_time = Instant::now();
     let slicer = ContextSlicer::new();
     let opts = SliceOptions::default();
     match slicer.slice_symbol(Path::new(file_path_str), symbol, &opts) {
         Ok(slice) => {
+            #[allow(clippy::cast_possible_truncation)]
+            let duration_ms = start_time.elapsed().as_millis() as u64;
+            TelemetryLogger::record_slice(&slice, "mcp_get_symbol_slice", Some(duration_ms));
+
             let raw_tokens = slice.stats.raw_file_tokens;
             let sliced_tokens = slice.stats.sliced_tokens;
             let saved_tokens = raw_tokens.saturating_sub(sliced_tokens);
@@ -330,8 +335,15 @@ fn execute_diff_slice(args: &Value) -> (Value, Option<Value>, Option<String>, Op
     let repo_path = path_opt.map(Path::new);
     let opts = SliceOptions::default();
 
+    let start_time = Instant::now();
     match ctxcut_cli::run_diff_slicer_in(repo_path, staged, &opts) {
         Ok(slices) => {
+            #[allow(clippy::cast_possible_truncation)]
+            let duration_ms = start_time.elapsed().as_millis() as u64;
+            for slice in &slices {
+                TelemetryLogger::record_slice(slice, "mcp_get_diff_slice", Some(duration_ms));
+            }
+
             let total_raw: usize = slices.iter().map(|s| s.stats.raw_file_tokens).sum();
             let total_sliced: usize = slices.iter().map(|s| s.stats.sliced_tokens).sum();
             let total_saved: usize = total_raw.saturating_sub(total_sliced);

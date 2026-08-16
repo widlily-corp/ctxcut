@@ -11,8 +11,8 @@ Thumbs.db
 .agents/
 .teamwork/
 .system_generated/
-.telemetry/
-telemetry/
+/.telemetry/
+/telemetry/
 *.telemetry
 ORIGINAL_REQUEST.md
 TASK_ROUTING.md

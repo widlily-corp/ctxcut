@@ -1,10 +1,12 @@
 //! `ctxcut_cli` — Command-line interface for AST-based context slicing.
 
 pub mod diff;
+pub mod metrics;
 pub mod route;
 pub mod stats;
 
 pub use diff::{run_diff_slicer, run_diff_slicer_in};
+pub use metrics::{render_dashboard, run_metrics_command};
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -12,7 +14,7 @@ use anyhow::{bail, Context, Result};
 use arboard::Clipboard;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
-use ctxcut_core::{ContextSlicer, MarkdownFormatter, SliceOptions, SliceResult};
+use ctxcut_core::{ContextSlicer, MarkdownFormatter, SliceOptions, SliceResult, TelemetryLogger};
 
 /// High-performance AST-based context slicer for LLMs and AI coding agents.
 #[derive(Parser, Debug)]
@@ -90,11 +92,22 @@ pub enum Commands {
         format: String,
     },
 
-    /// Analyze repository or file token savings and optimization statistics.
+    /// Analyze repository or file token savings and optimization statistics, or view persistent history.
     Stats {
-        /// File or directory path to scan.
-        path: PathBuf,
+        /// File or directory path to scan (optional when --history is provided).
+        path: Option<PathBuf>,
 
+        /// Output format (text or json).
+        #[arg(long, default_value = "text")]
+        format: String,
+
+        /// Display persistent lifetime telemetry history and ROI dashboard.
+        #[arg(long)]
+        history: bool,
+    },
+
+    /// Display persistent lifetime token savings and ROI metrics dashboard.
+    Metrics {
         /// Output format (text or json).
         #[arg(long, default_value = "text")]
         format: String,
@@ -178,6 +191,10 @@ where
             let opts = SliceOptions::default();
             let results = run_diff_slicer(staged, &opts)?;
 
+            for slice in &results {
+                TelemetryLogger::record_slice(slice, "cli_diff", None);
+            }
+
             if results.is_empty() {
                 println!("No modified symbols detected in git diff.");
             } else {
@@ -186,13 +203,28 @@ where
             Ok(())
         }
 
-        Some(Commands::Stats { path, format }) => {
-            let report = stats::calculate_stats(&path)?;
-            if format.eq_ignore_ascii_case("json") {
-                println!("{}", serde_json::to_string_pretty(&report)?);
+        Some(Commands::Stats {
+            path,
+            format,
+            history,
+        }) => {
+            if history {
+                run_metrics_command(&format)?;
+            } else if let Some(target_path) = path {
+                let report = stats::calculate_stats(&target_path)?;
+                if format.eq_ignore_ascii_case("json") {
+                    println!("{}", serde_json::to_string_pretty(&report)?);
+                } else {
+                    println!("{}", stats::format_stats_text(&report));
+                }
             } else {
-                println!("{}", stats::format_stats_text(&report));
+                bail!("Missing required argument `<PATH>`. Usage: `ctxcut stats <PATH>` or `ctxcut stats --history`");
             }
+            Ok(())
+        }
+
+        Some(Commands::Metrics { format }) => {
+            run_metrics_command(&format)?;
             Ok(())
         }
 
@@ -206,6 +238,7 @@ where
             let opts = SliceOptions::default();
             let current_dir = std::env::current_dir()?;
             let result = route::resolve_route_slice(&current_dir, &method, &route_path, &opts)?;
+            TelemetryLogger::record_slice(&result, "cli_route", None);
             handle_output(&[result], &format, clip, output.as_deref())
         }
 
@@ -250,7 +283,11 @@ fn handle_slice_command(target: &str, opts: &SliceOptions) -> Result<Vec<SliceRe
     }
 
     let slicer = ContextSlicer::new();
-    Ok(slicer.slice_symbols(file_path, &symbols, opts)?)
+    let results = slicer.slice_symbols(file_path, &symbols, opts)?;
+    for slice in &results {
+        TelemetryLogger::record_slice(slice, "cli_slice", None);
+    }
+    Ok(results)
 }
 
 fn handle_output(
