@@ -137,7 +137,7 @@ fn bench_tree_sitter_parsing(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(ts_source.len() as u64));
 
         let mut parser = Parser::new();
-        let lang = tree_sitter_typescript::language_typescript();
+        let lang: tree_sitter::Language = tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into();
         parser.set_language(&lang).expect("Error loading TypeScript grammar");
 
         group.bench_with_input(
@@ -158,7 +158,7 @@ fn bench_tree_sitter_parsing(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(py_source.len() as u64));
 
         let mut parser = Parser::new();
-        let lang = tree_sitter_python::language();
+        let lang: tree_sitter::Language = tree_sitter_python::LANGUAGE.into();
         parser.set_language(&lang).expect("Error loading Python grammar");
 
         group.bench_with_input(
@@ -179,7 +179,7 @@ fn bench_tree_sitter_parsing(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(go_source.len() as u64));
 
         let mut parser = Parser::new();
-        let lang = tree_sitter_go::language();
+        let lang: tree_sitter::Language = tree_sitter_go::LANGUAGE.into();
         parser.set_language(&lang).expect("Error loading Go grammar");
 
         group.bench_with_input(
@@ -200,7 +200,7 @@ fn bench_tree_sitter_parsing(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(rs_source.len() as u64));
 
         let mut parser = Parser::new();
-        let lang = tree_sitter_rust::language();
+        let lang: tree_sitter::Language = tree_sitter_rust::LANGUAGE.into();
         parser.set_language(&lang).expect("Error loading Rust grammar");
 
         group.bench_with_input(

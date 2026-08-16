@@ -17,7 +17,7 @@ fn find_symbol_by_query<'a>(
     let mut cursor = QueryCursor::new();
     let mut matches = cursor.matches(query, root, source);
 
-    while let Some(m) = matches.next() {
+    while let Some(m) = matches.next_mut() {
         for capture in m.captures {
             let captured_text = &source[capture.node.byte_range()];
             if captured_text == target_name.as_bytes() {
@@ -77,7 +77,7 @@ fn bench_ast_extraction(c: &mut Criterion) {
     {
         let (ts_code, ts_symbols) = generate_ts_suite(200);
         let mut parser = Parser::new();
-        let lang = tree_sitter_typescript::language_typescript();
+        let lang: tree_sitter::Language = tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into();
         parser.set_language(&lang).expect("Error loading TypeScript grammar");
         let tree = parser.parse(&ts_code, None).expect("Parse error");
         let query = Query::new(&lang, "(function_declaration name: (identifier) @name)")
@@ -116,7 +116,7 @@ fn bench_ast_extraction(c: &mut Criterion) {
     {
         let (rs_code, rs_symbols) = generate_rust_suite(200);
         let mut parser = Parser::new();
-        let lang = tree_sitter_rust::language();
+        let lang: tree_sitter::Language = tree_sitter_rust::LANGUAGE.into();
         parser.set_language(&lang).expect("Error loading Rust grammar");
         let tree = parser.parse(&rs_code, None).expect("Parse error");
         let query = Query::new(&lang, "(function_item name: (identifier) @name)")
