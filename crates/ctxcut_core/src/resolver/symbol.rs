@@ -35,11 +35,6 @@ impl SymbolLocator {
             if let Some((sym, node)) = Self::find_any_method(root, source, member_query, file_path, language) {
                 return Ok((sym, node));
             }
-
-            // 4. Source-level resilient fallback for files with severe syntax corruption
-            if let Some(sym) = fallback_source_scan(source, member_query, file_path, language) {
-                return Ok((sym, root));
-            }
         }
 
         let available = Self::list_all_symbols(root, source);
@@ -306,6 +301,10 @@ fn fallback_source_scan(
     file_path: &Path,
     language: &str,
 ) -> Option<ExtractedSymbol> {
+    if target_name.trim().is_empty() {
+        return None;
+    }
+
     let patterns = [
         format!("function {target_name}"),
         format!("async function {target_name}"),
