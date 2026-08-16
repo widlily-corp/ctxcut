@@ -396,7 +396,32 @@ fn build_extracted_symbol(
         .unwrap_or_else(|| "anonymous".to_string());
 
     let body = AstUtils::node_text(full_node, source).to_string();
-    let doc_comment = AstUtils::extract_doc_comment(full_node, source);
+    let mut doc_comment = AstUtils::extract_doc_comment(full_node, source);
+    if doc_comment.is_none() {
+        if let Some(body_node) = decl.child_by_field_name("body") {
+            if let Some(first_stmt) = body_node.named_children(&mut body_node.walk()).next() {
+                if first_stmt.kind() == "expression_statement" {
+                    if let Some(str_node) = first_stmt.named_children(&mut first_stmt.walk()).next() {
+                        if str_node.kind() == "string" {
+                            let text = AstUtils::node_text(str_node, source).trim();
+                            let unquoted = if let Some(s) = text.strip_prefix("\"\"\"").and_then(|s| s.strip_suffix("\"\"\"")) {
+                                s.trim()
+                            } else if let Some(s) = text.strip_prefix("'''").and_then(|s| s.strip_suffix("'''")) {
+                                s.trim()
+                            } else if let Some(s) = text.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
+                                s.trim()
+                            } else if let Some(s) = text.strip_prefix('\'').and_then(|s| s.strip_suffix('\'')) {
+                                s.trim()
+                            } else {
+                                text
+                            };
+                            doc_comment = Some(unquoted.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
     let signature = extract_python_sig(decl, source);
 
     ExtractedSymbol {
