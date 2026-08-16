@@ -125,7 +125,7 @@ impl AstUtils {
 
                 if sibling_end <= next_start {
                     let gap = &source[sibling_end..next_start];
-                    if gap.chars().all(|c| c.is_whitespace()) {
+                    if gap.chars().all(char::is_whitespace) {
                         comments.push(sibling);
                         prev = sibling.prev_named_sibling();
                         continue;

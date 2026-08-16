@@ -1,5 +1,6 @@
 //! Markdown formatter for generating prompt-optimized context slices.
 
+use std::fmt::Write;
 use crate::model::SliceResult;
 
 /// Formats AST slice results into prompt-optimized Markdown documents for LLMs.
@@ -15,20 +16,21 @@ impl MarkdownFormatter {
         let stats = &result.stats;
 
         // Header section with metadata
-        out.push_str(&format!("### Context Slice: `{}:{}`\n", sym.file_path, sym.name));
-        out.push_str(&format!(
-            "*Language: `{}` | Lines: `{}` (was `{}`) | Tokens: `{}` (was `{}`) | Savings: `{:.1}%`*\n\n",
+        let _ = writeln!(out, "### Context Slice: `{}:{}`", sym.file_path, sym.name);
+        let _ = writeln!(
+            out,
+            "*Language: `{}` | Lines: `{}` (was `{}`) | Tokens: `{}` (was `{}`) | Savings: `{:.1}%`*\n",
             sym.language,
             stats.sliced_lines,
             stats.raw_lines,
             stats.sliced_tokens,
             stats.raw_file_tokens,
             stats.savings_percentage
-        ));
+        );
 
         // Section 1: Target Implementation
         out.push_str("#### 1. Target Implementation (Full Body)\n");
-        out.push_str(&format!("```{}\n", lang_tag));
+        let _ = writeln!(out, "```{lang_tag}");
         if let Some(ref doc) = sym.doc_comment {
             let trimmed_doc = doc.trim();
             if !trimmed_doc.is_empty() {
@@ -44,7 +46,7 @@ impl MarkdownFormatter {
         if result.hoisted_types.is_empty() {
             out.push_str("*None*\n\n");
         } else {
-            out.push_str(&format!("```{}\n", lang_tag));
+            let _ = writeln!(out, "```{lang_tag}");
             for (idx, ty) in result.hoisted_types.iter().enumerate() {
                 if idx > 0 {
                     out.push_str("\n\n");
@@ -59,7 +61,7 @@ impl MarkdownFormatter {
         if result.stripped_calls.is_empty() {
             out.push_str("*None*\n");
         } else {
-            out.push_str(&format!("```{}\n", lang_tag));
+            let _ = writeln!(out, "```{lang_tag}");
             for (idx, call) in result.stripped_calls.iter().enumerate() {
                 if idx > 0 {
                     out.push('\n');
@@ -76,7 +78,7 @@ impl MarkdownFormatter {
     pub fn format_batch(results: &[SliceResult]) -> String {
         results
             .iter()
-            .map(|r| r.to_markdown())
+            .map(SliceResult::to_markdown)
             .collect::<Vec<_>>()
             .join("\n\n---\n\n")
     }
