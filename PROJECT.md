@@ -95,8 +95,8 @@ ctxcut/
 
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Workspace Foundation & Core AST Engine (TS/JS) | Workspace root setup, `ctxcut_core` foundation, TS/JS tree-sitter parser, symbol locator, type hoister, signature stripper, markdown formatter, BPE token counter, core unit tests | none | IN_PROGRESS |
-| M2 | Multi-Language AST Support (Python, Go, Rust) | Language adapters for Python, Go, and Rust in `ctxcut_core`, grammar queries, language-specific hoisting & stripping rules, unit tests | M1 | PLANNED |
+| M1 | Workspace Foundation & Core AST Engine (TS/JS) | Workspace root setup, `ctxcut_core` foundation, TS/JS tree-sitter parser, symbol locator, type hoister, signature stripper, markdown formatter, BPE token counter, core unit tests | none | DONE |
+| M2 | Multi-Language AST Support (Python, Go, Rust) | Language adapters for Python, Go, and Rust in `ctxcut_core`, grammar queries, language-specific hoisting & stripping rules, unit tests | M1 | IN_PROGRESS |
 | M3 | CLI, Clipboard, Git Diff & Route Resolver | `crates/ctxcut_cli` (clap derive, `slice`, `diff`, `stats`, `route`), `arboard` clipboard, multi-framework route heuristics, `src/main.rs` | M2 | PLANNED |
 | M4 | Model Context Protocol (MCP) STDIO Server | `crates/ctxcut_mcp` (JSON-RPC 2.0 stdio server, tool schemas & handlers for `get_symbol_slice`, `get_diff_slice`, `analyze_token_stats`), `ctxcut mcp` | M3 | PLANNED |
 | M5 | Final Milestone Phase 1: E2E Test Suite Pass | Integrate test suite (Tiers 1-4), fix all edge cases, pass 100% of integration tests and golden snapshots | M4, TEST_READY | PLANNED |
