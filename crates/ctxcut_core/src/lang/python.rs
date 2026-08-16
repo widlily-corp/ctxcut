@@ -3,6 +3,7 @@
 use std::collections::{HashSet, VecDeque};
 use std::fs;
 use std::path::Path;
+use ignore::WalkBuilder;
 use tree_sitter::{Language, Node};
 use crate::error::{CoreError, Result};
 use crate::lang::LanguageAdapter;
@@ -148,7 +149,7 @@ impl LanguageAdapter for PythonAdapter {
                 continue;
             }
 
-            // 2. Search in directory and parent directories (multi-dot relative & package search)
+            // 2. Search recursively in parent directories
             let mut search_dirs = Vec::new();
             if let Some(p) = file_path.parent() {
                 search_dirs.push(p.to_path_buf());
@@ -163,27 +164,31 @@ impl LanguageAdapter for PythonAdapter {
 
             let mut found = false;
             for dir in search_dirs {
-                if let Ok(walker) = fs::read_dir(&dir) {
-                    for entry in walker.flatten() {
-                        let path = entry.path();
-                        if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("py") && path != file_path {
-                            if let Ok(sibling_src) = fs::read_to_string(&path) {
-                                if let Ok(sibling_tree) = ParserManager::parse_source(&sibling_src, &ts_lang, &path) {
-                                    if let Some(extracted) = find_class_or_type_in_file(sibling_tree.root_node(), &sibling_src, &type_name, &path) {
-                                        if depth < opts.depth {
-                                            if let Ok(tree) = ParserManager::parse_source(&extracted.definition, &ts_lang, &path) {
-                                                for id in AstUtils::find_descendants_by_kind(tree.root_node(), "identifier") {
-                                                    let name = AstUtils::node_text(id, &extracted.definition);
-                                                    if !is_builtin_python_type(name) && visited.insert(name.to_string()) {
-                                                        queue.push_back((name.to_string(), depth + 1));
-                                                    }
+                let walker = WalkBuilder::new(&dir)
+                    .hidden(true)
+                    .git_ignore(true)
+                    .max_depth(Some(4))
+                    .build();
+
+                for entry in walker.flatten() {
+                    let path = entry.path();
+                    if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("py") && path != file_path {
+                        if let Ok(sibling_src) = fs::read_to_string(path) {
+                            if let Ok(sibling_tree) = ParserManager::parse_source(&sibling_src, &ts_lang, path) {
+                                if let Some(extracted) = find_class_or_type_in_file(sibling_tree.root_node(), &sibling_src, &type_name, path) {
+                                    if depth < opts.depth {
+                                        if let Ok(tree) = ParserManager::parse_source(&extracted.definition, &ts_lang, path) {
+                                            for id in AstUtils::find_descendants_by_kind(tree.root_node(), "identifier") {
+                                                let name = AstUtils::node_text(id, &extracted.definition);
+                                                if !is_builtin_python_type(name) && visited.insert(name.to_string()) {
+                                                    queue.push_back((name.to_string(), depth + 1));
                                                 }
                                             }
                                         }
-                                        hoisted.push(extracted);
-                                        found = true;
-                                        break;
                                     }
+                                    hoisted.push(extracted);
+                                    found = true;
+                                    break;
                                 }
                             }
                         }
@@ -226,15 +231,21 @@ impl LanguageAdapter for PythonAdapter {
                         signature: sig,
                     });
                 } else {
-                    // Search in sibling files
+                    // Search recursively in parent directories
                     if let Some(parent) = file_path.parent() {
-                        if let Ok(entries) = fs::read_dir(parent) {
-                            for entry in entries.flatten() {
+                        let mut dirs = vec![parent.to_path_buf()];
+                        if let Some(grandparent) = parent.parent() {
+                            dirs.push(grandparent.to_path_buf());
+                        }
+
+                        for dir in dirs {
+                            let walker = WalkBuilder::new(&dir).max_depth(Some(3)).build();
+                            for entry in walker.flatten() {
                                 let path = entry.path();
                                 if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("py") && path != file_path {
-                                    if let Ok(sib_src) = fs::read_to_string(&path) {
-                                        let ts_lang = self.tree_sitter_language(&path);
-                                        if let Ok(tree) = ParserManager::parse_source(&sib_src, &ts_lang, &path) {
+                                    if let Ok(sib_src) = fs::read_to_string(path) {
+                                        let ts_lang = self.tree_sitter_language(path);
+                                        if let Ok(tree) = ParserManager::parse_source(&sib_src, &ts_lang, path) {
                                             if let Some(sig) = find_python_signature(tree.root_node(), &sib_src, call_name) {
                                                 stubs.push(CallSignatureStub {
                                                     name: call_name.to_string(),
@@ -460,7 +471,6 @@ fn build_extracted_symbol(
 
 fn strip_python_string_quotes(raw: &str) -> String {
     let s = raw.trim();
-    // Strip prefixes like r, u, b, f, rf, fr
     let without_prefix = if let Some(stripped) = s.strip_prefix("rf").or_else(|| s.strip_prefix("fr")) {
         stripped
     } else if let Some(stripped) = s.strip_prefix('r').or_else(|| s.strip_prefix('u')).or_else(|| s.strip_prefix('b')).or_else(|| s.strip_prefix('f')) {
