@@ -332,6 +332,30 @@ fn test_adversarial_tsx_components_and_generic_arrows() {
 }
 
 #[test]
+fn test_adversarial_overloads_and_abstract_classes() {
+    let slicer = warmup_engine();
+    let file = fixture_path("adversarial/advanced_patterns.ts");
+    let opts = SliceOptions::default();
+
+    // 1. Slicing overloaded function
+    let fn_res = slicer.slice_symbol(&file, "overloadedFn", &opts).expect("Failed to slice overloadedFn");
+    assert_eq!(fn_res.target_symbol.name, "overloadedFn");
+    assert_eq!(fn_res.target_symbol.kind, "function");
+    assert!(fn_res.target_symbol.body.contains("return x;"));
+
+    // 2. Slicing concrete class implementing abstract base
+    let worker_res = slicer.slice_symbol(&file, "ConcreteWorker.runTask", &opts).expect("Failed to slice ConcreteWorker.runTask");
+    assert_eq!(worker_res.target_symbol.name, "ConcreteWorker.runTask");
+    assert_eq!(worker_res.target_symbol.kind, "method");
+    assert!(worker_res.target_symbol.body.contains("this.#increment();"));
+
+    // 3. Slicing abstract class
+    let base_res = slicer.slice_symbol(&file, "AbstractBaseWorker", &opts).expect("Failed to slice AbstractBaseWorker");
+    assert_eq!(base_res.target_symbol.name, "AbstractBaseWorker");
+    assert_eq!(base_res.target_symbol.kind, "class");
+}
+
+#[test]
 fn test_adversarial_stress_performance_and_savings() {
     let slicer = warmup_engine();
     let fixtures = [
