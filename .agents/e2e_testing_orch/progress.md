@@ -1,5 +1,5 @@
 ## Current Status
-Last visited: 2026-08-16T06:09:05Z
+Last visited: 2026-08-16T06:10:05Z
 
 ## Iteration Status
 Current iteration: 1 / 32
@@ -18,9 +18,9 @@ Current iteration: 1 / 32
   - [x] Tier 3 Cross-Feature: `tests/tier3_cross_feature/` (multi-symbol clip, git diff route, mcp chaining - 10 tests)
   - [x] Tier 4 Real-World Workloads: `tests/tier4_real_world/` (ts ecommerce, py billing, go auth, rs inventory - 4 tests)
 - [ ] Milestone TM4: Verification, Review, Forensic Audit & TEST_READY.md publication
-  - [ ] Review by Reviewers (reviewer_1, reviewer_2)
-  - [ ] Verification by Challengers (challenger_1, challenger_2)
-  - [ ] Integrity Audit by Forensic Auditor (auditor_1)
+  - [ ] Review by Reviewers (reviewer_1: running, reviewer_2: running)
+  - [ ] Verification by Challengers (challenger_1: running, challenger_2: running)
+  - [ ] Integrity Audit by Forensic Auditor (auditor_1: running)
   - [ ] Gate evaluation (`GATE_STATUS.md`)
   - [ ] Publish `TEST_READY.md`
   - [ ] Report completion to parent
