@@ -387,8 +387,7 @@ fn find_any_method<'a>(
 fn build_rust_symbol(node: Node<'_>, source: &str, file_path: &Path, kind: &str) -> ExtractedSymbol {
     let name = node
         .child_by_field_name("name")
-        .map(|n| AstUtils::node_text(n, source).to_string())
-        .unwrap_or_else(|| "anonymous".to_string());
+        .map_or_else(|| "anonymous".to_string(), |n| AstUtils::node_text(n, source).to_string());
 
     let body = AstUtils::node_text(node, source).to_string();
     let doc_comment = AstUtils::extract_doc_comment(node, source);
@@ -515,14 +514,12 @@ fn find_local_rust_type(root: Node<'_>, source: &str, type_name: &str, file_path
 
 fn find_sibling_rust_modules(file_path: &Path) -> Vec<PathBuf> {
     let mut siblings = Vec::new();
-    let parent_dir = match file_path.parent() {
-        Some(p) => p,
-        None => return siblings,
+    let Some(parent_dir) = file_path.parent() else {
+        return siblings;
     };
 
-    let entries = match fs::read_dir(parent_dir) {
-        Ok(e) => e,
-        Err(_) => return siblings,
+    let Ok(entries) = fs::read_dir(parent_dir) else {
+        return siblings;
     };
 
     for entry in entries.flatten() {
