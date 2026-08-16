@@ -42,6 +42,10 @@ impl LanguageAdapter for GoAdapter {
             if let Some((sym, node)) = find_any_method(root, source, member_query, file_path) {
                 return Ok((sym, node));
             }
+
+            if let Some(sym) = fallback_go_source_scan(source, member_query, file_path) {
+                return Ok((sym, root));
+            }
         }
 
         let available = self.list_symbols(root, source);
@@ -475,3 +479,85 @@ fn is_builtin_go_func(name: &str) -> bool {
         "make" | "new" | "len" | "cap" | "append" | "copy" | "close" | "delete" | "panic" | "recover"
     )
 }
+
+fn fallback_go_source_scan(
+    source: &str,
+    target_name: &str,
+    file_path: &Path,
+) -> Option<ExtractedSymbol> {
+    let patterns = [
+        format!("func {target_name}("),
+        format!("func {target_name} "),
+        format!("type {target_name} "),
+    ];
+
+    let mut start_line = 1;
+    let mut found_kind = "function";
+    let mut start_offset = None;
+
+    for (line_idx, line) in source.lines().enumerate() {
+        for pat in &patterns {
+            if line.contains(pat) {
+                start_line = line_idx + 1;
+                if pat.contains("type") {
+                    found_kind = "type";
+                }
+
+                let mut offset = 0;
+                for (i, l) in source.lines().enumerate() {
+                    if i == line_idx {
+                        break;
+                    }
+                    offset += l.len() + 1;
+                }
+                start_offset = Some(offset);
+                break;
+            }
+        }
+        if start_offset.is_some() {
+            break;
+        }
+    }
+
+    let start_b = start_offset?;
+    let remainder = &source[start_b..];
+
+    let mut brace_count = 0;
+    let mut started_brace = false;
+    let mut end_b = remainder.len();
+
+    for (idx, ch) in remainder.char_indices() {
+        if ch == '{' {
+            brace_count += 1;
+            started_brace = true;
+        } else if ch == '}' {
+            brace_count -= 1;
+            if started_brace && brace_count == 0 {
+                end_b = idx + 1;
+                break;
+            }
+        }
+    }
+
+    let body = remainder[..end_b].trim_end().to_string();
+    let end_line = start_line + body.lines().count().max(1) - 1;
+
+    let signature = if let Some((sig, _)) = body.split_once('{') {
+        sig.trim().to_string()
+    } else {
+        body.clone()
+    };
+
+    Some(ExtractedSymbol {
+        name: target_name.to_string(),
+        kind: found_kind.to_string(),
+        file_path: file_path.to_string_lossy().to_string(),
+        start_line,
+        end_line,
+        doc_comment: None,
+        signature,
+        body,
+        language: "go".to_string(),
+    })
+}
+
