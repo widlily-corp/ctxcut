@@ -313,34 +313,12 @@ fn build_symbol(
 fn extract_signature(node: Node<'_>, source: &str) -> String {
     let text = AstUtils::node_text(node, source);
     match node.kind() {
-        "function_declaration" | "generator_function_declaration" => {
-            if let Some(body) = node.child_by_field_name("body") {
-                let start = node.start_byte();
-                let body_start = body.start_byte();
-                if start <= body_start && body_start <= source.len() {
-                    return source[start..body_start].trim().to_string();
-                }
-            }
-        }
-        "method_definition" => {
-            if let Some(body) = node.child_by_field_name("body") {
-                let start = node.start_byte();
-                let body_start = body.start_byte();
-                if start <= body_start && body_start <= source.len() {
-                    return source[start..body_start].trim().to_string();
-                }
-            }
-        }
-        "class_declaration" | "abstract_class_declaration" => {
-            if let Some(body) = node.child_by_field_name("body") {
-                let start = node.start_byte();
-                let body_start = body.start_byte();
-                if start <= body_start && body_start <= source.len() {
-                    return source[start..body_start].trim().to_string();
-                }
-            }
-        }
-        "interface_declaration" => {
+        "function_declaration"
+        | "generator_function_declaration"
+        | "method_definition"
+        | "class_declaration"
+        | "abstract_class_declaration"
+        | "interface_declaration" => {
             if let Some(body) = node.child_by_field_name("body") {
                 let start = node.start_byte();
                 let body_start = body.start_byte();

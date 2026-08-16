@@ -366,13 +366,10 @@ fn is_builtin_global(name: &str) -> bool {
 }
 
 fn is_builtin_receiver_or_method(receiver: &str, method: &str) -> bool {
-    if matches!(
+    matches!(
         receiver,
         "console" | "Math" | "JSON" | "Object" | "Array" | "String" | "Number" | "Promise" | "Reflect" | "process"
-    ) {
-        return true;
-    }
-    matches!(
+    ) || matches!(
         method,
         "log"
             | "warn"

@@ -1,4 +1,4 @@
-//! BPE Token Counting Engine using `tiktoken-rs` with OpenAI `cl100k_base` encoding.
+//! BPE Token Counting Engine using `tiktoken-rs` with `OpenAI` `cl100k_base` encoding.
 
 use std::sync::OnceLock;
 use tiktoken_rs::CoreBPE;
@@ -42,7 +42,8 @@ pub fn count_tokens(text: &str) -> usize {
 
 /// Computes the exact percentage of tokens saved by slicing.
 /// Formula: `((1.0 - (sliced / raw)) * 100.0).max(0.0)`.
-/// Guaranteed to never produce NaN or negative values.
+/// Guaranteed to never produce `NaN` or negative values.
+#[allow(clippy::cast_precision_loss)]
 pub fn calculate_savings_percentage(raw_tokens: usize, sliced_tokens: usize) -> f64 {
     if raw_tokens == 0 {
         return 0.0;
@@ -97,18 +98,21 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_savings_calc_normal() {
         let pct = calculate_savings_percentage(1000, 150);
         assert_eq!(pct, 85.0);
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_savings_calc_zero_raw() {
         let pct = calculate_savings_percentage(0, 50);
         assert_eq!(pct, 0.0);
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_savings_calc_overflow() {
         let pct = calculate_savings_percentage(10, 50);
         assert_eq!(pct, 0.0);
