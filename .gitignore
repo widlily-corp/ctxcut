@@ -6,3 +6,10 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# Agent telemetry and internal workspaces
+.agents/
+.teamwork/
+.system_generated/
+ORIGINAL_REQUEST.md
+TASK_ROUTING.md
