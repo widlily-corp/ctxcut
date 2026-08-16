@@ -388,7 +388,19 @@ fn fallback_source_scan(
         }
     }
 
+    if started_brace && brace_count != 0 {
+        return None;
+    }
+
     let body = remainder[..end_b].trim_end().to_string();
+
+    let sig_candidate = body.split_once('{').map(|(s, _)| s).unwrap_or(&body);
+    let open_parens = sig_candidate.chars().filter(|c| *c == '(').count();
+    let close_parens = sig_candidate.chars().filter(|c| *c == ')').count();
+    if open_parens != close_parens {
+        return None;
+    }
+
     let end_line = start_line + body.lines().count().max(1) - 1;
 
     let signature = if let Some((sig, _)) = body.split_once('{') {

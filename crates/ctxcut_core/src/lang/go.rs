@@ -210,7 +210,6 @@ impl LanguageAdapter for GoAdapter {
                         signature: sig,
                     });
                 } else {
-                    let mut found = false;
                     if let Ok(entries) = fs::read_dir(dir) {
                         for entry in entries.flatten() {
                             let path = entry.path();
@@ -227,21 +226,13 @@ impl LanguageAdapter for GoAdapter {
                                             file_path: Some(path.to_string_lossy().to_string()),
                                             signature: sig,
                                         });
-                                        found = true;
                                         break;
                                     }
                                 }
                             }
                         }
                     }
-                    if !found {
-                        stubs.push(CallSignatureStub {
-                            name: call_name.to_string(),
-                            receiver: None,
-                            file_path: None,
-                            signature: format!("func {call_name}(...any) any"),
-                        });
-                    }
+                    // If not found in local or sibling package files, do not emit dummy stubs for builtins/external packages
                 }
             }
         }

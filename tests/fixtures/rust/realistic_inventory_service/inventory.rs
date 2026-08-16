@@ -62,10 +62,7 @@ impl InventoryService {
         request: ReservationRequest,
     ) -> Result<Vec<StockReservation>, InventoryError> {
         let lock_key = format!("inv_lock_order_{}", request.order_id);
-        let lock_id = self
-            .lock_manager
-            .acquire_lock(&lock_key, Duration::from_secs(10))
-            .await?;
+        let lock_id = self.lock_manager.acquire_lock(&lock_key, Duration::from_secs(10)).await?;
 
         let mut reservations = Vec::with_capacity(request.items.len());
         let mut products = self.products.write().unwrap();
@@ -107,10 +104,7 @@ impl InventoryService {
             };
 
             // Notify ERP system asynchronously
-            let _ = self
-                .erp_client
-                .notify_stock_reserved(&request.order_id, &item.sku, item.quantity)
-                .await;
+            let _ = self.erp_client.notify_stock_reserved(&request.order_id, &item.sku, item.quantity).await;
 
             reservations.push(reservation);
         }

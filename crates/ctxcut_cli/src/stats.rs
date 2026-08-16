@@ -116,7 +116,7 @@ fn analyze_single_file(file_path: &Path) -> Result<FileStatItem> {
             let root = tree.root_node();
             let symbols = adapter.list_symbols(root, &source);
 
-            for sym in &symbols {
+            for sym in symbols.iter().take(5) {
                 let clean_name = sym.split('.').last().unwrap_or(sym);
                 if let Ok(slice) = slicer.slice_symbol(file_path, clean_name, &opts) {
                     total_slice_tokens += slice.stats.sliced_tokens;

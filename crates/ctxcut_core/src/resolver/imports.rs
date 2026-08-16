@@ -102,6 +102,65 @@ impl ImportResolver {
                         );
                     }
                 }
+            } else if child.kind() == "lexical_declaration" || child.kind() == "variable_declaration" {
+                // CommonJS require: const { foo } = require('./foo') or const bar = require('./bar')
+                for declarator in AstUtils::find_children_by_kind(child, "variable_declarator") {
+                    if let Some(val) = declarator.child_by_field_name("value") {
+                        if val.kind() == "call_expression" {
+                            if let Some(fn_node) = val.child_by_field_name("function") {
+                                if AstUtils::node_text(fn_node, source) == "require" {
+                                    if let Some(args) = val.child_by_field_name("arguments") {
+                                        if let Some(first_arg) = args.named_child(0) {
+                                            let specifier = AstUtils::node_text(first_arg, source).trim_matches(['\'', '"', '`']);
+                                            if !specifier.is_empty() {
+                                                if let Some(name_node) = declarator.child_by_field_name("name") {
+                                                    if name_node.kind() == "object_pattern" {
+                                                        for pattern_child in name_node.named_children(&mut name_node.walk()) {
+                                                            if pattern_child.kind() == "shorthand_property_identifier_pattern" || pattern_child.kind() == "identifier" {
+                                                                let name = AstUtils::node_text(pattern_child, source).to_string();
+                                                                map.insert(
+                                                                    name.clone(),
+                                                                    ImportMapping {
+                                                                        local_name: name.clone(),
+                                                                        imported_name: name,
+                                                                        specifier: specifier.to_string(),
+                                                                    },
+                                                                );
+                                                            } else if pattern_child.kind() == "pair_pattern" {
+                                                                if let (Some(key), Some(val)) = (pattern_child.child_by_field_name("key"), pattern_child.child_by_field_name("value")) {
+                                                                    let imported_name = AstUtils::node_text(key, source).to_string();
+                                                                    let local_name = AstUtils::node_text(val, source).to_string();
+                                                                    map.insert(
+                                                                        local_name.clone(),
+                                                                        ImportMapping {
+                                                                            local_name,
+                                                                            imported_name,
+                                                                            specifier: specifier.to_string(),
+                                                                        },
+                                                                    );
+                                                                }
+                                                            }
+                                                        }
+                                                    } else if name_node.kind() == "identifier" {
+                                                        let name = AstUtils::node_text(name_node, source).to_string();
+                                                        map.insert(
+                                                            name.clone(),
+                                                            ImportMapping {
+                                                                local_name: name.clone(),
+                                                                imported_name: "default".to_string(),
+                                                                specifier: specifier.to_string(),
+                                                            },
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 

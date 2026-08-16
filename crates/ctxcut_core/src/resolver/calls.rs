@@ -92,8 +92,10 @@ impl SignatureStripper {
                 }
             }
 
-            // B. Check imports
+            // B. Check imports directly for function / method
             let lookup_name = receiver.as_deref().unwrap_or(&name);
+            let mut resolved = false;
+
             if let Some(mapping) = imports.get(lookup_name) {
                 if let Some(target_file) = ImportResolver::resolve_module_path(file_path, &mapping.specifier) {
                     if let Some(stub) = resolve_call_from_module(
@@ -103,28 +105,102 @@ impl SignatureStripper {
                         &mut file_cache,
                     ) {
                         stubs.push(stub);
-                        continue;
+                        resolved = true;
                     }
                 }
             }
 
-            // C. Fallback stub if not statically located
-            let signature = if let Some(ref r) = receiver {
-                format!("{r}.{name}(...args: any[]): any;")
-            } else {
-                format!("export function {name}(...args: any[]): any;")
-            };
+            // C. If not resolved, search all imported module files for matching method
+            if !resolved {
+                for mapping in imports.values() {
+                    if let Some(target_file) = ImportResolver::resolve_module_path(file_path, &mapping.specifier) {
+                        if let Some(stub) = resolve_call_from_module(
+                            &name,
+                            &target_file,
+                            tree_sitter_lang,
+                            &mut file_cache,
+                        ) {
+                            stubs.push(stub);
+                            resolved = true;
+                            break;
+                        }
+                    }
+                }
+            }
 
-            stubs.push(CallSignatureStub {
-                name,
-                receiver,
-                file_path: None,
-                signature,
-            });
+            // D. If receiver is this.field, try to resolve field type from class
+            if !resolved {
+                if let Some(ref r) = receiver {
+                    if r.starts_with("this.") {
+                        let field_name = r.strip_prefix("this.").unwrap_or(r);
+                        if let Some(type_name) = find_field_type_in_class(target_node, root, source, field_name) {
+                            if let Some(mapping) = imports.get(&type_name) {
+                                if let Some(target_file) = ImportResolver::resolve_module_path(file_path, &mapping.specifier) {
+                                    if let Some(stub) = resolve_call_from_module(
+                                        &name,
+                                        &target_file,
+                                        tree_sitter_lang,
+                                        &mut file_cache,
+                                    ) {
+                                        stubs.push(stub);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         Ok(stubs)
     }
+}
+
+fn find_field_type_in_class(
+    target_node: Node<'_>,
+    _root: Node<'_>,
+    source: &str,
+    field_name: &str,
+) -> Option<String> {
+    let mut current = target_node;
+    while let Some(parent) = current.parent() {
+        if parent.kind() == "class_declaration" || parent.kind() == "abstract_class_declaration" {
+            if let Some(body) = parent.child_by_field_name("body") {
+                for member in body.named_children(&mut body.walk()) {
+                    if member.kind() == "property_definition" || member.kind() == "public_field_definition" || member.kind() == "field_definition" {
+                        if let Some(name_node) = member.child_by_field_name("name") {
+                            if AstUtils::node_text(name_node, source) == field_name {
+                                if let Some(type_node) = member.child_by_field_name("type") {
+                                    let type_text = AstUtils::node_text(type_node, source).trim_start_matches(':').trim().to_string();
+                                    return Some(type_text);
+                                }
+                            }
+                        }
+                    } else if member.kind() == "method_definition" {
+                        if let Some(name_node) = member.child_by_field_name("name") {
+                            if AstUtils::node_text(name_node, source) == "constructor" {
+                                if let Some(params) = member.child_by_field_name("parameters") {
+                                    for p in params.named_children(&mut params.walk()) {
+                                        if let Some(p_name) = p.child_by_field_name("name").or_else(|| p.child_by_field_name("pattern")) {
+                                            if AstUtils::node_text(p_name, source) == field_name {
+                                                if let Some(t_node) = p.child_by_field_name("type") {
+                                                    let type_text = AstUtils::node_text(t_node, source).trim_start_matches(':').trim().to_string();
+                                                    return Some(type_text);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            break;
+        }
+        current = parent;
+    }
+    None
 }
 
 fn find_function_in_file(root: Node<'_>, source: &str, target_name: &str, file_path: &Path) -> Option<CallSignatureStub> {
@@ -144,20 +220,6 @@ fn find_function_in_file(root: Node<'_>, source: &str, target_name: &str, file_p
                     });
                 }
             }
-        } else if decl.kind() == "lexical_declaration" || decl.kind() == "variable_declaration" {
-            for declarator in AstUtils::find_children_by_kind(decl, "variable_declarator") {
-                if let Some(name_node) = declarator.child_by_field_name("name") {
-                    if AstUtils::node_text(name_node, source) == target_name {
-                        let sig = extract_signature_stub(child, declarator, source);
-                        return Some(CallSignatureStub {
-                            name: target_name.to_string(),
-                            receiver: None,
-                            file_path: Some(file_path.to_string_lossy().to_string()),
-                            signature: sig,
-                        });
-                    }
-                }
-            }
         }
     }
     None
@@ -170,11 +232,36 @@ fn find_method_in_class(
     method_name: &str,
     file_path: &Path,
 ) -> Option<CallSignatureStub> {
-    // Traverse upwards to find containing class
-    let mut curr = target_node.parent();
-    while let Some(parent) = curr {
+    let mut current = target_node;
+    while let Some(parent) = current.parent() {
         if parent.kind() == "class_declaration" || parent.kind() == "abstract_class_declaration" {
             if let Some(body) = parent.child_by_field_name("body") {
+                for member in body.named_children(&mut body.walk()) {
+                    if member.kind() == "method_definition" {
+                        if let Some(name_node) = member.child_by_field_name("name") {
+                            if AstUtils::node_text(name_node, source) == method_name {
+                                let sig = extract_signature_stub(member, member, source);
+                                return Some(CallSignatureStub {
+                                    name: method_name.to_string(),
+                                    receiver: Some("this".to_string()),
+                                    file_path: Some(file_path.to_string_lossy().to_string()),
+                                    signature: sig,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            break;
+        }
+        current = parent;
+    }
+
+    let mut cursor = root.walk();
+    for child in root.children(&mut cursor) {
+        let decl = AstUtils::unwrap_export(child);
+        if decl.kind() == "class_declaration" || decl.kind() == "abstract_class_declaration" {
+            if let Some(body) = decl.child_by_field_name("body") {
                 for member in body.named_children(&mut body.walk()) {
                     if member.kind() == "method_definition" {
                         if let Some(m_name) = member.child_by_field_name("name") {
@@ -192,23 +279,40 @@ fn find_method_in_class(
                 }
             }
         }
-        curr = parent.parent();
     }
+    None
+}
 
-    // Fallback: search all classes in root
+fn find_method_in_any_container(
+    root: Node<'_>,
+    source: &str,
+    target_method: &str,
+    file_path: &Path,
+) -> Option<CallSignatureStub> {
     let mut cursor = root.walk();
     for child in root.children(&mut cursor) {
         let decl = AstUtils::unwrap_export(child);
-        if decl.kind() == "class_declaration" || decl.kind() == "abstract_class_declaration" {
+        if matches!(
+            decl.kind(),
+            "class_declaration" | "abstract_class_declaration" | "interface_declaration"
+        ) {
+            let container_name = decl
+                .child_by_field_name("name")
+                .map(|n| AstUtils::node_text(n, source))
+                .unwrap_or("Unknown");
+
             if let Some(body) = decl.child_by_field_name("body") {
                 for member in body.named_children(&mut body.walk()) {
-                    if member.kind() == "method_definition" {
+                    if matches!(
+                        member.kind(),
+                        "method_definition" | "method_signature" | "property_signature"
+                    ) {
                         if let Some(m_name) = member.child_by_field_name("name") {
-                            if AstUtils::node_text(m_name, source) == method_name {
-                                let sig = extract_signature_stub(member, member, source);
+                            if AstUtils::node_text(m_name, source) == target_method {
+                                let sig = extract_signature_stub(child, member, source);
                                 return Some(CallSignatureStub {
-                                    name: method_name.to_string(),
-                                    receiver: Some("this".to_string()),
+                                    name: target_method.to_string(),
+                                    receiver: Some(container_name.to_string()),
                                     file_path: Some(file_path.to_string_lossy().to_string()),
                                     signature: sig,
                                 });
@@ -236,7 +340,12 @@ fn resolve_call_from_module(
         return Some(stub);
     }
 
-    // 2. Check barrel re-exports
+    // 2. Direct method in any class or interface in target file
+    if let Some(stub) = find_method_in_any_container(root, source, name, target_file) {
+        return Some(stub);
+    }
+
+    // 3. Check barrel re-exports
     let reexports = ImportResolver::extract_reexports(root, source);
     for (exported_alias, specifier) in reexports {
         if let Some(alias) = exported_alias {
@@ -289,13 +398,13 @@ fn extract_signature_stub(outer_node: Node<'_>, decl_node: Node<'_>, source: &st
                     decl_node.child_by_field_name("name"),
                     val.child_by_field_name("parameters"),
                 ) {
-                    let fn_name = AstUtils::node_text(name_n, source);
+                    let name_text = AstUtils::node_text(name_n, source);
                     let params_text = AstUtils::node_text(params, source);
-                    let ret_text = val
+                    let ret = val
                         .child_by_field_name("return_type")
-                        .map(|r| format!(": {}", AstUtils::node_text(r, source).trim_start_matches(':').trim()))
-                        .unwrap_or_default();
-                    return format!("{prefix}function {fn_name}{params_text}{ret_text};");
+                        .map(|r| AstUtils::node_text(r, source))
+                        .unwrap_or("");
+                    return format!("{prefix}const {name_text}: ({params_text}){ret};");
                 }
             }
         }
@@ -424,6 +533,20 @@ fn is_builtin_receiver_or_method(receiver: &str, method: &str) -> bool {
             | "allSettled"
             | "race"
             | "toString"
+            | "toISOString"
+            | "toUTCString"
+            | "toLocaleDateString"
+            | "getTime"
+            | "getDate"
+            | "getFullYear"
+            | "getMonth"
+            | "getDay"
+            | "getHours"
+            | "getMinutes"
+            | "getSeconds"
+            | "now"
+            | "parse"
+            | "stringify"
             | "valueOf"
             | "hasOwnProperty"
     )

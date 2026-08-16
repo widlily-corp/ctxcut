@@ -334,7 +334,6 @@ impl LanguageAdapter for PythonAdapter {
                         }
                     }
 
-                    // 3. Fallback stub for external/unresolved call
                     if !found {
                         stubs.push(CallSignatureStub {
                             name: call_name.to_string(),
@@ -343,6 +342,8 @@ impl LanguageAdapter for PythonAdapter {
                             signature: format!("def {call_name}(*args, **kwargs): ..."),
                         });
                     }
+
+                    // If not found in module or sibling files, do not emit dummy stubs for standard library/builtins
                 }
             }
         }
@@ -978,5 +979,44 @@ fn is_builtin_python_func(name: &str) -> bool {
             | "dict"
             | "list"
             | "set"
+            | "tuple"
+            | "min"
+            | "max"
+            | "sum"
+            | "abs"
+            | "all"
+            | "any"
+            | "zip"
+            | "map"
+            | "filter"
+            | "sorted"
+            | "reversed"
+            | "get"
+            | "items"
+            | "keys"
+            | "values"
+            | "append"
+            | "extend"
+            | "pop"
+            | "insert"
+            | "remove"
+            | "clear"
+            | "copy"
+            | "count"
+            | "index"
+            | "join"
+            | "split"
+            | "strip"
+            | "lstrip"
+            | "rstrip"
+            | "replace"
+            | "startswith"
+            | "endswith"
+            | "lower"
+            | "upper"
+            | "format"
+            | "isoformat"
+            | "utcnow"
+            | "now"
     )
 }

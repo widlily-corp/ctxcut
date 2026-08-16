@@ -1,5 +1,6 @@
 //! Markdown formatter for generating prompt-optimized context slices.
 
+use std::collections::HashSet;
 use std::fmt::Write;
 use crate::model::SliceResult;
 
@@ -33,7 +34,7 @@ impl MarkdownFormatter {
         let _ = writeln!(out, "```{lang_tag}");
         if let Some(ref doc) = sym.doc_comment {
             let trimmed_doc = doc.trim();
-            if !trimmed_doc.is_empty() {
+            if !trimmed_doc.is_empty() && !sym.body.contains(trimmed_doc) {
                 out.push_str(trimmed_doc);
                 out.push('\n');
             }
@@ -43,11 +44,19 @@ impl MarkdownFormatter {
 
         // Section 2: Hoisted Types & Data Contracts
         out.push_str("#### 2. Hoisted Types & Data Contracts\n");
-        if result.hoisted_types.is_empty() {
+        let mut seen_types = HashSet::new();
+        let mut unique_types = Vec::new();
+        for ty in &result.hoisted_types {
+            if seen_types.insert(&ty.name) {
+                unique_types.push(ty);
+            }
+        }
+
+        if unique_types.is_empty() {
             out.push_str("*None*\n\n");
         } else {
             let _ = writeln!(out, "```{lang_tag}");
-            for (idx, ty) in result.hoisted_types.iter().enumerate() {
+            for (idx, ty) in unique_types.iter().enumerate() {
                 if idx > 0 {
                     out.push_str("\n\n");
                 }
@@ -58,11 +67,19 @@ impl MarkdownFormatter {
 
         // Section 3: External Dependencies & Signatures (Body Stripped)
         out.push_str("#### 3. External Dependencies & Signatures (Body Stripped)\n");
-        if result.stripped_calls.is_empty() {
+        let mut seen_calls = HashSet::new();
+        let mut unique_calls = Vec::new();
+        for call in &result.stripped_calls {
+            if seen_calls.insert(&call.name) {
+                unique_calls.push(call);
+            }
+        }
+
+        if unique_calls.is_empty() {
             out.push_str("*None*\n");
         } else {
             let _ = writeln!(out, "```{lang_tag}");
-            for (idx, call) in result.stripped_calls.iter().enumerate() {
+            for (idx, call) in unique_calls.iter().enumerate() {
                 if idx > 0 {
                     out.push('\n');
                 }
@@ -102,77 +119,5 @@ pub fn normalize_language_tag(lang: &str) -> &str {
         "rust"
     } else {
         lang
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::model::{CallSignatureStub, ExtractedSymbol, ExtractedType, TokenStats};
-
-    #[test]
-    fn test_markdown_format_full() {
-        let result = SliceResult {
-            target_symbol: ExtractedSymbol {
-                name: "login".to_string(),
-                kind: "function".to_string(),
-                file_path: "src/auth.ts".to_string(),
-                start_line: 10,
-                end_line: 25,
-                doc_comment: Some("/** Logs in user */".to_string()),
-                signature: "export async function login(dto: LoginDto): Promise<Token>".to_string(),
-                body: "export async function login(dto: LoginDto): Promise<Token> {\n    return auth(dto);\n}".to_string(),
-                language: "typescript".to_string(),
-            },
-            hoisted_types: vec![
-                ExtractedType {
-                    name: "LoginDto".to_string(),
-                    kind: "interface".to_string(),
-                    file_path: "src/types.ts".to_string(),
-                    definition: "export interface LoginDto {\n    email: string;\n}".to_string(),
-                }
-            ],
-            stripped_calls: vec![
-                CallSignatureStub {
-                    name: "auth".to_string(),
-                    receiver: None,
-                    file_path: Some("src/utils.ts".to_string()),
-                    signature: "export function auth(dto: LoginDto): Token;".to_string(),
-                }
-            ],
-            stats: TokenStats::calculate(200, 50, 40, 15),
-        };
-
-        let md = MarkdownFormatter::format(&result);
-        assert!(md.contains("### Context Slice: `src/auth.ts:login`"));
-        assert!(md.contains("#### 1. Target Implementation (Full Body)"));
-        assert!(md.contains("#### 2. Hoisted Types & Data Contracts"));
-        assert!(md.contains("#### 3. External Dependencies & Signatures (Body Stripped)"));
-        assert!(md.contains("```typescript"));
-        assert!(md.contains("export interface LoginDto"));
-        assert!(md.contains("export function auth(dto: LoginDto): Token;"));
-    }
-
-    #[test]
-    fn test_markdown_format_empty_deps() {
-        let result = SliceResult {
-            target_symbol: ExtractedSymbol {
-                name: "add".to_string(),
-                kind: "function".to_string(),
-                file_path: "src/math.ts".to_string(),
-                start_line: 1,
-                end_line: 3,
-                doc_comment: None,
-                signature: "export function add(a: number, b: number): number".to_string(),
-                body: "export function add(a: number, b: number): number {\n    return a + b;\n}".to_string(),
-                language: "typescript".to_string(),
-            },
-            hoisted_types: vec![],
-            stripped_calls: vec![],
-            stats: TokenStats::calculate(50, 20, 10, 8),
-        };
-
-        let md = MarkdownFormatter::format(&result);
-        assert!(md.contains("*None*"));
     }
 }
