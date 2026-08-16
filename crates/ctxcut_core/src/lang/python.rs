@@ -119,7 +119,6 @@ impl LanguageAdapter for PythonAdapter {
             }
         }
 
-        let dir = file_path.parent().unwrap_or_else(|| Path::new("."));
         let ts_lang = self.tree_sitter_language(file_path);
 
         while let Some((type_name, depth)) = queue.pop_front() {
@@ -149,43 +148,49 @@ impl LanguageAdapter for PythonAdapter {
                 continue;
             }
 
-            // 2. Search in sibling files in same directory / package
-            if let Ok(entries) = fs::read_dir(dir) {
-                let mut found = false;
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path == file_path || path.extension().and_then(|e| e.to_str()) != Some("py") {
-                        continue;
+            // 2. Search in directory and parent directories (multi-dot relative & package search)
+            let mut search_dirs = Vec::new();
+            if let Some(p) = file_path.parent() {
+                search_dirs.push(p.to_path_buf());
+                let mut current = p;
+                for _ in 0..4 {
+                    if let Some(parent) = current.parent() {
+                        search_dirs.push(parent.to_path_buf());
+                        current = parent;
                     }
+                }
+            }
 
-                    if let Ok(sibling_src) = fs::read_to_string(&path) {
-                        if let Ok(sibling_tree) = ParserManager::parse_source(&sibling_src, &ts_lang, &path) {
-                            if let Some(extracted) = find_class_or_type_in_file(sibling_tree.root_node(), &sibling_src, &type_name, &path) {
-                                if depth < opts.depth {
-                                    if let Ok(tree) = ParserManager::parse_source(&extracted.definition, &ts_lang, &path) {
-                                        for id in AstUtils::find_descendants_by_kind(tree.root_node(), "identifier") {
-                                            let name = AstUtils::node_text(id, &extracted.definition);
-                                            if !is_builtin_python_type(name) && visited.insert(name.to_string()) {
-                                                queue.push_back((name.to_string(), depth + 1));
+            let mut found = false;
+            for dir in search_dirs {
+                if let Ok(walker) = fs::read_dir(&dir) {
+                    for entry in walker.flatten() {
+                        let path = entry.path();
+                        if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("py") && path != file_path {
+                            if let Ok(sibling_src) = fs::read_to_string(&path) {
+                                if let Ok(sibling_tree) = ParserManager::parse_source(&sibling_src, &ts_lang, &path) {
+                                    if let Some(extracted) = find_class_or_type_in_file(sibling_tree.root_node(), &sibling_src, &type_name, &path) {
+                                        if depth < opts.depth {
+                                            if let Ok(tree) = ParserManager::parse_source(&extracted.definition, &ts_lang, &path) {
+                                                for id in AstUtils::find_descendants_by_kind(tree.root_node(), "identifier") {
+                                                    let name = AstUtils::node_text(id, &extracted.definition);
+                                                    if !is_builtin_python_type(name) && visited.insert(name.to_string()) {
+                                                        queue.push_back((name.to_string(), depth + 1));
+                                                    }
+                                                }
                                             }
                                         }
-                                        for str_node in AstUtils::find_descendants_by_kind(tree.root_node(), "string") {
-                                            let text = AstUtils::node_text(str_node, &extracted.definition).trim_matches('"').trim_matches('\'');
-                                            if !is_builtin_python_type(text) && visited.insert(text.to_string()) {
-                                                queue.push_back((text.to_string(), depth + 1));
-                                            }
-                                        }
+                                        hoisted.push(extracted);
+                                        found = true;
+                                        break;
                                     }
                                 }
-                                hoisted.push(extracted);
-                                found = true;
-                                break;
                             }
                         }
                     }
                 }
                 if found {
-                    continue;
+                    break;
                 }
             }
         }
@@ -220,6 +225,31 @@ impl LanguageAdapter for PythonAdapter {
                         file_path: Some(file_path.to_string_lossy().to_string()),
                         signature: sig,
                     });
+                } else {
+                    // Search in sibling files
+                    if let Some(parent) = file_path.parent() {
+                        if let Ok(entries) = fs::read_dir(parent) {
+                            for entry in entries.flatten() {
+                                let path = entry.path();
+                                if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("py") && path != file_path {
+                                    if let Ok(sib_src) = fs::read_to_string(&path) {
+                                        let ts_lang = self.tree_sitter_language(&path);
+                                        if let Ok(tree) = ParserManager::parse_source(&sib_src, &ts_lang, &path) {
+                                            if let Some(sig) = find_python_signature(tree.root_node(), &sib_src, call_name) {
+                                                stubs.push(CallSignatureStub {
+                                                    name: call_name.to_string(),
+                                                    receiver: None,
+                                                    file_path: Some(path.to_string_lossy().to_string()),
+                                                    signature: sig,
+                                                });
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -305,7 +335,6 @@ fn find_class_or_type_in_file(
                 }
             }
         } else if decl.kind() == "expression_statement" {
-            // e.g. TypeAlias = str | int
             let text = AstUtils::node_text(decl, source);
             if let Some((left, _)) = text.split_once('=') {
                 if left.trim() == target_name {
@@ -397,6 +426,7 @@ fn build_extracted_symbol(
 
     let body = AstUtils::node_text(full_node, source).to_string();
     let mut doc_comment = AstUtils::extract_doc_comment(full_node, source);
+
     if doc_comment.is_none() {
         if let Some(body_node) = decl.child_by_field_name("body") {
             if let Some(first_stmt) = body_node.named_children(&mut body_node.walk()).next() {
@@ -404,24 +434,15 @@ fn build_extracted_symbol(
                     if let Some(str_node) = first_stmt.named_children(&mut first_stmt.walk()).next() {
                         if str_node.kind() == "string" {
                             let text = AstUtils::node_text(str_node, source).trim();
-                            let unquoted = if let Some(s) = text.strip_prefix("\"\"\"").and_then(|s| s.strip_suffix("\"\"\"")) {
-                                s.trim()
-                            } else if let Some(s) = text.strip_prefix("'''").and_then(|s| s.strip_suffix("'''")) {
-                                s.trim()
-                            } else if let Some(s) = text.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
-                                s.trim()
-                            } else if let Some(s) = text.strip_prefix('\'').and_then(|s| s.strip_suffix('\'')) {
-                                s.trim()
-                            } else {
-                                text
-                            };
-                            doc_comment = Some(unquoted.to_string());
+                            let clean = strip_python_string_quotes(text);
+                            doc_comment = Some(clean);
                         }
                     }
                 }
             }
         }
     }
+
     let signature = extract_python_sig(decl, source);
 
     ExtractedSymbol {
@@ -435,6 +456,32 @@ fn build_extracted_symbol(
         body,
         language: "python".to_string(),
     }
+}
+
+fn strip_python_string_quotes(raw: &str) -> String {
+    let s = raw.trim();
+    // Strip prefixes like r, u, b, f, rf, fr
+    let without_prefix = if let Some(stripped) = s.strip_prefix("rf").or_else(|| s.strip_prefix("fr")) {
+        stripped
+    } else if let Some(stripped) = s.strip_prefix('r').or_else(|| s.strip_prefix('u')).or_else(|| s.strip_prefix('b')).or_else(|| s.strip_prefix('f')) {
+        stripped
+    } else {
+        s
+    };
+
+    let unquoted = if let Some(inner) = without_prefix.strip_prefix("\"\"\"").and_then(|i| i.strip_suffix("\"\"\"")) {
+        inner.trim()
+    } else if let Some(inner) = without_prefix.strip_prefix("'''").and_then(|i| i.strip_suffix("'''")) {
+        inner.trim()
+    } else if let Some(inner) = without_prefix.strip_prefix('"').and_then(|i| i.strip_suffix('"')) {
+        inner.trim()
+    } else if let Some(inner) = without_prefix.strip_prefix('\'').and_then(|i| i.strip_suffix('\'')) {
+        inner.trim()
+    } else {
+        without_prefix
+    };
+
+    unquoted.to_string()
 }
 
 fn extract_python_sig(decl: Node<'_>, source: &str) -> String {
