@@ -99,6 +99,13 @@ impl LanguageAdapter for RustAdapter {
         // 1. Collect scoped generic parameters (e.g. <T, K, V>)
         let scoped_generics = collect_rust_generics(target_node, source);
 
+        // Check if target is a method inside an impl block
+        if let Some(impl_type) = find_enclosing_impl_type(target_node, root, source) {
+            if is_valid_custom_rust_type(&impl_type, &scoped_generics) && visited.insert(impl_type.clone()) {
+                queue.push_back((impl_type, 1usize));
+            }
+        }
+
         // 2. Extract initial referenced types
         let initial_types = extract_referenced_rust_types(target_node, source, &scoped_generics);
         for t in initial_types {
@@ -484,7 +491,33 @@ fn extract_referenced_rust_types(node: Node<'_>, source: &str, scoped_generics: 
         }
     }
 
+    for id in AstUtils::find_descendants_by_kind(node, "identifier") {
+        let name = AstUtils::node_text(id, source).trim();
+        if name.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+            && is_valid_custom_rust_type(name, scoped_generics)
+            && seen.insert(name.to_string())
+        {
+            names.push(name.to_string());
+        }
+    }
+
     names
+}
+
+fn find_enclosing_impl_type(target_node: Node<'_>, root: Node<'_>, source: &str) -> Option<String> {
+    let mut cursor = root.walk();
+    for child in root.children(&mut cursor) {
+        if child.kind() == "impl_item" {
+            if let Some(body) = child.child_by_field_name("body") {
+                for member in body.named_children(&mut body.walk()) {
+                    if member.id() == target_node.id() {
+                        return extract_impl_type_name(child, source);
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 fn is_valid_custom_rust_type(name: &str, scoped_generics: &HashSet<String>) -> bool {

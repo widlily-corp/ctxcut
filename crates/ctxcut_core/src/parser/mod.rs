@@ -113,7 +113,7 @@ impl AstUtils {
         let mut comments = Vec::new();
 
         while let Some(sibling) = prev {
-            if sibling.kind() == "comment" {
+            if matches!(sibling.kind(), "comment" | "line_comment" | "block_comment") {
                 // Check that between sibling and node/previous comment there is only whitespace
                 let sibling_end = sibling.end_byte();
                 let next_start = if let Some(last) = comments.last() {
