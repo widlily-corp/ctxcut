@@ -419,11 +419,13 @@ fn build_extracted_symbol(
     let name = decl
         .child_by_field_name("name")
         .or_else(|| decl.child_by_field_name("left"))
-        .map(|n| {
-            let t = AstUtils::node_text(n, source).trim();
-            t.split('[').next().unwrap_or(t).trim().to_string()
-        })
-        .unwrap_or_else(|| "anonymous".to_string());
+        .map_or_else(
+            || "anonymous".to_string(),
+            |n| {
+                let t = AstUtils::node_text(n, source).trim();
+                t.split('[').next().unwrap_or(t).trim().to_string()
+            },
+        );
 
     let body = AstUtils::node_text(full_node, source).to_string();
     let doc_comment = extract_python_doc_comment(full_node, decl, source);
@@ -468,7 +470,7 @@ fn extract_python_doc_comment(full_node: Node<'_>, decl: Node<'_>, source: &str)
 fn strip_python_string_quotes(raw: &str) -> String {
     let s = raw.trim();
     // Strip prefix like r, f, b, u, rf, fr
-    let trimmed_prefix = s.trim_start_matches(|c: char| matches!(c, 'r' | 'R' | 'f' | 'F' | 'b' | 'B' | 'u' | 'U'));
+    let trimmed_prefix = s.trim_start_matches(['r', 'R', 'f', 'F', 'b', 'B', 'u', 'U']);
 
     if trimmed_prefix.starts_with("\"\"\"") && trimmed_prefix.ends_with("\"\"\"") && trimmed_prefix.len() >= 6 {
         return trimmed_prefix[3..trimmed_prefix.len() - 3].trim().to_string();
@@ -571,7 +573,7 @@ fn extract_referenced_type_names(node: Node<'_>, source: &str, scoped_generics: 
     // 3. Capitalized identifiers in annotations or expressions
     for id in AstUtils::find_descendants_by_kind(node, "identifier") {
         let name = AstUtils::node_text(id, source).trim();
-        if name.chars().next().map_or(false, |c| c.is_ascii_uppercase())
+        if name.chars().next().is_some_and(|c| c.is_ascii_uppercase())
             && is_valid_custom_type(name, scoped_generics)
             && seen.insert(name.to_string())
         {
@@ -645,7 +647,7 @@ fn is_type_or_constant_assignment(node: Node<'_>, source: &str) -> bool {
         || text.contains("TypeAlias")
         || text.contains("NamedTuple")
         || node.child_by_field_name("type").is_some()
-        || text.chars().next().map_or(false, |c| c.is_ascii_uppercase())
+        || text.chars().next().is_some_and(|c| c.is_ascii_uppercase())
 }
 
 #[derive(Debug, Clone)]
@@ -666,8 +668,7 @@ fn extract_python_imports(root: Node<'_>, source: &str) -> std::collections::Has
                     let full_name = AstUtils::node_text(name_node, source).trim();
                     let alias_name = alias
                         .child_by_field_name("alias")
-                        .map(|a| AstUtils::node_text(a, source).trim())
-                        .unwrap_or(full_name);
+                        .map_or(full_name, |a| AstUtils::node_text(a, source).trim());
                     map.insert(
                         alias_name.to_string(),
                         PythonImport {
@@ -709,7 +710,7 @@ fn extract_python_imports(root: Node<'_>, source: &str) -> std::collections::Has
             }
 
             // Check wildcard import: `from x import *`
-            if AstUtils::find_descendants_by_kind(child, "wildcard_import").first().is_some()
+            if !AstUtils::find_descendants_by_kind(child, "wildcard_import").is_empty()
                 || child.children(&mut child.walk()).any(|c| c.kind() == "*")
             {
                 map.insert(
@@ -726,8 +727,7 @@ fn extract_python_imports(root: Node<'_>, source: &str) -> std::collections::Has
                     let orig_name = AstUtils::node_text(name_node, source).trim();
                     let local_name = alias
                         .child_by_field_name("alias")
-                        .map(|a| AstUtils::node_text(a, source).trim())
-                        .unwrap_or(orig_name);
+                        .map_or(orig_name, |a| AstUtils::node_text(a, source).trim());
 
                     map.insert(
                         local_name.to_string(),
