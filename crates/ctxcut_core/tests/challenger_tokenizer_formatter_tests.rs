@@ -8,6 +8,7 @@
 //! 5. JSON serialization & lossless round-trip deserialization
 //! 6. Concurrency, multi-threading, and stress benchmarks
 
+use std::fmt::Write as _;
 use std::time::Instant;
 use ctxcut_core::{
     tokenizer::{calculate_savings_percentage, count_lines, count_tokens, get_bpe_tokenizer, TokenCounter},
@@ -152,7 +153,6 @@ fn test_savings_percentage_arithmetic_safety() {
 fn test_massive_file_token_counting_performance() {
     // Generate massive synthetic source code (>10,000 lines)
     let mut massive_code = String::with_capacity(1_000_000);
-    use std::fmt::Write as _;
     for i in 0..10_500 {
         let _ = write!(
             massive_code,
