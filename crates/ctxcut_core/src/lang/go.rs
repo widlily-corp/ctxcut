@@ -31,7 +31,8 @@ impl LanguageAdapter for GoAdapter {
         let (receiver_query, member_query) = parse_query(symbol_query);
 
         if let Some(receiver_name) = receiver_query {
-            if let Some((sym, node)) = find_method_with_receiver(root, source, receiver_name, member_query, file_path) {
+            let clean_rec = receiver_name.trim_start_matches('*').trim();
+            if let Some((sym, node)) = find_method_with_receiver(root, source, clean_rec, member_query, file_path) {
                 return Ok((sym, node));
             }
         } else {
@@ -100,10 +101,13 @@ impl LanguageAdapter for GoAdapter {
         let mut visited = HashSet::new();
         let mut queue: VecDeque<(String, usize)> = VecDeque::new();
 
+        // Collect scoped generics
+        let scoped_generics = collect_go_scoped_generics(target_node, source);
+
         // Check type identifiers in target node
         for id in AstUtils::find_descendants_by_kind(target_node, "type_identifier") {
             let name = AstUtils::node_text(id, source);
-            if !is_builtin_go_type(name) && visited.insert(name.to_string()) {
+            if !is_builtin_go_type(name) && !scoped_generics.contains(name) && visited.insert(name.to_string()) {
                 queue.push_back((name.to_string(), 1));
             }
         }
@@ -112,7 +116,7 @@ impl LanguageAdapter for GoAdapter {
         let ts_lang = self.tree_sitter_language(file_path);
 
         while let Some((type_name, depth)) = queue.pop_front() {
-            if is_builtin_go_type(&type_name) {
+            if is_builtin_go_type(&type_name) || scoped_generics.contains(&type_name) {
                 continue;
             }
 
@@ -120,9 +124,10 @@ impl LanguageAdapter for GoAdapter {
             if let Some(extracted) = find_go_type_in_file(root, source, &type_name, file_path) {
                 if depth < opts.depth {
                     if let Ok(tree) = ParserManager::parse_source(&extracted.definition, &ts_lang, file_path) {
+                        let def_generics = collect_go_scoped_generics(tree.root_node(), &extracted.definition);
                         for id in AstUtils::find_descendants_by_kind(tree.root_node(), "type_identifier") {
                             let name = AstUtils::node_text(id, &extracted.definition);
-                            if !is_builtin_go_type(name) && visited.insert(name.to_string()) {
+                            if !is_builtin_go_type(name) && !def_generics.contains(name) && visited.insert(name.to_string()) {
                                 queue.push_back((name.to_string(), depth + 1));
                             }
                         }
@@ -146,9 +151,10 @@ impl LanguageAdapter for GoAdapter {
                             if let Some(extracted) = find_go_type_in_file(sibling_tree.root_node(), &sibling_src, &type_name, &path) {
                                 if depth < opts.depth {
                                     if let Ok(tree) = ParserManager::parse_source(&extracted.definition, &ts_lang, &path) {
+                                        let def_generics = collect_go_scoped_generics(tree.root_node(), &extracted.definition);
                                         for id in AstUtils::find_descendants_by_kind(tree.root_node(), "type_identifier") {
                                             let name = AstUtils::node_text(id, &extracted.definition);
-                                            if !is_builtin_go_type(name) && visited.insert(name.to_string()) {
+                                            if !is_builtin_go_type(name) && !def_generics.contains(name) && visited.insert(name.to_string()) {
                                                 queue.push_back((name.to_string(), depth + 1));
                                             }
                                         }
@@ -203,6 +209,23 @@ impl LanguageAdapter for GoAdapter {
 
         Ok(stubs)
     }
+}
+
+fn collect_go_scoped_generics(node: Node<'_>, source: &str) -> HashSet<String> {
+    let mut generics = HashSet::new();
+    for tp_list in AstUtils::find_descendants_by_kind(node, "type_parameter_list") {
+        for param in AstUtils::find_children_by_kind(tp_list, "type_parameter_declaration") {
+            for id in AstUtils::find_children_by_kind(param, "identifier") {
+                generics.insert(AstUtils::node_text(id, source).to_string());
+            }
+        }
+    }
+    for tp in AstUtils::find_descendants_by_kind(node, "type_parameter_declaration") {
+        for id in AstUtils::find_children_by_kind(tp, "identifier") {
+            generics.insert(AstUtils::node_text(id, source).to_string());
+        }
+    }
+    generics
 }
 
 fn parse_query(query: &str) -> (Option<&str>, &str) {
@@ -286,13 +309,16 @@ fn find_method_with_receiver<'a>(
     method_name: &str,
     file_path: &Path,
 ) -> Option<(ExtractedSymbol, Node<'a>)> {
+    let clean_query_receiver = receiver_name.trim_start_matches('*').trim();
+
     let mut cursor = root.walk();
     for child in root.children(&mut cursor) {
         if child.kind() == "method_declaration" {
             if let Some(name_node) = child.child_by_field_name("name") {
                 if AstUtils::node_text(name_node, source) == method_name {
                     if let Some(rec) = extract_receiver_type(child, source) {
-                        if rec == receiver_name {
+                        let clean_rec = rec.trim_start_matches('*').trim();
+                        if rec == receiver_name || clean_rec == clean_query_receiver {
                             return Some((build_go_symbol(child, source, file_path, "method"), child));
                         }
                     }
@@ -394,6 +420,7 @@ fn is_builtin_go_type(name: &str) -> bool {
             | "bool"
             | "error"
             | "any"
+            | "comparable"
     )
 }
 

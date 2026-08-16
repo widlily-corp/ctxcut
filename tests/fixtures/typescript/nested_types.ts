@@ -138,3 +138,28 @@ export async function queryUsersWithFilter(
         },
     };
 }
+
+export type UserRole = "admin" | "editor" | "viewer";
+
+export interface UserProfileDTO {
+    readonly id: string;
+    readonly username: string;
+    readonly role: UserRole;
+    readonly metadata: UserMetadata;
+}
+
+export interface ApiResponse<TData> {
+    readonly success: boolean;
+    readonly payload: TData;
+}
+
+export async function fetchUserProfile<T extends UserProfileDTO>(
+    userId: string
+): Promise<ApiResponse<T>> {
+    const profile = {} as T;
+    return {
+        success: true,
+        payload: profile,
+    };
+}
+

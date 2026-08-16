@@ -101,6 +101,9 @@ impl LanguageAdapter for RustAdapter {
         let mut visited = HashSet::new();
         let mut queue: VecDeque<(String, usize)> = VecDeque::new();
 
+        // Collect scoped generic parameter identifiers
+        let scoped_generics = collect_rust_scoped_generics(target_node, source);
+
         // 1. If target node is a method inside an impl block, hoist the enclosing struct/type first!
         if let Some(parent) = target_node.parent() {
             if parent.kind() == "declaration_list" {
@@ -109,7 +112,7 @@ impl LanguageAdapter for RustAdapter {
                         if let Some(t_node) = impl_node.child_by_field_name("type") {
                             let raw_type = AstUtils::node_text(t_node, source);
                             let type_name = raw_type.split('<').next().unwrap_or(raw_type).trim();
-                            if !is_builtin_rust_type(type_name) && visited.insert(type_name.to_string()) {
+                            if !is_builtin_rust_type(type_name) && !scoped_generics.contains(type_name) && visited.insert(type_name.to_string()) {
                                 queue.push_back((type_name.to_string(), 1));
                             }
                         }
@@ -121,7 +124,7 @@ impl LanguageAdapter for RustAdapter {
         // 2. Collect type identifiers in target node
         for id in AstUtils::find_descendants_by_kind(target_node, "type_identifier") {
             let name = AstUtils::node_text(id, source);
-            if !is_builtin_rust_type(name) && visited.insert(name.to_string()) {
+            if !is_builtin_rust_type(name) && !scoped_generics.contains(name) && visited.insert(name.to_string()) {
                 queue.push_back((name.to_string(), 1));
             }
         }
@@ -130,7 +133,7 @@ impl LanguageAdapter for RustAdapter {
         let ts_lang = self.tree_sitter_language(file_path);
 
         while let Some((type_name, depth)) = queue.pop_front() {
-            if is_builtin_rust_type(&type_name) {
+            if is_builtin_rust_type(&type_name) || scoped_generics.contains(&type_name) {
                 continue;
             }
 
@@ -138,9 +141,10 @@ impl LanguageAdapter for RustAdapter {
             if let Some(extracted) = find_rust_type_in_file(root, source, &type_name, file_path) {
                 if depth < opts.depth {
                     if let Ok(tree) = ParserManager::parse_source(&extracted.definition, &ts_lang, file_path) {
+                        let def_generics = collect_rust_scoped_generics(tree.root_node(), &extracted.definition);
                         for id in AstUtils::find_descendants_by_kind(tree.root_node(), "type_identifier") {
                             let name = AstUtils::node_text(id, &extracted.definition);
-                            if !is_builtin_rust_type(name) && visited.insert(name.to_string()) {
+                            if !is_builtin_rust_type(name) && !def_generics.contains(name) && visited.insert(name.to_string()) {
                                 queue.push_back((name.to_string(), depth + 1));
                             }
                         }
@@ -164,9 +168,10 @@ impl LanguageAdapter for RustAdapter {
                             if let Some(extracted) = find_rust_type_in_file(sibling_tree.root_node(), &sibling_src, &type_name, &path) {
                                 if depth < opts.depth {
                                     if let Ok(tree) = ParserManager::parse_source(&extracted.definition, &ts_lang, &path) {
+                                        let def_generics = collect_rust_scoped_generics(tree.root_node(), &extracted.definition);
                                         for id in AstUtils::find_descendants_by_kind(tree.root_node(), "type_identifier") {
                                             let name = AstUtils::node_text(id, &extracted.definition);
-                                            if !is_builtin_rust_type(name) && visited.insert(name.to_string()) {
+                                            if !is_builtin_rust_type(name) && !def_generics.contains(name) && visited.insert(name.to_string()) {
                                                 queue.push_back((name.to_string(), depth + 1));
                                             }
                                         }
@@ -202,9 +207,17 @@ impl LanguageAdapter for RustAdapter {
         for call in call_nodes {
             if let Some(func_node) = call.child_by_field_name("function") {
                 let call_text = AstUtils::node_text(func_node, source);
-                let call_name = call_text.split("::").last().unwrap_or(call_text);
+                let call_name = if func_node.kind() == "field_expression" {
+                    if let Some(field) = func_node.child_by_field_name("field") {
+                        AstUtils::node_text(field, source)
+                    } else {
+                        call_text.split('.').last().unwrap_or(call_text)
+                    }
+                } else {
+                    call_text.split("::").last().unwrap_or(call_text)
+                };
 
-                if !seen.insert(call_name.to_string()) {
+                if is_builtin_rust_method(call_name) || !seen.insert(call_name.to_string()) {
                     continue;
                 }
 
@@ -245,6 +258,22 @@ impl LanguageAdapter for RustAdapter {
 
         Ok(stubs)
     }
+}
+
+fn collect_rust_scoped_generics(node: Node<'_>, source: &str) -> HashSet<String> {
+    let mut generics = HashSet::new();
+    for tp in AstUtils::find_descendants_by_kind(node, "type_parameters") {
+        for child in tp.named_children(&mut tp.walk()) {
+            if child.kind() == "type_identifier" {
+                generics.insert(AstUtils::node_text(child, source).to_string());
+            } else if child.kind() == "constrained_type_parameter" {
+                if let Some(left) = child.child_by_field_name("left").or_else(|| child.named_child(0)) {
+                    generics.insert(AstUtils::node_text(left, source).to_string());
+                }
+            }
+        }
+    }
+    generics
 }
 
 fn parse_query(query: &str) -> (Option<&str>, &str) {
@@ -428,6 +457,18 @@ fn find_rust_signature(root: Node<'_>, source: &str, func_name: &str) -> Option<
                     return Some(extract_rust_sig(child, source));
                 }
             }
+        } else if child.kind() == "impl_item" {
+            if let Some(body) = child.child_by_field_name("body") {
+                for member in body.named_children(&mut body.walk()) {
+                    if member.kind() == "function_item" {
+                        if let Some(name_node) = member.child_by_field_name("name") {
+                            if AstUtils::node_text(name_node, source) == func_name {
+                                return Some(extract_rust_sig(member, source));
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     None
@@ -438,6 +479,49 @@ fn is_builtin_rust_type(name: &str) -> bool {
         name,
         "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "u8" | "u16" | "u32" | "u64" | "u128" | "usize"
             | "f32" | "f64" | "bool" | "char" | "str" | "String" | "Option" | "Result" | "Vec" | "Box" | "Arc"
-            | "Rc" | "Path" | "PathBuf" | "Self" | "self"
+            | "Rc" | "Path" | "PathBuf" | "Self" | "self" | "Send" | "Sync" | "Clone" | "Copy" | "Debug"
+            | "Display" | "Default" | "Error" | "AsRef" | "AsMut" | "From" | "Into" | "Fn" | "FnMut" | "FnOnce"
+    )
+}
+
+fn is_builtin_rust_method(name: &str) -> bool {
+    matches!(
+        name,
+        "unwrap_or"
+            | "unwrap_or_default"
+            | "unwrap_or_else"
+            | "is_ok"
+            | "is_err"
+            | "as_ref"
+            | "as_mut"
+            | "is_empty"
+            | "take"
+            | "clone"
+            | "to_string"
+            | "to_str"
+            | "as_str"
+            | "as_bytes"
+            | "unwrap"
+            | "expect"
+            | "is_some"
+            | "is_none"
+            | "len"
+            | "push"
+            | "pop"
+            | "insert"
+            | "remove"
+            | "contains"
+            | "get"
+            | "map"
+            | "and_then"
+            | "iter"
+            | "into_iter"
+            | "collect"
+            | "ok"
+            | "err"
+            | "into"
+            | "from"
+            | "default"
+            | "new"
     )
 }
