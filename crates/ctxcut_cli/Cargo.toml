@@ -18,7 +18,9 @@ colored = { workspace = true }
 arboard = { workspace = true }
 ignore = { workspace = true }
 anyhow = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
+tree-sitter = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

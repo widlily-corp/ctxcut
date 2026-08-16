@@ -394,8 +394,10 @@ dependencies = [
  "colored",
  "ctxcut_core",
  "ignore",
+ "serde",
  "serde_json",
  "tempfile",
+ "tree-sitter",
 ]
 
 [[package]]
@@ -425,6 +427,7 @@ name = "ctxcut_mcp"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ctxcut_cli",
  "ctxcut_core",
  "serde",
  "serde_json",
