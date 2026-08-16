@@ -134,7 +134,7 @@ class UserStore[T]:
 fn test_python_10_node_circular_type_ring() {
     let dir = tempdir().expect("tempdir");
     let file_path = dir.path().join("circular_ring.py");
-    let code = r#"
+    let code = r"
 from typing import Optional
 
 class NodeA:
@@ -161,7 +161,7 @@ class NodeJ:
 def traverse_ring(start: NodeA) -> NodeJ:
     curr = start
     return NodeJ()
-"#;
+";
     fs::write(&file_path, code).expect("write");
 
     let slicer = ContextSlicer::new();
@@ -186,7 +186,7 @@ def traverse_ring(start: NodeA) -> NodeJ:
 fn test_go_generic_methods_and_custom_constraints() {
     let dir = tempdir().expect("tempdir");
     let file_path = dir.path().join("generics.go");
-    let code = r#"
+    let code = r"
 package stream
 
 type Constraint interface {
@@ -217,7 +217,7 @@ func (p *DataPipeline[T, R]) Transform(filter FilterFunc[T]) ([]StreamElement[T]
     }
     return out, nil
 }
-"#;
+";
     fs::write(&file_path, code).expect("write");
 
     let slicer = ContextSlicer::new();
@@ -247,7 +247,7 @@ func (p *DataPipeline[T, R]) Transform(filter FilterFunc[T]) ([]StreamElement[T]
 fn test_go_interface_embedded_specifications_and_stubs() {
     let dir = tempdir().expect("tempdir");
     let file_path = dir.path().join("interfaces.go");
-    let code = r#"
+    let code = r"
 package store
 
 type Reader interface {
@@ -276,7 +276,7 @@ func (a *AuditLogger) LogEvent(message string) error {
     }
     return a.writer.Flush()
 }
-"#;
+";
     fs::write(&file_path, code).expect("write");
 
     let slicer = ContextSlicer::new();
@@ -368,7 +368,7 @@ impl<S> GatewayClient<S> {
 fn test_rust_mutually_recursive_enums_and_boxes() {
     let dir = tempdir().expect("tempdir");
     let file_path = dir.path().join("ast_eval.rs");
-    let code = r#"
+    let code = r"
 pub enum Expression {
     Literal(i64),
     Variable(String),
@@ -393,7 +393,7 @@ pub fn evaluate_ast(root: Expression) -> i64 {
         Expression::StatementList(stmts) => stmts.into_iter().map(|s| evaluate_ast(s.expr)).sum(),
     }
 }
-"#;
+";
     fs::write(&file_path, code).expect("write");
 
     let slicer = ContextSlicer::new();
@@ -451,14 +451,14 @@ fn test_hostile_syntax_resilience_and_partial_recovery() {
 
     // Hostile Python: top function valid, syntax error in bottom function
     let py_path = dir.path().join("broken.py");
-    let py_code = r#"
+    let py_code = r"
 def first_valid_function(x: int) -> int:
     return x * 2
 
 def broken_syntax_function(:
     if True
         broken = [1, 2, 3
-"#;
+";
     fs::write(&py_path, py_code).expect("write");
     let r1 = slicer.slice_symbol(&py_path, "first_valid_function", &opts);
     assert!(r1.is_ok(), "Tree-sitter error recovery should slice first valid python function");
