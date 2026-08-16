@@ -5,6 +5,8 @@
 //! - test_mcp_chaining: Sequential MCP tool calls and stateful server sessions
 //! - test_multi_symbol_clip: Multi-symbol clipping and clipboard integration
 
+#![allow(dead_code, unused_imports, clippy::all)]
+
 #[path = "tier3_cross_feature/test_git_diff_route.rs"]
 mod test_git_diff_route;
 

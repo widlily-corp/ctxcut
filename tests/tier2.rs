@@ -9,6 +9,8 @@
 //! - test_syntax_errors: Malformed and partial AST error recovery
 //! - test_unicode_paths: Non-ASCII, emoji, and deep directory hierarchies
 
+#![allow(dead_code, unused_imports, clippy::all)]
+
 #[path = "tier2_boundaries/test_circular_types.rs"]
 mod test_circular_types;
 

@@ -6,6 +6,8 @@
 //! - test_workload_rs_inventory: Rust Axum/Tokio concurrent inventory slice
 //! - test_workload_ts_ecommerce: TypeScript Next.js/Prisma order refund slice
 
+#![allow(dead_code, unused_imports, clippy::all)]
+
 #[path = "tier4_real_world/test_workload_go_auth.rs"]
 mod test_workload_go_auth;
 

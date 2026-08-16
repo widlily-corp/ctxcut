@@ -8,6 +8,8 @@
 //! - test_slice_features: AST dependency extraction and type hoisting
 //! - test_stats_features: Token metrics, reduction statistics, and telemetry
 
+#![allow(dead_code, unused_imports, clippy::all)]
+
 #[path = "tier1_features/test_diff_features.rs"]
 mod test_diff_features;
 

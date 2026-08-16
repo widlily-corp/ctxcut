@@ -3,6 +3,8 @@
 //! Provides isolated Git sandboxes, automated BPE token reduction verifier,
 //! CLI/MCP test runners, clipboard mocking, and cross-platform snapshot normalization.
 
+#![allow(dead_code, unused_imports, unused_variables)]
+
 pub mod clipboard;
 pub mod git_sandbox;
 pub mod runner;

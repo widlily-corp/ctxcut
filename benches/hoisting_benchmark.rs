@@ -10,6 +10,7 @@ use std::collections::{HashMap, HashSet};
 
 /// Mock representation of an AST symbol for benchmarking graph traversal.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct MockAstType {
     name: String,
     definition: String,
