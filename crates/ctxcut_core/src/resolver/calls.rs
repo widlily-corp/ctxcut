@@ -1,0 +1,443 @@
+//! External call expression extractor and signature stripper.
+
+use std::collections::HashSet;
+use std::fs;
+use std::path::Path;
+use tree_sitter::Node;
+use crate::error::Result;
+use crate::model::CallSignatureStub;
+use crate::parser::{AstUtils, ParserManager};
+use crate::resolver::imports::ImportResolver;
+
+/// Extracts call expressions and strips implementations to pure signatures.
+pub struct SignatureStripper;
+
+impl SignatureStripper {
+    /// Extracts called functions/methods and returns 100% body-stripped signatures.
+    pub fn strip_calls<'a>(
+        target_node: Node<'a>,
+        root: Node<'a>,
+        source: &'a str,
+        file_path: &Path,
+        tree_sitter_lang: &tree_sitter::Language,
+    ) -> Result<Vec<CallSignatureStub>> {
+        let mut stubs = Vec::new();
+        let mut seen = HashSet::new();
+
+        let call_nodes = AstUtils::find_descendants_by_kind(target_node, "call_expression");
+        let new_nodes = AstUtils::find_descendants_by_kind(target_node, "new_expression");
+
+        let mut all_calls: Vec<(Option<String>, String)> = Vec::new();
+
+        // 1. Process call_expressions
+        for call in call_nodes {
+            if let Some(fn_node) = call.child_by_field_name("function") {
+                if fn_node.kind() == "identifier" {
+                    let fn_name = AstUtils::node_text(fn_node, source).to_string();
+                    if !is_builtin_global(&fn_name) {
+                        all_calls.push((None, fn_name));
+                    }
+                } else if fn_node.kind() == "member_expression" {
+                    if let (Some(obj), Some(prop)) = (
+                        fn_node.child_by_field_name("object"),
+                        fn_node.child_by_field_name("property"),
+                    ) {
+                        let receiver = AstUtils::node_text(obj, source).to_string();
+                        let method = AstUtils::node_text(prop, source).to_string();
+                        if !is_builtin_receiver_or_method(&receiver, &method) {
+                            all_calls.push((Some(receiver), method));
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Process new_expressions
+        for new_node in new_nodes {
+            if let Some(ctor_node) = new_node.child_by_field_name("constructor") {
+                if ctor_node.kind() == "identifier" {
+                    let ctor_name = AstUtils::node_text(ctor_node, source).to_string();
+                    if !is_builtin_global(&ctor_name) {
+                        all_calls.push((None, ctor_name));
+                    }
+                }
+            }
+        }
+
+        let mut file_cache: std::collections::HashMap<std::path::PathBuf, (String, tree_sitter::Tree)> =
+            std::collections::HashMap::new();
+
+        let imports = ImportResolver::extract_imports(root, source);
+
+        // 3. Resolve definitions for each call
+        for (receiver, name) in all_calls {
+            let key = format!("{:?}:{}", receiver, name);
+            if seen.contains(&key) {
+                continue;
+            }
+            seen.insert(key);
+
+            // A. Check local file (e.g. this.method or local helper function)
+            if receiver.as_deref() == Some("this") {
+                if let Some(stub) = find_method_in_class(target_node, root, source, &name, file_path) {
+                    stubs.push(stub);
+                    continue;
+                }
+            }
+
+            if receiver.is_none() {
+                if let Some(stub) = find_function_in_file(root, source, &name, file_path) {
+                    stubs.push(stub);
+                    continue;
+                }
+            }
+
+            // B. Check imports
+            let lookup_name = receiver.as_deref().unwrap_or(&name);
+            if let Some(mapping) = imports.get(lookup_name) {
+                if let Some(target_file) = ImportResolver::resolve_module_path(file_path, &mapping.specifier) {
+                    if let Some(stub) = resolve_call_from_module(
+                        &name,
+                        receiver.as_deref(),
+                        &target_file,
+                        tree_sitter_lang,
+                        &mut file_cache,
+                    ) {
+                        stubs.push(stub);
+                        continue;
+                    }
+                }
+            }
+
+            // C. Fallback stub if not statically located
+            let signature = if let Some(ref r) = receiver {
+                format!("{r}.{name}(...args: any[]): any;")
+            } else {
+                format!("export function {name}(...args: any[]): any;")
+            };
+
+            stubs.push(CallSignatureStub {
+                name,
+                receiver,
+                file_path: None,
+                signature,
+            });
+        }
+
+        Ok(stubs)
+    }
+}
+
+fn find_function_in_file(root: Node<'_>, source: &str, target_name: &str, file_path: &Path) -> Option<CallSignatureStub> {
+    let mut cursor = root.walk();
+    for child in root.children(&mut cursor) {
+        let decl = if child.kind() == "export_statement" {
+            child.child_by_field_name("declaration").unwrap_or(child)
+        } else {
+            child
+        };
+
+        if decl.kind() == "function_declaration" || decl.kind() == "generator_function_declaration" {
+            if let Some(name_node) = decl.child_by_field_name("name") {
+                if AstUtils::node_text(name_node, source) == target_name {
+                    let sig = extract_signature_stub(child, decl, source);
+                    return Some(CallSignatureStub {
+                        name: target_name.to_string(),
+                        receiver: None,
+                        file_path: Some(file_path.to_string_lossy().to_string()),
+                        signature: sig,
+                    });
+                }
+            }
+        } else if decl.kind() == "lexical_declaration" || decl.kind() == "variable_declaration" {
+            for declarator in AstUtils::find_children_by_kind(decl, "variable_declarator") {
+                if let Some(name_node) = declarator.child_by_field_name("name") {
+                    if AstUtils::node_text(name_node, source) == target_name {
+                        let sig = extract_signature_stub(child, declarator, source);
+                        return Some(CallSignatureStub {
+                            name: target_name.to_string(),
+                            receiver: None,
+                            file_path: Some(file_path.to_string_lossy().to_string()),
+                            signature: sig,
+                        });
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn find_method_in_class(
+    target_node: Node<'_>,
+    root: Node<'_>,
+    source: &str,
+    method_name: &str,
+    file_path: &Path,
+) -> Option<CallSignatureStub> {
+    // Traverse upwards to find containing class
+    let mut curr = target_node.parent();
+    while let Some(parent) = curr {
+        if parent.kind() == "class_declaration" || parent.kind() == "abstract_class_declaration" {
+            if let Some(body) = parent.child_by_field_name("body") {
+                for member in body.named_children(&mut body.walk()) {
+                    if member.kind() == "method_definition" {
+                        if let Some(m_name) = member.child_by_field_name("name") {
+                            if AstUtils::node_text(m_name, source) == method_name {
+                                let sig = extract_signature_stub(member, member, source);
+                                return Some(CallSignatureStub {
+                                    name: method_name.to_string(),
+                                    receiver: Some("this".to_string()),
+                                    file_path: Some(file_path.to_string_lossy().to_string()),
+                                    signature: sig,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        curr = parent.parent();
+    }
+
+    // Fallback: search all classes in root
+    let mut cursor = root.walk();
+    for child in root.children(&mut cursor) {
+        let decl = if child.kind() == "export_statement" {
+            child.child_by_field_name("declaration").unwrap_or(child)
+        } else {
+            child
+        };
+        if decl.kind() == "class_declaration" || decl.kind() == "abstract_class_declaration" {
+            if let Some(body) = decl.child_by_field_name("body") {
+                for member in body.named_children(&mut body.walk()) {
+                    if member.kind() == "method_definition" {
+                        if let Some(m_name) = member.child_by_field_name("name") {
+                            if AstUtils::node_text(m_name, source) == method_name {
+                                let sig = extract_signature_stub(member, member, source);
+                                return Some(CallSignatureStub {
+                                    name: method_name.to_string(),
+                                    receiver: Some("this".to_string()),
+                                    file_path: Some(file_path.to_string_lossy().to_string()),
+                                    signature: sig,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn resolve_call_from_module(
+    name: &str,
+    receiver: Option<&str>,
+    target_file: &Path,
+    tree_sitter_lang: &tree_sitter::Language,
+    cache: &mut std::collections::HashMap<std::path::PathBuf, (String, tree_sitter::Tree)>,
+) -> Option<CallSignatureStub> {
+    let (source, tree) = get_or_load_file(target_file, tree_sitter_lang, cache)?;
+    let root = tree.root_node();
+
+    // 1. Direct function in target file
+    if let Some(stub) = find_function_in_file(root, source, name, target_file) {
+        return Some(stub);
+    }
+
+    // 2. Check barrel re-exports
+    let reexports = ImportResolver::extract_reexports(root, source);
+    for (exported_alias, specifier) in reexports {
+        if let Some(alias) = exported_alias {
+            if alias == name {
+                if let Some(sub_file) = ImportResolver::resolve_module_path(target_file, &specifier) {
+                    if let Some(res) = resolve_call_from_module(name, receiver, &sub_file, tree_sitter_lang, cache) {
+                        return Some(res);
+                    }
+                }
+            }
+        } else {
+            // Wildcard export *
+            if let Some(sub_file) = ImportResolver::resolve_module_path(target_file, &specifier) {
+                if let Some(res) = resolve_call_from_module(name, receiver, &sub_file, tree_sitter_lang, cache) {
+                    return Some(res);
+                }
+            }
+        }
+    }
+
+    None
+}
+
+fn extract_signature_stub(outer_node: Node<'_>, decl_node: Node<'_>, source: &str) -> String {
+    let is_export = outer_node.kind() == "export_statement";
+    let prefix = if is_export { "export " } else { "" };
+
+    if decl_node.kind() == "function_declaration" || decl_node.kind() == "generator_function_declaration" {
+        if let Some(body) = decl_node.child_by_field_name("body") {
+            let start = decl_node.start_byte();
+            let body_start = body.start_byte();
+            if start <= body_start && body_start <= source.len() {
+                let sig = source[start..body_start].trim();
+                return format!("{prefix}{sig};");
+            }
+        }
+    } else if decl_node.kind() == "method_definition" {
+        if let Some(body) = decl_node.child_by_field_name("body") {
+            let start = decl_node.start_byte();
+            let body_start = body.start_byte();
+            if start <= body_start && body_start <= source.len() {
+                let sig = source[start..body_start].trim();
+                return format!("{sig};");
+            }
+        }
+    } else if decl_node.kind() == "variable_declarator" {
+        if let Some(val) = decl_node.child_by_field_name("value") {
+            if val.kind() == "arrow_function" {
+                if let (Some(name_n), Some(params)) = (
+                    decl_node.child_by_field_name("name"),
+                    val.child_by_field_name("parameters"),
+                ) {
+                    let fn_name = AstUtils::node_text(name_n, source);
+                    let params_text = AstUtils::node_text(params, source);
+                    let ret_text = val
+                        .child_by_field_name("return_type")
+                        .map(|r| format!(": {}", AstUtils::node_text(r, source).trim_start_matches(':').trim()))
+                        .unwrap_or_default();
+                    return format!("{prefix}function {fn_name}{params_text}{ret_text};");
+                }
+            }
+        }
+    }
+
+    let text = AstUtils::node_text(decl_node, source);
+    let first_line = text.lines().next().unwrap_or(text).trim();
+    let trimmed = first_line.trim_end_matches('{').trim();
+    format!("{prefix}{trimmed};")
+}
+
+fn get_or_load_file<'a>(
+    path: &Path,
+    tree_sitter_lang: &tree_sitter::Language,
+    cache: &'a mut std::collections::HashMap<std::path::PathBuf, (String, tree_sitter::Tree)>,
+) -> Option<(&'a str, &'a tree_sitter::Tree)> {
+    if !cache.contains_key(path) {
+        let content = fs::read_to_string(path).ok()?;
+        let tree = ParserManager::parse_source(&content, tree_sitter_lang, path).ok()?;
+        cache.insert(path.to_path_buf(), (content, tree));
+    }
+
+    let (content, tree) = cache.get(path)?;
+    Some((content.as_str(), tree))
+}
+
+fn is_builtin_global(name: &str) -> bool {
+    matches!(
+        name,
+        "parseInt"
+            | "parseFloat"
+            | "isNaN"
+            | "isFinite"
+            | "encodeURIComponent"
+            | "decodeURIComponent"
+            | "encodeURI"
+            | "decodeURI"
+            | "setTimeout"
+            | "clearTimeout"
+            | "setInterval"
+            | "clearInterval"
+            | "fetch"
+            | "structuredClone"
+            | "atob"
+            | "btoa"
+            | "require"
+            | "import"
+            | "super"
+            | "Error"
+            | "TypeError"
+            | "RangeError"
+            | "SyntaxError"
+            | "Date"
+            | "RegExp"
+            | "Map"
+            | "Set"
+            | "Promise"
+            | "Array"
+            | "Object"
+            | "String"
+            | "Number"
+            | "Boolean"
+            | "Symbol"
+            | "BigInt"
+    )
+}
+
+fn is_builtin_receiver_or_method(receiver: &str, method: &str) -> bool {
+    if matches!(
+        receiver,
+        "console" | "Math" | "JSON" | "Object" | "Array" | "String" | "Number" | "Promise" | "Reflect" | "process"
+    ) {
+        return true;
+    }
+    matches!(
+        method,
+        "log"
+            | "warn"
+            | "error"
+            | "info"
+            | "debug"
+            | "trace"
+            | "map"
+            | "filter"
+            | "reduce"
+            | "forEach"
+            | "some"
+            | "every"
+            | "find"
+            | "findIndex"
+            | "includes"
+            | "slice"
+            | "splice"
+            | "concat"
+            | "join"
+            | "push"
+            | "pop"
+            | "shift"
+            | "unshift"
+            | "flat"
+            | "flatMap"
+            | "sort"
+            | "reverse"
+            | "toLowerCase"
+            | "toUpperCase"
+            | "trim"
+            | "trimStart"
+            | "trimEnd"
+            | "split"
+            | "replace"
+            | "replaceAll"
+            | "substring"
+            | "startsWith"
+            | "endsWith"
+            | "indexOf"
+            | "padStart"
+            | "padEnd"
+            | "charAt"
+            | "charCodeAt"
+            | "match"
+            | "search"
+            | "keys"
+            | "values"
+            | "entries"
+            | "assign"
+            | "all"
+            | "resolve"
+            | "reject"
+            | "allSettled"
+            | "race"
+            | "toString"
+            | "valueOf"
+            | "hasOwnProperty"
+    )
+}
