@@ -229,6 +229,7 @@ impl LanguageAdapter for RustAdapter {
                         signature: sig,
                     });
                 } else {
+                    let mut found = false;
                     let dir = file_path.parent().unwrap_or_else(|| Path::new("."));
                     if let Ok(entries) = fs::read_dir(dir) {
                         for entry in entries.flatten() {
@@ -246,11 +247,20 @@ impl LanguageAdapter for RustAdapter {
                                             file_path: Some(path.to_string_lossy().to_string()),
                                             signature: sig,
                                         });
+                                        found = true;
                                         break;
                                     }
                                 }
                             }
                         }
+                    }
+                    if !found {
+                        stubs.push(CallSignatureStub {
+                            name: call_name.to_string(),
+                            receiver: None,
+                            file_path: None,
+                            signature: format!("pub fn {call_name}(...);"),
+                        });
                     }
                 }
             }

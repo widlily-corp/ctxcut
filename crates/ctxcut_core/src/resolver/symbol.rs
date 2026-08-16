@@ -26,7 +26,7 @@ impl SymbolLocator {
                 return Ok((sym, node));
             }
         } else {
-            // 2. Search top-level declarations
+            // 2. Search top-level declarations (including error recovery inside ERROR nodes)
             if let Some((sym, node)) = Self::find_top_level(root, source, member_query, file_path, language) {
                 return Ok((sym, node));
             }
@@ -48,54 +48,7 @@ impl SymbolLocator {
     /// Lists all declared symbol names in the file for diagnostics and suggestion.
     pub fn list_all_symbols(root: Node<'_>, source: &str) -> Vec<String> {
         let mut symbols = Vec::new();
-        let mut cursor = root.walk();
-
-        for child in root.children(&mut cursor) {
-            let decl = unwrap_export(child);
-            match decl.kind() {
-                "function_declaration"
-                | "generator_function_declaration"
-                | "interface_declaration"
-                | "type_alias_declaration"
-                | "enum_declaration" => {
-                    if let Some(name_node) = decl.child_by_field_name("name") {
-                        symbols.push(AstUtils::node_text(name_node, source).to_string());
-                    }
-                }
-                "lexical_declaration" | "variable_declaration" => {
-                    for declarator in AstUtils::find_children_by_kind(decl, "variable_declarator") {
-                        if let Some(name_node) = declarator.child_by_field_name("name") {
-                            symbols.push(AstUtils::node_text(name_node, source).to_string());
-                        }
-                    }
-                }
-                "class_declaration" | "abstract_class_declaration" => {
-                    if let Some(name_node) = decl.child_by_field_name("name") {
-                        let class_name = AstUtils::node_text(name_node, source);
-                        symbols.push(class_name.to_string());
-
-                        if let Some(body) = decl.child_by_field_name("body") {
-                            for member in body.named_children(&mut body.walk()) {
-                                if matches!(
-                                    member.kind(),
-                                    "method_definition"
-                                        | "public_field_definition"
-                                        | "field_definition"
-                                        | "property_definition"
-                                ) {
-                                    if let Some(m_name) = member.child_by_field_name("name") {
-                                        let member_name = AstUtils::node_text(m_name, source);
-                                        symbols.push(format!("{class_name}.{member_name}"));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-
+        collect_symbols_recursive(root, source, &mut symbols);
         symbols
     }
 
@@ -106,75 +59,7 @@ impl SymbolLocator {
         file_path: &Path,
         language: &str,
     ) -> Option<(ExtractedSymbol, Node<'a>)> {
-        let mut cursor = root.walk();
-        for child in root.children(&mut cursor) {
-            let enclosing = child;
-            let decl = unwrap_export(child);
-
-            match decl.kind() {
-                "function_declaration" | "generator_function_declaration" => {
-                    if let Some(name_node) = decl.child_by_field_name("name") {
-                        if AstUtils::node_text(name_node, source) == target_name {
-                            let sym = build_symbol(enclosing, decl, "function", target_name, source, file_path, language);
-                            return Some((sym, decl));
-                        }
-                    }
-                }
-                "lexical_declaration" | "variable_declaration" => {
-                    for declarator in AstUtils::find_children_by_kind(decl, "variable_declarator") {
-                        if let Some(name_node) = declarator.child_by_field_name("name") {
-                            if AstUtils::node_text(name_node, source) == target_name {
-                                let kind = if let Some(val) = declarator.child_by_field_name("value") {
-                                    if val.kind() == "arrow_function" || val.kind() == "function_expression" {
-                                        "function"
-                                    } else {
-                                        "variable"
-                                    }
-                                } else {
-                                    "variable"
-                                };
-                                let sym = build_symbol(enclosing, enclosing, kind, target_name, source, file_path, language);
-                                return Some((sym, declarator));
-                            }
-                        }
-                    }
-                }
-                "class_declaration" | "abstract_class_declaration" => {
-                    if let Some(name_node) = decl.child_by_field_name("name") {
-                        if AstUtils::node_text(name_node, source) == target_name {
-                            let sym = build_symbol(enclosing, decl, "class", target_name, source, file_path, language);
-                            return Some((sym, decl));
-                        }
-                    }
-                }
-                "interface_declaration" => {
-                    if let Some(name_node) = decl.child_by_field_name("name") {
-                        if AstUtils::node_text(name_node, source) == target_name {
-                            let sym = build_symbol(enclosing, decl, "interface", target_name, source, file_path, language);
-                            return Some((sym, decl));
-                        }
-                    }
-                }
-                "type_alias_declaration" => {
-                    if let Some(name_node) = decl.child_by_field_name("name") {
-                        if AstUtils::node_text(name_node, source) == target_name {
-                            let sym = build_symbol(enclosing, decl, "type", target_name, source, file_path, language);
-                            return Some((sym, decl));
-                        }
-                    }
-                }
-                "enum_declaration" => {
-                    if let Some(name_node) = decl.child_by_field_name("name") {
-                        if AstUtils::node_text(name_node, source) == target_name {
-                            let sym = build_symbol(enclosing, decl, "enum", target_name, source, file_path, language);
-                            return Some((sym, decl));
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-        None
+        find_symbol_recursive(root, source, target_name, file_path, language)
     }
 
     fn find_in_container<'a>(
@@ -230,14 +115,24 @@ impl SymbolLocator {
         let mut cursor = root.walk();
         for child in root.children(&mut cursor) {
             let decl = unwrap_export(child);
-            if decl.kind() == "class_declaration" || decl.kind() == "abstract_class_declaration" {
+            if matches!(
+                decl.kind(),
+                "class_declaration" | "abstract_class_declaration"
+            ) {
                 let class_name = decl
                     .child_by_field_name("name")
-                    .map_or("Class", |n| AstUtils::node_text(n, source));
+                    .map(|n| AstUtils::node_text(n, source))
+                    .unwrap_or("Class");
 
                 if let Some(body) = decl.child_by_field_name("body") {
                     for member in body.named_children(&mut body.walk()) {
-                        if member.kind() == "method_definition" {
+                        if matches!(
+                            member.kind(),
+                            "method_definition"
+                                | "public_field_definition"
+                                | "field_definition"
+                                | "property_definition"
+                        ) {
                             if let Some(m_name) = member.child_by_field_name("name") {
                                 if AstUtils::node_text(m_name, source) == member_name {
                                     let full_name = format!("{class_name}.{member_name}");
@@ -254,22 +149,185 @@ impl SymbolLocator {
     }
 }
 
+fn collect_symbols_recursive(node: Node<'_>, source: &str, out: &mut Vec<String>) {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        let decl = unwrap_export(child);
+        match decl.kind() {
+            "function_declaration"
+            | "generator_function_declaration"
+            | "interface_declaration"
+            | "type_alias_declaration"
+            | "enum_declaration" => {
+                if let Some(name_node) = decl.child_by_field_name("name") {
+                    let name = AstUtils::node_text(name_node, source).to_string();
+                    if !out.contains(&name) {
+                        out.push(name);
+                    }
+                }
+            }
+            "lexical_declaration" | "variable_declaration" => {
+                for declarator in AstUtils::find_children_by_kind(decl, "variable_declarator") {
+                    if let Some(name_node) = declarator.child_by_field_name("name") {
+                        let name = AstUtils::node_text(name_node, source).to_string();
+                        if !out.contains(&name) {
+                            out.push(name);
+                        }
+                    }
+                }
+            }
+            "class_declaration" | "abstract_class_declaration" => {
+                if let Some(name_node) = decl.child_by_field_name("name") {
+                    let class_name = AstUtils::node_text(name_node, source);
+                    if !out.contains(&class_name.to_string()) {
+                        out.push(class_name.to_string());
+                    }
+
+                    if let Some(body) = decl.child_by_field_name("body") {
+                        for member in body.named_children(&mut body.walk()) {
+                            if matches!(
+                                member.kind(),
+                                "method_definition"
+                                    | "public_field_definition"
+                                    | "field_definition"
+                                    | "property_definition"
+                            ) {
+                                if let Some(m_name) = member.child_by_field_name("name") {
+                                    let member_name = AstUtils::node_text(m_name, source);
+                                    let full = format!("{class_name}.{member_name}");
+                                    if !out.contains(&full) {
+                                        out.push(full);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            "ERROR" => {
+                collect_symbols_recursive(decl, source, out);
+            }
+            _ => {}
+        }
+    }
+}
+
+fn find_symbol_recursive<'a>(
+    node: Node<'a>,
+    source: &'a str,
+    target_name: &str,
+    file_path: &Path,
+    language: &str,
+) -> Option<(ExtractedSymbol, Node<'a>)> {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        let enclosing = child;
+        let decl = unwrap_export(child);
+
+        match decl.kind() {
+            "function_declaration" | "generator_function_declaration" => {
+                if let Some(name_node) = decl.child_by_field_name("name") {
+                    if AstUtils::node_text(name_node, source) == target_name {
+                        let sym = build_symbol(enclosing, decl, "function", target_name, source, file_path, language);
+                        return Some((sym, decl));
+                    }
+                }
+            }
+            "lexical_declaration" | "variable_declaration" => {
+                for declarator in AstUtils::find_children_by_kind(decl, "variable_declarator") {
+                    if let Some(name_node) = declarator.child_by_field_name("name") {
+                        if AstUtils::node_text(name_node, source) == target_name {
+                            let kind = if let Some(val) = declarator.child_by_field_name("value") {
+                                if val.kind() == "arrow_function" || val.kind() == "function_expression" {
+                                    "function"
+                                } else {
+                                    "variable"
+                                }
+                            } else {
+                                "variable"
+                            };
+                            let sym = build_symbol(enclosing, enclosing, kind, target_name, source, file_path, language);
+                            return Some((sym, declarator));
+                        }
+                    }
+                }
+            }
+            "class_declaration" | "abstract_class_declaration" => {
+                if let Some(name_node) = decl.child_by_field_name("name") {
+                    if AstUtils::node_text(name_node, source) == target_name {
+                        let sym = build_symbol(enclosing, decl, "class", target_name, source, file_path, language);
+                        return Some((sym, decl));
+                    }
+                }
+            }
+            "interface_declaration" => {
+                if let Some(name_node) = decl.child_by_field_name("name") {
+                    if AstUtils::node_text(name_node, source) == target_name {
+                        let sym = build_symbol(enclosing, decl, "interface", target_name, source, file_path, language);
+                        return Some((sym, decl));
+                    }
+                }
+            }
+            "type_alias_declaration" => {
+                if let Some(name_node) = decl.child_by_field_name("name") {
+                    if AstUtils::node_text(name_node, source) == target_name {
+                        let sym = build_symbol(enclosing, decl, "type", target_name, source, file_path, language);
+                        return Some((sym, decl));
+                    }
+                }
+            }
+            "enum_declaration" => {
+                if let Some(name_node) = decl.child_by_field_name("name") {
+                    if AstUtils::node_text(name_node, source) == target_name {
+                        let sym = build_symbol(enclosing, decl, "enum", target_name, source, file_path, language);
+                        return Some((sym, decl));
+                    }
+                }
+            }
+            "ERROR" => {
+                if let Some(found) = find_symbol_recursive(decl, source, target_name, file_path, language) {
+                    return Some(found);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn unwrap_export(node: Node<'_>) -> Node<'_> {
+    if node.kind() == "export_statement" {
+        if let Some(declaration) = node.child_by_field_name("declaration") {
+            return declaration;
+        }
+        for child in node.named_children(&mut node.walk()) {
+            if matches!(
+                child.kind(),
+                "function_declaration"
+                    | "class_declaration"
+                    | "interface_declaration"
+                    | "type_alias_declaration"
+                    | "enum_declaration"
+                    | "lexical_declaration"
+                    | "variable_declaration"
+            ) {
+                return child;
+            }
+        }
+    }
+    node
+}
+
 fn parse_query(query: &str) -> (Option<&str>, &str) {
     if let Some((container, member)) = query.split_once('.') {
-        (Some(container.trim()), member.trim())
-    } else if let Some((container, member)) = query.split_once("::") {
         (Some(container.trim()), member.trim())
     } else {
         (None, query.trim())
     }
 }
 
-fn unwrap_export(node: Node<'_>) -> Node<'_> {
-    AstUtils::unwrap_export(node)
-}
-
 fn build_symbol(
-    outer_node: Node<'_>,
+    enclosing_node: Node<'_>,
     decl_node: Node<'_>,
     kind: &str,
     name: &str,
@@ -277,26 +335,16 @@ fn build_symbol(
     file_path: &Path,
     language: &str,
 ) -> ExtractedSymbol {
-    let doc_comment = AstUtils::extract_doc_comment(outer_node, source);
-    let mut start_line = outer_node.start_position().row + 1;
-    let end_line = outer_node.end_position().row + 1;
-
-    // Adjust start_line if doc comment was found
-    if let Some(prev) = outer_node.prev_named_sibling() {
-        if prev.kind() == "comment" && doc_comment.is_some() {
-            start_line = prev.start_position().row + 1;
-        }
-    }
-
+    let body = AstUtils::node_text(enclosing_node, source).to_string();
+    let doc_comment = AstUtils::extract_doc_comment(enclosing_node, source);
     let signature = extract_signature(decl_node, source);
-    let body = AstUtils::node_text(outer_node, source).to_string();
 
     ExtractedSymbol {
         name: name.to_string(),
         kind: kind.to_string(),
         file_path: file_path.to_string_lossy().to_string(),
-        start_line,
-        end_line,
+        start_line: enclosing_node.start_position().row + 1,
+        end_line: enclosing_node.end_position().row + 1,
         doc_comment,
         signature,
         body,
@@ -304,25 +352,19 @@ fn build_symbol(
     }
 }
 
-fn extract_signature(node: Node<'_>, source: &str) -> String {
-    let text = AstUtils::node_text(node, source);
-    match node.kind() {
-        "function_declaration"
-        | "generator_function_declaration"
-        | "method_definition"
-        | "class_declaration"
-        | "abstract_class_declaration"
-        | "interface_declaration" => {
-            if let Some(body) = node.child_by_field_name("body") {
-                let start = node.start_byte();
-                let body_start = body.start_byte();
-                if start <= body_start && body_start <= source.len() {
-                    return source[start..body_start].trim().to_string();
-                }
-            }
+fn extract_signature(decl: Node<'_>, source: &str) -> String {
+    if let Some(body) = decl.child_by_field_name("body") {
+        let sig_end = body.start_byte();
+        let decl_start = decl.start_byte();
+        if decl_start < sig_end && sig_end <= source.len() {
+            let sig = source[decl_start..sig_end].trim_end();
+            return format!("{};", sig.strip_suffix('{').unwrap_or(sig).trim());
         }
-        _ => {}
     }
-    // Fallback: first line
-    text.lines().next().unwrap_or(text).trim().to_string()
+    let text = AstUtils::node_text(decl, source).trim().to_string();
+    if !text.ends_with(';') {
+        format!("{text};")
+    } else {
+        text
+    }
 }

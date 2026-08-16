@@ -323,6 +323,7 @@ impl LanguageAdapter for PythonAdapter {
                                                         file_path: Some(path.to_string_lossy().to_string()),
                                                         signature: sig,
                                                     });
+                                                    found = true;
                                                     break;
                                                 }
                                             }
@@ -331,6 +332,16 @@ impl LanguageAdapter for PythonAdapter {
                                 }
                             }
                         }
+                    }
+
+                    // 3. Fallback stub for external/unresolved call
+                    if !found {
+                        stubs.push(CallSignatureStub {
+                            name: call_name.to_string(),
+                            receiver: None,
+                            file_path: None,
+                            signature: format!("def {call_name}(*args, **kwargs): ..."),
+                        });
                     }
                 }
             }

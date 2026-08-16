@@ -31,8 +31,7 @@ impl LanguageAdapter for GoAdapter {
         let (receiver_query, member_query) = parse_query(symbol_query);
 
         if let Some(receiver_name) = receiver_query {
-            let clean_rec = receiver_name.trim_start_matches('*').trim();
-            if let Some((sym, node)) = find_method_with_receiver(root, source, clean_rec, member_query, file_path) {
+            if let Some((sym, node)) = find_method_with_receiver(root, source, receiver_name, member_query, file_path) {
                 return Ok((sym, node));
             }
         } else {
@@ -186,6 +185,9 @@ impl LanguageAdapter for GoAdapter {
         let mut stubs = Vec::new();
         let mut seen = HashSet::new();
 
+        let dir = file_path.parent().unwrap_or_else(|| Path::new("."));
+        let ts_lang = self.tree_sitter_language(file_path);
+
         let call_nodes = AstUtils::find_descendants_by_kind(target_node, "call_expression");
         for call in call_nodes {
             if let Some(func_node) = call.child_by_field_name("function") {
@@ -203,6 +205,39 @@ impl LanguageAdapter for GoAdapter {
                         file_path: Some(file_path.to_string_lossy().to_string()),
                         signature: sig,
                     });
+                } else {
+                    let mut found = false;
+                    if let Ok(entries) = fs::read_dir(dir) {
+                        for entry in entries.flatten() {
+                            let path = entry.path();
+                            if path == file_path || path.extension().and_then(|e| e.to_str()) != Some("go") {
+                                continue;
+                            }
+
+                            if let Ok(sibling_src) = fs::read_to_string(&path) {
+                                if let Ok(sibling_tree) = ParserManager::parse_source(&sibling_src, &ts_lang, &path) {
+                                    if let Some(sig) = find_go_signature(sibling_tree.root_node(), &sibling_src, call_name) {
+                                        stubs.push(CallSignatureStub {
+                                            name: call_name.to_string(),
+                                            receiver: None,
+                                            file_path: Some(path.to_string_lossy().to_string()),
+                                            signature: sig,
+                                        });
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if !found {
+                        stubs.push(CallSignatureStub {
+                            name: call_name.to_string(),
+                            receiver: None,
+                            file_path: None,
+                            signature: format!("func {call_name}(...any) any"),
+                        });
+                    }
                 }
             }
         }
@@ -352,6 +387,16 @@ fn build_go_symbol(node: Node<'_>, source: &str, file_path: &Path, kind: &str) -
     let name = node
         .child_by_field_name("name")
         .map(|n| AstUtils::node_text(n, source).to_string())
+        .or_else(|| {
+            if node.kind() == "type_declaration" {
+                for spec in AstUtils::find_children_by_kind(node, "type_spec") {
+                    if let Some(n) = spec.child_by_field_name("name") {
+                        return Some(AstUtils::node_text(n, source).to_string());
+                    }
+                }
+            }
+            None
+        })
         .unwrap_or_else(|| "anonymous".to_string());
 
     let body = AstUtils::node_text(node, source).to_string();
