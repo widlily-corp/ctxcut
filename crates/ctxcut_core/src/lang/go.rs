@@ -1,12 +1,13 @@
-//! LanguageAdapter implementation for Go.
+//! LanguageAdapter implementation for Go (.go).
 
-use std::collections::HashSet;
-use std::path::Path;
+use std::collections::{HashSet, VecDeque};
+use std::fs;
+use std::path::{Path, PathBuf};
 use tree_sitter::{Language, Node};
 use crate::error::{CoreError, Result};
 use crate::lang::LanguageAdapter;
 use crate::model::{CallSignatureStub, ExtractedSymbol, ExtractedType, SliceOptions, SupportedLanguage};
-use crate::parser::AstUtils;
+use crate::parser::{AstUtils, ParserManager};
 
 /// Go language adapter supporting Go (.go).
 pub struct GoAdapter;
@@ -65,7 +66,7 @@ impl LanguageAdapter for GoAdapter {
                 "method_declaration" => {
                     if let Some(name_node) = child.child_by_field_name("name") {
                         let method_name = AstUtils::node_text(name_node, source);
-                        let receiver_type = extract_receiver_type(child, source);
+                        let receiver_type = extract_receiver_type_name(child, source);
                         if let Some(rec) = receiver_type {
                             symbols.push(format!("{rec}.{method_name}"));
                         } else {
@@ -76,6 +77,11 @@ impl LanguageAdapter for GoAdapter {
                 "type_declaration" => {
                     for spec in AstUtils::find_children_by_kind(child, "type_spec") {
                         if let Some(name_node) = spec.child_by_field_name("name") {
+                            symbols.push(AstUtils::node_text(name_node, source).to_string());
+                        }
+                    }
+                    for alias in AstUtils::find_children_by_kind(child, "type_alias") {
+                        if let Some(name_node) = alias.child_by_field_name("name") {
                             symbols.push(AstUtils::node_text(name_node, source).to_string());
                         }
                     }
@@ -93,35 +99,63 @@ impl LanguageAdapter for GoAdapter {
         root: Node<'a>,
         source: &'a str,
         file_path: &Path,
-        _opts: &SliceOptions,
+        opts: &SliceOptions,
     ) -> Result<Vec<ExtractedType>> {
-        let mut referenced_names = HashSet::new();
+        let mut hoisted = Vec::new();
+        let mut visited = HashSet::new();
+        let mut queue = VecDeque::new();
 
-        // Check type identifiers in params/result
-        for id in AstUtils::find_descendants_by_kind(target_node, "type_identifier") {
-            let name = AstUtils::node_text(id, source);
-            if !is_builtin_go_type(name) {
-                referenced_names.insert(name);
+        // 1. Scoped generic parameter filtering (e.g. [T any, R comparable])
+        let scoped_generics = collect_go_generics(target_node, source);
+
+        // 2. Extract initial referenced types from target signature and body
+        let initial_types = extract_referenced_go_types(target_node, source, &scoped_generics);
+        for t in initial_types {
+            if visited.insert(t.clone()) {
+                queue.push_back((t, 1usize));
             }
         }
 
-        let mut hoisted = Vec::new();
-        let mut cursor = root.walk();
+        // 3. Find current package name and collect sibling package files
+        let current_pkg = extract_package_name(root, source);
+        let sibling_files = find_sibling_package_files(file_path, &current_pkg);
 
-        for child in root.children(&mut cursor) {
-            if child.kind() == "type_declaration" {
-                for spec in AstUtils::find_children_by_kind(child, "type_spec") {
-                    if let Some(name_node) = spec.child_by_field_name("name") {
-                        let type_name = AstUtils::node_text(name_node, source);
-                        if referenced_names.contains(type_name) {
-                            let full_decl = AstUtils::node_text(child, source).to_string();
+        // 4. BFS transitive resolution
+        while let Some((type_name, depth)) = queue.pop_front() {
+            // A. Check current file
+            if let Some(extracted) = find_local_go_type(root, source, &type_name, file_path) {
+                if depth < opts.depth {
+                    let ts_lang = self.tree_sitter_language(file_path);
+                    if let Ok(tree) = ParserManager::parse_source(&extracted.definition, &ts_lang, file_path) {
+                        let inner_refs = extract_referenced_go_types(tree.root_node(), &extracted.definition, &scoped_generics);
+                        for inner in inner_refs {
+                            if visited.insert(inner.clone()) {
+                                queue.push_back((inner, depth + 1));
+                            }
+                        }
+                    }
+                }
+                hoisted.push(extracted);
+                continue;
+            }
 
-                            hoisted.push(ExtractedType {
-                                name: type_name.to_string(),
-                                kind: "type".to_string(),
-                                file_path: file_path.to_string_lossy().to_string(),
-                                definition: full_decl,
-                            });
+            // B. Check sibling package files
+            for sibling_path in &sibling_files {
+                if let Ok(sibling_source) = fs::read_to_string(sibling_path) {
+                    let ts_lang = self.tree_sitter_language(sibling_path);
+                    if let Ok(tree) = ParserManager::parse_source(&sibling_source, &ts_lang, sibling_path) {
+                        let sibling_root = tree.root_node();
+                        if let Some(extracted) = find_local_go_type(sibling_root, &sibling_source, &type_name, sibling_path) {
+                            if depth < opts.depth {
+                                let inner_refs = extract_referenced_go_types(sibling_root, &extracted.definition, &scoped_generics);
+                                for inner in inner_refs {
+                                    if visited.insert(inner.clone()) {
+                                        queue.push_back((inner, depth + 1));
+                                    }
+                                }
+                            }
+                            hoisted.push(extracted);
+                            break;
                         }
                     }
                 }
@@ -141,24 +175,78 @@ impl LanguageAdapter for GoAdapter {
         let mut stubs = Vec::new();
         let mut seen = HashSet::new();
 
+        let current_pkg = extract_package_name(root, source);
+        let sibling_files = find_sibling_package_files(file_path, &current_pkg);
         let call_nodes = AstUtils::find_descendants_by_kind(target_node, "call_expression");
+
         for call in call_nodes {
-            if let Some(func_node) = call.child_by_field_name("function") {
-                let call_text = AstUtils::node_text(func_node, source);
-                let call_name = call_text.split('.').last().unwrap_or(call_text);
+            let Some(func_node) = call.child_by_field_name("function") else {
+                continue;
+            };
 
-                if !seen.insert(call_name.to_string()) || is_builtin_go_func(call_name) {
-                    continue;
-                }
+            let call_text = AstUtils::node_text(func_node, source).trim();
+            if call_text.is_empty() {
+                continue;
+            }
 
-                if let Some(sig) = find_go_signature(root, source, call_name) {
-                    stubs.push(CallSignatureStub {
-                        name: call_name.to_string(),
-                        receiver: None,
-                        file_path: Some(file_path.to_string_lossy().to_string()),
-                        signature: sig,
-                    });
+            let parts: Vec<&str> = call_text.split('.').map(str::trim).collect();
+            let call_name = parts.last().copied().unwrap_or(call_text);
+            let receiver = if parts.len() > 1 {
+                Some(parts[..parts.len() - 1].join("."))
+            } else {
+                None
+            };
+
+            if is_builtin_go_func(call_name)
+                || is_stdlib_package(parts.first().copied().unwrap_or(""))
+                || !seen.insert(call_name.to_string())
+            {
+                continue;
+            }
+
+            // 1. Check current file
+            if let Some(sig) = find_go_signature(root, source, call_name) {
+                stubs.push(CallSignatureStub {
+                    name: call_name.to_string(),
+                    receiver,
+                    file_path: Some(file_path.to_string_lossy().to_string()),
+                    signature: sig,
+                });
+                continue;
+            }
+
+            // 2. Check sibling package files
+            let mut found_sibling = false;
+            for sibling_path in &sibling_files {
+                if let Ok(sibling_source) = fs::read_to_string(sibling_path) {
+                    let ts_lang = self.tree_sitter_language(sibling_path);
+                    if let Ok(tree) = ParserManager::parse_source(&sibling_source, &ts_lang, sibling_path) {
+                        if let Some(sig) = find_go_signature(tree.root_node(), &sibling_source, call_name) {
+                            stubs.push(CallSignatureStub {
+                                name: call_name.to_string(),
+                                receiver: receiver.clone(),
+                                file_path: Some(sibling_path.to_string_lossy().to_string()),
+                                signature: sig,
+                            });
+                            found_sibling = true;
+                            break;
+                        }
+                    }
                 }
+            }
+
+            if found_sibling {
+                continue;
+            }
+
+            // 3. Fallback stub if called on a receiver
+            if receiver.is_some() {
+                stubs.push(CallSignatureStub {
+                    name: call_name.to_string(),
+                    receiver,
+                    file_path: None,
+                    signature: format!("func {call_name}(...) interface{{}}"),
+                });
             }
         }
 
@@ -166,18 +254,25 @@ impl LanguageAdapter for GoAdapter {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 fn parse_query(query: &str) -> (Option<&str>, &str) {
-    if let Some((container, member)) = query.split_once('.') {
-        (Some(container.trim()), member.trim())
+    let clean = query.trim_start_matches('*');
+    if let Some((container, member)) = clean.split_once('.') {
+        (Some(container.trim_start_matches('*').trim()), member.trim())
     } else {
-        (None, query.trim())
+        (None, clean.trim())
     }
 }
 
-fn extract_receiver_type(method_node: Node<'_>, source: &str) -> Option<String> {
-    if let Some(receiver) = method_node.child_by_field_name("receiver") {
-        for type_id in AstUtils::find_descendants_by_kind(receiver, "type_identifier") {
-            return Some(AstUtils::node_text(type_id, source).to_string());
+fn extract_receiver_type_name(method_node: Node<'_>, source: &str) -> Option<String> {
+    let receiver = method_node.child_by_field_name("receiver")?;
+    for type_id in AstUtils::find_descendants_by_kind(receiver, "type_identifier") {
+        let text = AstUtils::node_text(type_id, source).trim();
+        if !text.is_empty() {
+            return Some(text.to_string());
         }
     }
     None
@@ -207,6 +302,13 @@ fn find_top_level<'a>(
                         }
                     }
                 }
+                for alias in AstUtils::find_children_by_kind(child, "type_alias") {
+                    if let Some(name_node) = alias.child_by_field_name("name") {
+                        if AstUtils::node_text(name_node, source) == target_name {
+                            return Some((build_go_symbol(child, source, file_path, "type"), child));
+                        }
+                    }
+                }
             }
             _ => {}
         }
@@ -221,13 +323,14 @@ fn find_method_with_receiver<'a>(
     method_name: &str,
     file_path: &Path,
 ) -> Option<(ExtractedSymbol, Node<'a>)> {
+    let clean_receiver = receiver_name.trim_start_matches('*').trim();
     let mut cursor = root.walk();
     for child in root.children(&mut cursor) {
         if child.kind() == "method_declaration" {
             if let Some(name_node) = child.child_by_field_name("name") {
                 if AstUtils::node_text(name_node, source) == method_name {
-                    if let Some(rec) = extract_receiver_type(child, source) {
-                        if rec == receiver_name {
+                    if let Some(rec) = extract_receiver_type_name(child, source) {
+                        if rec == clean_receiver {
                             return Some((build_go_symbol(child, source, file_path, "method"), child));
                         }
                     }
@@ -261,6 +364,21 @@ fn build_go_symbol(node: Node<'_>, source: &str, file_path: &Path, kind: &str) -
     let name = node
         .child_by_field_name("name")
         .map(|n| AstUtils::node_text(n, source).to_string())
+        .or_else(|| {
+            if node.kind() == "type_declaration" {
+                for spec in AstUtils::find_children_by_kind(node, "type_spec") {
+                    if let Some(n) = spec.child_by_field_name("name") {
+                        return Some(AstUtils::node_text(n, source).to_string());
+                    }
+                }
+                for alias in AstUtils::find_children_by_kind(node, "type_alias") {
+                    if let Some(n) = alias.child_by_field_name("name") {
+                        return Some(AstUtils::node_text(n, source).to_string());
+                    }
+                }
+            }
+            None
+        })
         .unwrap_or_else(|| "anonymous".to_string());
 
     let body = AstUtils::node_text(node, source).to_string();
@@ -288,7 +406,7 @@ fn extract_go_sig(node: Node<'_>, source: &str) -> String {
             return source[start..sig_end].trim().to_string();
         }
     }
-    AstUtils::node_text(node, source).to_string()
+    AstUtils::node_text(node, source).lines().next().unwrap_or("").trim().to_string()
 }
 
 fn find_go_signature(root: Node<'_>, source: &str, func_name: &str) -> Option<String> {
@@ -300,12 +418,138 @@ fn find_go_signature(root: Node<'_>, source: &str, func_name: &str) -> Option<St
                     return Some(extract_go_sig(child, source));
                 }
             }
+        } else if child.kind() == "type_declaration" {
+            // Check interface method specifications
+            for spec in AstUtils::find_children_by_kind(child, "type_spec") {
+                for iface in AstUtils::find_descendants_by_kind(spec, "interface_type") {
+                    for m_spec in AstUtils::find_descendants_by_kind(iface, "method_spec") {
+                        if let Some(m_name) = m_spec.child_by_field_name("name") {
+                            if AstUtils::node_text(m_name, source) == func_name {
+                                let sig = AstUtils::node_text(m_spec, source).trim();
+                                return Some(format!("func {sig}"));
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     None
 }
 
-fn is_builtin_go_type(name: &str) -> bool {
+fn collect_go_generics(node: Node<'_>, source: &str) -> HashSet<String> {
+    let mut generics = HashSet::new();
+    if let Some(type_params) = node.child_by_field_name("type_parameters") {
+        for id in AstUtils::find_descendants_by_kind(type_params, "type_identifier") {
+            generics.insert(AstUtils::node_text(id, source).to_string());
+        }
+        for id in AstUtils::find_descendants_by_kind(type_params, "identifier") {
+            generics.insert(AstUtils::node_text(id, source).to_string());
+        }
+    }
+    generics
+}
+
+fn extract_referenced_go_types(node: Node<'_>, source: &str, scoped_generics: &HashSet<String>) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut seen = HashSet::new();
+
+    for id in AstUtils::find_descendants_by_kind(node, "type_identifier") {
+        let name = AstUtils::node_text(id, source).trim();
+        if is_valid_custom_go_type(name, scoped_generics) && seen.insert(name.to_string()) {
+            names.push(name.to_string());
+        }
+    }
+
+    names
+}
+
+fn is_valid_custom_go_type(name: &str, scoped_generics: &HashSet<String>) -> bool {
+    !name.is_empty()
+        && !scoped_generics.contains(name)
+        && !is_builtin_go_type(name)
+}
+
+fn find_local_go_type(root: Node<'_>, source: &str, type_name: &str, file_path: &Path) -> Option<ExtractedType> {
+    let mut cursor = root.walk();
+    for child in root.children(&mut cursor) {
+        if child.kind() == "type_declaration" {
+            for spec in AstUtils::find_children_by_kind(child, "type_spec") {
+                if let Some(name_node) = spec.child_by_field_name("name") {
+                    if AstUtils::node_text(name_node, source) == type_name {
+                        return Some(ExtractedType {
+                            name: type_name.to_string(),
+                            kind: "type".to_string(),
+                            file_path: file_path.to_string_lossy().to_string(),
+                            definition: AstUtils::node_text(child, source).to_string(),
+                        });
+                    }
+                }
+            }
+            for alias in AstUtils::find_children_by_kind(child, "type_alias") {
+                if let Some(name_node) = alias.child_by_field_name("name") {
+                    if AstUtils::node_text(name_node, source) == type_name {
+                        return Some(ExtractedType {
+                            name: type_name.to_string(),
+                            kind: "type_alias".to_string(),
+                            file_path: file_path.to_string_lossy().to_string(),
+                            definition: AstUtils::node_text(child, source).to_string(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn extract_package_name(root: Node<'_>, source: &str) -> String {
+    let mut cursor = root.walk();
+    for child in root.children(&mut cursor) {
+        if child.kind() == "package_clause" {
+            if let Some(pkg_id) = AstUtils::find_descendants_by_kind(child, "package_identifier").first() {
+                return AstUtils::node_text(*pkg_id, source).trim().to_string();
+            }
+        }
+    }
+    "main".to_string()
+}
+
+fn find_sibling_package_files(file_path: &Path, expected_pkg: &str) -> Vec<PathBuf> {
+    let mut siblings = Vec::new();
+    let parent_dir = match file_path.parent() {
+        Some(p) => p,
+        None => return siblings,
+    };
+
+    let entries = match fs::read_dir(parent_dir) {
+        Ok(e) => e,
+        Err(_) => return siblings,
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file()
+            && path != file_path
+            && path.extension().and_then(|e| e.to_str()) == Some("go")
+            && !path.file_name().and_then(|n| n.to_str()).unwrap_or("").ends_with("_test.go")
+        {
+            if let Ok(src) = fs::read_to_string(&path) {
+                if let Ok(tree) = ParserManager::parse_source(&src, &tree_sitter_go::LANGUAGE.into(), &path) {
+                    let pkg = extract_package_name(tree.root_node(), &src);
+                    if pkg == expected_pkg {
+                        siblings.push(path);
+                    }
+                }
+            }
+        }
+    }
+
+    siblings
+}
+
+/// Checks if a type name is a Go built-in primitive or standard type.
+pub fn is_builtin_go_type(name: &str) -> bool {
     matches!(
         name,
         "string"
@@ -329,12 +573,21 @@ fn is_builtin_go_type(name: &str) -> bool {
             | "bool"
             | "error"
             | "any"
+            | "comparable"
     )
 }
 
-fn is_builtin_go_func(name: &str) -> bool {
+/// Checks if a function name is a Go built-in function.
+pub fn is_builtin_go_func(name: &str) -> bool {
     matches!(
         name,
-        "make" | "new" | "len" | "cap" | "append" | "copy" | "close" | "delete" | "panic" | "recover"
+        "make" | "new" | "len" | "cap" | "append" | "copy" | "close" | "delete" | "panic" | "recover" | "print" | "println"
+    )
+}
+
+fn is_stdlib_package(name: &str) -> bool {
+    matches!(
+        name,
+        "fmt" | "time" | "errors" | "context" | "strings" | "math" | "rand" | "sha256" | "hex" | "sync" | "os" | "io" | "http"
     )
 }
