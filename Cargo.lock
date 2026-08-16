@@ -402,16 +402,21 @@ dependencies = [
 name = "ctxcut_core"
 version = "0.1.0"
 dependencies = [
+ "ignore",
  "insta",
  "rustc-hash 2.1.3",
  "serde",
  "serde_json",
  "smallvec",
+ "streaming-iterator",
  "tempfile",
  "thiserror",
  "tiktoken-rs",
  "tree-sitter",
+ "tree-sitter-go",
  "tree-sitter-javascript",
+ "tree-sitter-python",
+ "tree-sitter-rust",
  "tree-sitter-typescript",
 ]
 

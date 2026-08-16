@@ -15,12 +15,17 @@ workspace = true
 tree-sitter = { workspace = true }
 tree-sitter-typescript = { workspace = true }
 tree-sitter-javascript = { workspace = true }
+tree-sitter-python = { workspace = true }
+tree-sitter-go = { workspace = true }
+tree-sitter-rust = { workspace = true }
+streaming-iterator = { workspace = true }
 tiktoken-rs = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 smallvec = { workspace = true }
 rustc-hash = { workspace = true }
+ignore = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
