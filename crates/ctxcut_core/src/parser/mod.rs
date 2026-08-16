@@ -74,12 +74,8 @@ impl AstUtils {
     /// Finds the first named child node with the specified kind.
     pub fn find_child_by_kind<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
         let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            if child.kind() == kind {
-                return Some(child);
-            }
-        }
-        None
+        let found = node.children(&mut cursor).find(|child| child.kind() == kind);
+        found
     }
 
     /// Finds all named children with the specified kind.

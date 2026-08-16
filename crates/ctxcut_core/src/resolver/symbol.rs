@@ -53,7 +53,11 @@ impl SymbolLocator {
         for child in root.children(&mut cursor) {
             let decl = unwrap_export(child);
             match decl.kind() {
-                "function_declaration" | "generator_function_declaration" => {
+                "function_declaration"
+                | "generator_function_declaration"
+                | "interface_declaration"
+                | "type_alias_declaration"
+                | "enum_declaration" => {
                     if let Some(name_node) = decl.child_by_field_name("name") {
                         symbols.push(AstUtils::node_text(name_node, source).to_string());
                     }
@@ -72,27 +76,20 @@ impl SymbolLocator {
 
                         if let Some(body) = decl.child_by_field_name("body") {
                             for member in body.named_children(&mut body.walk()) {
-                                if member.kind() == "method_definition" {
+                                if matches!(
+                                    member.kind(),
+                                    "method_definition"
+                                        | "public_field_definition"
+                                        | "field_definition"
+                                        | "property_definition"
+                                ) {
                                     if let Some(m_name) = member.child_by_field_name("name") {
-                                        let method_name = AstUtils::node_text(m_name, source);
-                                        symbols.push(format!("{class_name}.{method_name}"));
-                                    }
-                                } else if member.kind() == "public_field_definition"
-                                    || member.kind() == "field_definition"
-                                    || member.kind() == "property_definition"
-                                {
-                                    if let Some(prop_name) = member.child_by_field_name("name") {
-                                        let field_name = AstUtils::node_text(prop_name, source);
-                                        symbols.push(format!("{class_name}.{field_name}"));
+                                        let member_name = AstUtils::node_text(m_name, source);
+                                        symbols.push(format!("{class_name}.{member_name}"));
                                     }
                                 }
                             }
                         }
-                    }
-                }
-                "interface_declaration" | "type_alias_declaration" | "enum_declaration" => {
-                    if let Some(name_node) = decl.child_by_field_name("name") {
-                        symbols.push(AstUtils::node_text(name_node, source).to_string());
                     }
                 }
                 _ => {}
@@ -191,25 +188,23 @@ impl SymbolLocator {
         let mut cursor = root.walk();
         for child in root.children(&mut cursor) {
             let decl = unwrap_export(child);
-            if decl.kind() == "class_declaration" || decl.kind() == "abstract_class_declaration" || decl.kind() == "interface_declaration" {
+            if matches!(
+                decl.kind(),
+                "class_declaration" | "abstract_class_declaration" | "interface_declaration"
+            ) {
                 if let Some(name_node) = decl.child_by_field_name("name") {
                     if AstUtils::node_text(name_node, source) == container_name {
                         if let Some(body) = decl.child_by_field_name("body") {
                             for member in body.named_children(&mut body.walk()) {
-                                if member.kind() == "method_definition" {
+                                if matches!(
+                                    member.kind(),
+                                    "method_definition"
+                                        | "public_field_definition"
+                                        | "field_definition"
+                                        | "property_definition"
+                                ) {
                                     if let Some(m_name) = member.child_by_field_name("name") {
                                         if AstUtils::node_text(m_name, source) == member_name {
-                                            let full_name = format!("{container_name}.{member_name}");
-                                            let sym = build_symbol(member, member, "method", &full_name, source, file_path, language);
-                                            return Some((sym, member));
-                                        }
-                                    }
-                                } else if member.kind() == "public_field_definition"
-                                    || member.kind() == "field_definition"
-                                    || member.kind() == "property_definition"
-                                {
-                                    if let Some(prop_name) = member.child_by_field_name("name") {
-                                        if AstUtils::node_text(prop_name, source) == member_name {
                                             let full_name = format!("{container_name}.{member_name}");
                                             let sym = build_symbol(member, member, "method", &full_name, source, file_path, language);
                                             return Some((sym, member));
@@ -238,8 +233,7 @@ impl SymbolLocator {
             if decl.kind() == "class_declaration" || decl.kind() == "abstract_class_declaration" {
                 let class_name = decl
                     .child_by_field_name("name")
-                    .map(|n| AstUtils::node_text(n, source))
-                    .unwrap_or("Class");
+                    .map_or("Class", |n| AstUtils::node_text(n, source));
 
                 if let Some(body) = decl.child_by_field_name("body") {
                     for member in body.named_children(&mut body.walk()) {

@@ -225,7 +225,7 @@ fn find_method_in_class(
 
 fn resolve_call_from_module(
     name: &str,
-    receiver: Option<&str>,
+    _receiver: Option<&str>,
     target_file: &Path,
     tree_sitter_lang: &tree_sitter::Language,
     cache: &mut std::collections::HashMap<std::path::PathBuf, (String, tree_sitter::Tree)>,
@@ -244,7 +244,7 @@ fn resolve_call_from_module(
         if let Some(alias) = exported_alias {
             if alias == name {
                 if let Some(sub_file) = ImportResolver::resolve_module_path(target_file, &specifier) {
-                    if let Some(res) = resolve_call_from_module(name, receiver, &sub_file, tree_sitter_lang, cache) {
+                    if let Some(res) = resolve_call_from_module(name, _receiver, &sub_file, tree_sitter_lang, cache) {
                         return Some(res);
                     }
                 }
@@ -252,7 +252,7 @@ fn resolve_call_from_module(
         } else {
             // Wildcard export *
             if let Some(sub_file) = ImportResolver::resolve_module_path(target_file, &specifier) {
-                if let Some(res) = resolve_call_from_module(name, receiver, &sub_file, tree_sitter_lang, cache) {
+                if let Some(res) = resolve_call_from_module(name, _receiver, &sub_file, tree_sitter_lang, cache) {
                     return Some(res);
                 }
             }

@@ -159,9 +159,8 @@ impl TokenStats {
         raw_lines: usize,
         sliced_lines: usize,
     ) -> Self {
-        let savings_percentage = if raw_tokens == 0 {
-            0.0
-        } else if sliced_tokens >= raw_tokens {
+        #[allow(clippy::cast_precision_loss)]
+        let savings_percentage = if raw_tokens == 0 || sliced_tokens >= raw_tokens {
             0.0
         } else {
             let pct = ((raw_tokens - sliced_tokens) as f64 / raw_tokens as f64) * 100.0;
