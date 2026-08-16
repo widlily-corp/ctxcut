@@ -1,13 +1,8 @@
-//! Unit test suite for ctxcut_core::telemetry.
+//! Unit test suite for `ctxcut_core::telemetry`.
 
-use std::collections::BTreeMap;
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::path::Path;
-use ctxcut_core::{
-    current_rfc3339_timestamp, format_rfc3339, LanguageMetric, ModelTierSavings, SourceMetric,
-    TelemetryEvent, TelemetryLogger, TelemetrySummary,
-};
+use ctxcut_core::{current_rfc3339_timestamp, TelemetryEvent, TelemetryLogger};
 use tempfile::NamedTempFile;
 
 #[test]
