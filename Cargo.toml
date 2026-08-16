@@ -1,0 +1,82 @@
+[workspace]
+members = [
+    "crates/ctxcut_core",
+    "crates/ctxcut_cli",
+    "crates/ctxcut_mcp",
+]
+resolver = "2"
+
+[package]
+name = "ctxcut"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Lightning-fast AST-based dependency context slicing for LLMs and AI coding agents"
+
+[[bin]]
+name = "ctxcut"
+path = "src/main.rs"
+
+[dependencies]
+ctxcut_core = { workspace = true }
+ctxcut_cli = { workspace = true }
+ctxcut_mcp = { workspace = true }
+anyhow = { workspace = true }
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+authors = ["ctxcut contributors"]
+license = "MIT"
+repository = "https://github.com/widlily-corp/ctxcut"
+
+[workspace.dependencies]
+# Internal workspace crates
+ctxcut_core = { path = "crates/ctxcut_core", version = "0.1.0" }
+ctxcut_cli = { path = "crates/ctxcut_cli", version = "0.1.0" }
+ctxcut_mcp = { path = "crates/ctxcut_mcp", version = "0.1.0" }
+
+# AST & Parsing
+tree-sitter = "0.24"
+tree-sitter-typescript = "0.23"
+tree-sitter-javascript = "0.23"
+
+# Tokenization & Serialization
+tiktoken-rs = "0.6"
+thiserror = "2.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+smallvec = "1.13"
+rustc-hash = "2.1"
+
+# CLI & Terminal
+clap = { version = "4.5", features = ["derive", "env"] }
+colored = "3.0"
+arboard = "3.4"
+ignore = "0.4"
+anyhow = "1.0"
+
+# Testing & Benchmarking
+insta = { version = "1.48", features = ["yaml", "json", "redactions"] }
+criterion = { version = "0.5", features = ["html_reports"] }
+tempfile = "3.17"
+
+[workspace.lints.rust]
+missing_docs = "warn"
+unsafe_code = "deny"
+unreachable_pub = "warn"
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+similar_names = "allow"
+struct_excessive_bools = "allow"

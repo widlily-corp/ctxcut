@@ -1,0 +1,19 @@
+doc-valid-idents = [
+    "TreeSitter",
+    "AST",
+    "LLM",
+    "JSON",
+    "RPC",
+    "BPE",
+    "DTO",
+    "TSX",
+    "CLI",
+    "MCP",
+    "FastAPI",
+    "Actix",
+    "Axum",
+    "GraphQL",
+    "Prisma",
+]
+cognitive-complexity-threshold = 25
+too-many-arguments-threshold = 7
