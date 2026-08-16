@@ -144,11 +144,7 @@ fn find_type_in_file(
     let mut cursor = root.walk();
     for child in root.children(&mut cursor) {
         let enclosing = child;
-        let decl = if child.kind() == "export_statement" {
-            child.child_by_field_name("declaration").unwrap_or(child)
-        } else {
-            child
-        };
+        let decl = AstUtils::unwrap_export(child);
 
         match decl.kind() {
             "interface_declaration" => {

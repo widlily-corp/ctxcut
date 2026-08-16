@@ -131,11 +131,7 @@ impl SignatureStripper {
 fn find_function_in_file(root: Node<'_>, source: &str, target_name: &str, file_path: &Path) -> Option<CallSignatureStub> {
     let mut cursor = root.walk();
     for child in root.children(&mut cursor) {
-        let decl = if child.kind() == "export_statement" {
-            child.child_by_field_name("declaration").unwrap_or(child)
-        } else {
-            child
-        };
+        let decl = AstUtils::unwrap_export(child);
 
         if decl.kind() == "function_declaration" || decl.kind() == "generator_function_declaration" {
             if let Some(name_node) = decl.child_by_field_name("name") {
@@ -203,11 +199,7 @@ fn find_method_in_class(
     // Fallback: search all classes in root
     let mut cursor = root.walk();
     for child in root.children(&mut cursor) {
-        let decl = if child.kind() == "export_statement" {
-            child.child_by_field_name("declaration").unwrap_or(child)
-        } else {
-            child
-        };
+        let decl = AstUtils::unwrap_export(child);
         if decl.kind() == "class_declaration" || decl.kind() == "abstract_class_declaration" {
             if let Some(body) = decl.child_by_field_name("body") {
                 for member in body.named_children(&mut body.walk()) {

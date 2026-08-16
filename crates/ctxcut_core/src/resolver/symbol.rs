@@ -271,15 +271,7 @@ fn parse_query(query: &str) -> (Option<&str>, &str) {
 }
 
 fn unwrap_export(node: Node<'_>) -> Node<'_> {
-    if node.kind() == "export_statement" {
-        if let Some(decl) = node.child_by_field_name("declaration") {
-            decl
-        } else {
-            node
-        }
-    } else {
-        node
-    }
+    AstUtils::unwrap_export(node)
 }
 
 fn build_symbol(

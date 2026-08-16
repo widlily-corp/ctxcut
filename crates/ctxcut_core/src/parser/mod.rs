@@ -36,6 +36,30 @@ impl ParserManager {
 pub struct AstUtils;
 
 impl AstUtils {
+    /// Unwraps an `export_statement` to find the inner declaration node.
+    pub fn unwrap_export(node: Node<'_>) -> Node<'_> {
+        if node.kind() == "export_statement" {
+            if let Some(decl) = node.child_by_field_name("declaration") {
+                return decl;
+            }
+            for child in node.named_children(&mut node.walk()) {
+                match child.kind() {
+                    "function_declaration"
+                    | "generator_function_declaration"
+                    | "lexical_declaration"
+                    | "variable_declaration"
+                    | "class_declaration"
+                    | "abstract_class_declaration"
+                    | "interface_declaration"
+                    | "type_alias_declaration"
+                    | "enum_declaration" => return child,
+                    _ => {}
+                }
+            }
+        }
+        node
+    }
+
     /// Extracts the UTF-8 text slice of a node from the source string.
     pub fn node_text<'a>(node: Node<'a>, source: &'a str) -> &'a str {
         let start = node.start_byte();
