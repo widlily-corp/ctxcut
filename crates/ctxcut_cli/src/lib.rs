@@ -13,13 +13,13 @@ pub use setup_mcp::{
     setup_ide_mcp, IdeTarget, MergeStatus, SetupMcpOptions, SetupResult,
 };
 
-use std::fs;
-use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use arboard::Clipboard;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use ctxcut_core::{ContextSlicer, MarkdownFormatter, SliceOptions, SliceResult, TelemetryLogger};
+use std::fs;
+use std::path::{Path, PathBuf};
 
 /// High-performance AST-based context slicer for LLMs and AI coding agents.
 #[derive(Parser, Debug)]

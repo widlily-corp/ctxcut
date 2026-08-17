@@ -12,10 +12,10 @@
 //! 3. Transitive type hoisting deep recursion and cyclic dependency safety (mutual 3-way cycles)
 //! 4. Token reduction invariant verification
 
-use std::fs;
-use tempfile::tempdir;
 use ctxcut_core::model::SliceOptions;
 use ctxcut_core::slice::ContextSlicer;
+use std::fs;
+use tempfile::tempdir;
 
 #[test]
 fn test_adversarial_python_multi_dot_relative_imports_and_init_barrel() {
@@ -121,7 +121,9 @@ class PaymentProcessor:
 
     let result = slicer
         .slice_symbol(&processor_py, "PaymentProcessor.process_payment", &opts)
-        .expect("Should resolve multi-dot relative imports and slice PaymentProcessor.process_payment");
+        .expect(
+            "Should resolve multi-dot relative imports and slice PaymentProcessor.process_payment",
+        );
 
     assert_eq!(result.target_symbol.name, "process_payment");
     assert_eq!(result.target_symbol.kind, "method");
@@ -131,7 +133,11 @@ class PaymentProcessor:
         Some("Process incoming transaction and return updated entity status.")
     );
 
-    let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted_names: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted_names.contains(&"TransactionRecord"),
         "Must hoist local TransactionRecord, found: {:?}",
@@ -144,7 +150,11 @@ class PaymentProcessor:
     );
 
     // Verify stripped calls
-    let call_names: Vec<&str> = result.stripped_calls.iter().map(|c| c.name.as_str()).collect();
+    let call_names: Vec<&str> = result
+        .stripped_calls
+        .iter()
+        .map(|c| c.name.as_str())
+        .collect();
     assert!(
         call_names.contains(&"execute_charge"),
         "Must capture execute_charge call stub, found: {:?}",
@@ -190,22 +200,38 @@ def complex_compute[T: (int, float), *Ts, **P](
         .expect("Should slice complex PEP 695 generic function");
 
     assert_eq!(result.target_symbol.name, "complex_compute");
-    assert!(result.target_symbol.signature.contains("def complex_compute[T: (int, float)"));
+    assert!(result
+        .target_symbol
+        .signature
+        .contains("def complex_compute[T: (int, float)"));
     assert_eq!(
         result.target_symbol.doc_comment.as_deref(),
         Some("Calculates complex aggregation with raw docstring escape: \\n \\t \\x00.")
     );
 
-    let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted_names: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted_names.contains(&"ComplexResult"),
         "Must hoist ComplexResult, found: {:?}",
         hoisted_names
     );
     // Generic parameters T, Ts, P must not be hoisted
-    assert!(!hoisted_names.contains(&"T"), "Type parameter T must be filtered");
-    assert!(!hoisted_names.contains(&"Ts"), "Type parameter Ts must be filtered");
-    assert!(!hoisted_names.contains(&"P"), "Type parameter P must be filtered");
+    assert!(
+        !hoisted_names.contains(&"T"),
+        "Type parameter T must be filtered"
+    );
+    assert!(
+        !hoisted_names.contains(&"Ts"),
+        "Type parameter Ts must be filtered"
+    );
+    assert!(
+        !hoisted_names.contains(&"P"),
+        "Type parameter P must be filtered"
+    );
 }
 
 #[test]
@@ -290,9 +316,16 @@ type Repository interface {
 
     assert_eq!(result.target_symbol.name, "ProcessInvoice");
     assert_eq!(result.target_symbol.kind, "method");
-    assert!(result.target_symbol.signature.contains("func (s *BillingService) ProcessInvoice"));
+    assert!(result
+        .target_symbol
+        .signature
+        .contains("func (s *BillingService) ProcessInvoice"));
 
-    let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted_names: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted_names.contains(&"InvoiceRequest"),
         "Must hoist InvoiceRequest from models.go, found: {:?}",
@@ -358,12 +391,28 @@ func (s *EntityStore[K, V]) QueryEntities(
 
     assert_eq!(result.target_symbol.name, "QueryEntities");
     assert_eq!(result.target_symbol.kind, "method");
-    assert!(result.target_symbol.signature.contains("func (s *EntityStore[K, V]) QueryEntities"));
+    assert!(result
+        .target_symbol
+        .signature
+        .contains("func (s *EntityStore[K, V]) QueryEntities"));
 
-    let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
-    assert!(hoisted_names.contains(&"EntityStore"), "Must hoist EntityStore");
-    assert!(hoisted_names.contains(&"QueryOptions"), "Must hoist QueryOptions");
-    assert!(hoisted_names.contains(&"QueryResult"), "Must hoist QueryResult");
+    let hoisted_names: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
+    assert!(
+        hoisted_names.contains(&"EntityStore"),
+        "Must hoist EntityStore"
+    );
+    assert!(
+        hoisted_names.contains(&"QueryOptions"),
+        "Must hoist QueryOptions"
+    );
+    assert!(
+        hoisted_names.contains(&"QueryResult"),
+        "Must hoist QueryResult"
+    );
 }
 
 #[test]
@@ -423,10 +472,17 @@ where
 
     assert_eq!(result.target_symbol.name, "traverse_and_aggregate");
     assert_eq!(result.target_symbol.kind, "method");
-    assert!(result.target_symbol.signature.contains("pub async fn traverse_and_aggregate<F, R>"));
+    assert!(result
+        .target_symbol
+        .signature
+        .contains("pub async fn traverse_and_aggregate<F, R>"));
     assert!(result.target_symbol.signature.contains("where"));
 
-    let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted_names: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted_names.contains(&"GraphNode"),
         "Must hoist enclosing GraphNode, found: {:?}",
@@ -513,7 +569,11 @@ impl QueryService {
     assert_eq!(result.target_symbol.name, "run");
     assert_eq!(result.target_symbol.kind, "method");
 
-    let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted_names: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted_names.contains(&"QueryPayload"),
         "Must hoist QueryPayload from models.rs, found: {:?}",
@@ -525,7 +585,11 @@ impl QueryService {
         hoisted_names
     );
 
-    let call_stubs: Vec<&str> = result.stripped_calls.iter().map(|c| c.name.as_str()).collect();
+    let call_stubs: Vec<&str> = result
+        .stripped_calls
+        .iter()
+        .map(|c| c.name.as_str())
+        .collect();
     assert!(
         call_stubs.contains(&"execute_remote_query"),
         "Must strip execute_remote_query from external.rs, found: {:?}",
@@ -615,32 +679,74 @@ pub fn traverse_cycle(start: &StructA) -> &StructC {
     };
 
     // Verify Python 3-way cycle
-    let py_res = slicer.slice_symbol(&py_file, "entry_point", &opts).expect("Python 3-way cycle slice");
-    let py_hoisted: Vec<&str> = py_res.hoisted_types.iter().map(|t| t.name.as_str()).collect();
-    assert!(py_hoisted.contains(&"ModelA") && py_hoisted.contains(&"ModelB") && py_hoisted.contains(&"ModelC"));
+    let py_res = slicer
+        .slice_symbol(&py_file, "entry_point", &opts)
+        .expect("Python 3-way cycle slice");
+    let py_hoisted: Vec<&str> = py_res
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
+    assert!(
+        py_hoisted.contains(&"ModelA")
+            && py_hoisted.contains(&"ModelB")
+            && py_hoisted.contains(&"ModelC")
+    );
     // Ensure no duplicates
     let mut py_dedup = py_hoisted.clone();
     py_dedup.sort_unstable();
     py_dedup.dedup();
-    assert_eq!(py_hoisted.len(), py_dedup.len(), "Python hoisted types must have no duplicates");
+    assert_eq!(
+        py_hoisted.len(),
+        py_dedup.len(),
+        "Python hoisted types must have no duplicates"
+    );
 
     // Verify Go 3-way cycle
-    let go_res = slicer.slice_symbol(&go_file, "TraverseCycle", &opts).expect("Go 3-way cycle slice");
-    let go_hoisted: Vec<&str> = go_res.hoisted_types.iter().map(|t| t.name.as_str()).collect();
-    assert!(go_hoisted.contains(&"NodeA") && go_hoisted.contains(&"NodeB") && go_hoisted.contains(&"NodeC"));
+    let go_res = slicer
+        .slice_symbol(&go_file, "TraverseCycle", &opts)
+        .expect("Go 3-way cycle slice");
+    let go_hoisted: Vec<&str> = go_res
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
+    assert!(
+        go_hoisted.contains(&"NodeA")
+            && go_hoisted.contains(&"NodeB")
+            && go_hoisted.contains(&"NodeC")
+    );
     let mut go_dedup = go_hoisted.clone();
     go_dedup.sort_unstable();
     go_dedup.dedup();
-    assert_eq!(go_hoisted.len(), go_dedup.len(), "Go hoisted types must have no duplicates");
+    assert_eq!(
+        go_hoisted.len(),
+        go_dedup.len(),
+        "Go hoisted types must have no duplicates"
+    );
 
     // Verify Rust 3-way cycle
-    let rs_res = slicer.slice_symbol(&rs_file, "traverse_cycle", &opts).expect("Rust 3-way cycle slice");
-    let rs_hoisted: Vec<&str> = rs_res.hoisted_types.iter().map(|t| t.name.as_str()).collect();
-    assert!(rs_hoisted.contains(&"StructA") && rs_hoisted.contains(&"StructB") && rs_hoisted.contains(&"StructC"));
+    let rs_res = slicer
+        .slice_symbol(&rs_file, "traverse_cycle", &opts)
+        .expect("Rust 3-way cycle slice");
+    let rs_hoisted: Vec<&str> = rs_res
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
+    assert!(
+        rs_hoisted.contains(&"StructA")
+            && rs_hoisted.contains(&"StructB")
+            && rs_hoisted.contains(&"StructC")
+    );
     let mut rs_dedup = rs_hoisted.clone();
     rs_dedup.sort_unstable();
     rs_dedup.dedup();
-    assert_eq!(rs_hoisted.len(), rs_dedup.len(), "Rust hoisted types must have no duplicates");
+    assert_eq!(
+        rs_hoisted.len(),
+        rs_dedup.len(),
+        "Rust hoisted types must have no duplicates"
+    );
 }
 
 #[test]
@@ -649,11 +755,15 @@ fn test_adversarial_signature_stripping_body_isolation() {
 
     // Rust file with massive function body that must be stripped cleanly to just the signature
     let rs_file = dir.path().join("massive_body.rs");
-    let mut rs_code = String::from("pub fn complex_external_worker(x: i32, y: i32) -> Result<i32, String> {\n");
+    let mut rs_code =
+        String::from("pub fn complex_external_worker(x: i32, y: i32) -> Result<i32, String> {\n");
     for i in 0..100 {
         use std::fmt::Write;
         let _ = writeln!(rs_code, "    let v{i} = x + y + {i};");
-        let _ = writeln!(rs_code, "    if v{i} % 2 == 0 {{ println!(\"even {i}\"); }}");
+        let _ = writeln!(
+            rs_code,
+            "    if v{i} % 2 == 0 {{ println!(\"even {i}\"); }}"
+        );
     }
     rs_code.push_str("    Ok(x + y)\n}\n\n");
     rs_code.push_str("pub fn caller_target(a: i32, b: i32) -> i32 {\n    complex_external_worker(a, b).unwrap_or(0)\n}\n");
@@ -662,7 +772,9 @@ fn test_adversarial_signature_stripping_body_isolation() {
     let slicer = ContextSlicer::new();
     let opts = SliceOptions::default();
 
-    let res = slicer.slice_symbol(&rs_file, "caller_target", &opts).expect("slice caller_target");
+    let res = slicer
+        .slice_symbol(&rs_file, "caller_target", &opts)
+        .expect("slice caller_target");
     let call_names: Vec<&str> = res.stripped_calls.iter().map(|c| c.name.as_str()).collect();
     assert!(
         call_names.contains(&"complex_external_worker"),
@@ -674,9 +786,17 @@ fn test_adversarial_signature_stripping_body_isolation() {
         .iter()
         .find(|c| c.name == "complex_external_worker")
         .unwrap();
-    assert!(worker_stub.signature.contains("pub fn complex_external_worker(x: i32, y: i32) -> Result<i32, String>;"));
-    assert!(!worker_stub.signature.contains("let v0 ="), "Body must not leak into signature stub");
-    assert!(!worker_stub.signature.contains("println!"), "Body must not leak into signature stub");
+    assert!(worker_stub
+        .signature
+        .contains("pub fn complex_external_worker(x: i32, y: i32) -> Result<i32, String>;"));
+    assert!(
+        !worker_stub.signature.contains("let v0 ="),
+        "Body must not leak into signature stub"
+    );
+    assert!(
+        !worker_stub.signature.contains("println!"),
+        "Body must not leak into signature stub"
+    );
 }
 
 #[test]
@@ -727,7 +847,9 @@ def process_account(acc: UserAccount) -> bool:
         include_calls: true,
     };
 
-    let res = slicer.slice_symbol(&main_py, "process_account", &opts).expect("slice main.py");
+    let res = slicer
+        .slice_symbol(&main_py, "process_account", &opts)
+        .expect("slice main.py");
     let hoisted: Vec<&str> = res.hoisted_types.iter().map(|t| t.name.as_str()).collect();
     println!("Python transitive hoisted: {:?}", hoisted);
     assert!(hoisted.contains(&"UserAccount"), "Must hoist UserAccount");
@@ -791,15 +913,18 @@ impl SessionService {
         include_calls: true,
     };
 
-    let res = slicer.slice_symbol(&service_rs, "SessionService::validate", &opts).expect("slice service.rs");
+    let res = slicer
+        .slice_symbol(&service_rs, "SessionService::validate", &opts)
+        .expect("slice service.rs");
     let hoisted: Vec<&str> = res.hoisted_types.iter().map(|t| t.name.as_str()).collect();
     println!("Rust transitive hoisted: {:?}", hoisted);
-    assert!(hoisted.contains(&"DeviceSession"), "Must hoist DeviceSession");
+    assert!(
+        hoisted.contains(&"DeviceSession"),
+        "Must hoist DeviceSession"
+    );
     assert!(
         hoisted.contains(&"DeviceKind"),
         "Must transitively hoist DeviceKind at depth 3, found: {:?}",
         hoisted
     );
 }
-
-

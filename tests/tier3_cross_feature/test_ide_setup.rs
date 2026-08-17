@@ -6,13 +6,13 @@
 //! 3. CLI execution of `ctxcut setup-mcp` and `ctxcut init` across all flags.
 //! 4. Dry-run and absolute executable path modes.
 
-use std::fs;
-use std::path::{Path, PathBuf};
 use ctxcut_cli::setup_mcp::{
     format_setup_report, get_ide_config_paths, safe_merge_json, setup_ide_mcp, IdeTarget,
     MergeStatus, SetupMcpOptions, SetupResult,
 };
 use serde_json::{json, Value};
+use std::fs;
+use std::path::{Path, PathBuf};
 use tempfile::{tempdir, NamedTempFile};
 
 #[path = "../common/mod.rs"]
@@ -22,7 +22,11 @@ use common::CliRunner;
 #[test]
 fn test_safe_merge_json_nested_directory_creation() {
     let dir = tempdir().expect("tempdir failed");
-    let nested_file = dir.path().join("deeply").join("nested").join("mcp_config.json");
+    let nested_file = dir
+        .path()
+        .join("deeply")
+        .join("nested")
+        .join("mcp_config.json");
 
     let status = safe_merge_json(&nested_file, "ctxcut", &["mcp"], false)
         .expect("merge into non-existent nested path must succeed");
@@ -63,7 +67,11 @@ fn test_safe_merge_json_preserves_complex_existing_config() {
         }
     });
 
-    fs::write(&config_file, serde_json::to_string_pretty(&initial).unwrap()).unwrap();
+    fs::write(
+        &config_file,
+        serde_json::to_string_pretty(&initial).unwrap(),
+    )
+    .unwrap();
 
     let status = safe_merge_json(&config_file, "ctxcut", &["mcp"], false)
         .expect("merge into existing config must succeed");
@@ -129,7 +137,10 @@ fn test_safe_merge_json_corrupt_recovery_and_backup() {
     fs::write(&config_file, corrupt_content).unwrap();
 
     let result = safe_merge_json(&config_file, "ctxcut", &["mcp"], false);
-    assert!(result.is_err(), "Merge on corrupt JSON must return an error");
+    assert!(
+        result.is_err(),
+        "Merge on corrupt JSON must return an error"
+    );
 
     // Verify original corrupted file was NOT overwritten
     let current_content = fs::read_to_string(&config_file).unwrap();
@@ -137,7 +148,10 @@ fn test_safe_merge_json_corrupt_recovery_and_backup() {
 
     // Verify backup file was created
     let backup_file = config_file.with_extension("corrupt_bak");
-    assert!(backup_file.exists(), "Backup file must be created on corrupt JSON");
+    assert!(
+        backup_file.exists(),
+        "Backup file must be created on corrupt JSON"
+    );
     let backup_content = fs::read_to_string(&backup_file).unwrap();
     assert_eq!(backup_content, corrupt_content);
 }
@@ -164,11 +178,17 @@ fn test_get_ide_config_paths_resolution() {
 
     let antigravity_paths = get_ide_config_paths(IdeTarget::Antigravity, false, Some(&workspace));
     assert!(!antigravity_paths.is_empty());
-    assert!(antigravity_paths[0].1.to_string_lossy().contains("mcp_config.json"));
+    assert!(antigravity_paths[0]
+        .1
+        .to_string_lossy()
+        .contains("mcp_config.json"));
 
     let claude_paths = get_ide_config_paths(IdeTarget::Claude, false, Some(&workspace));
     assert!(!claude_paths.is_empty());
-    assert!(claude_paths[0].1.to_string_lossy().contains("claude_desktop_config.json"));
+    assert!(claude_paths[0]
+        .1
+        .to_string_lossy()
+        .contains("claude_desktop_config.json"));
 
     let cursor_ws_paths = get_ide_config_paths(IdeTarget::Cursor, true, Some(&workspace));
     assert!(!cursor_ws_paths.is_empty());
@@ -236,7 +256,10 @@ fn test_cli_setup_mcp_dry_run_mode() {
     output.assert_stdout_contains("CTXCUT IDE MCP CONFIGURATOR");
 
     // File must NOT exist on disk after dry-run
-    assert!(!custom_config.exists(), "Dry-run must not create configuration file on disk");
+    assert!(
+        !custom_config.exists(),
+        "Dry-run must not create configuration file on disk"
+    );
 }
 
 #[test]
@@ -260,7 +283,10 @@ fn test_cli_setup_mcp_workspace_mode() {
     output.assert_stdout_contains("Cursor (Workspace)");
 
     let cursor_config = dir.path().join(".cursor").join("mcp.json");
-    assert!(cursor_config.exists(), "Workspace .cursor/mcp.json must be created");
+    assert!(
+        cursor_config.exists(),
+        "Workspace .cursor/mcp.json must be created"
+    );
 
     let content = fs::read_to_string(&cursor_config).unwrap();
     let parsed: Value = serde_json::from_str(&content).unwrap();
@@ -279,7 +305,9 @@ fn test_format_setup_report_rendering() {
         },
         SetupResult {
             ide_name: "Claude Desktop".to_string(),
-            config_path: PathBuf::from("C:\\Users\\Mock\\AppData\\Roaming\\Claude\\claude_desktop_config.json"),
+            config_path: PathBuf::from(
+                "C:\\Users\\Mock\\AppData\\Roaming\\Claude\\claude_desktop_config.json",
+            ),
             status: Some(MergeStatus::Updated),
             message: "Updated existing config".to_string(),
             success: true,

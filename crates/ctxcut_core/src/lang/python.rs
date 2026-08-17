@@ -1,13 +1,15 @@
 //! LanguageAdapter implementation for Python.
 
+use crate::error::{CoreError, Result};
+use crate::lang::LanguageAdapter;
+use crate::model::{
+    CallSignatureStub, ExtractedSymbol, ExtractedType, SliceOptions, SupportedLanguage,
+};
+use crate::parser::{AstUtils, ParserManager};
 use std::collections::{HashSet, VecDeque};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tree_sitter::{Language, Node};
-use crate::error::{CoreError, Result};
-use crate::lang::LanguageAdapter;
-use crate::model::{CallSignatureStub, ExtractedSymbol, ExtractedType, SliceOptions, SupportedLanguage};
-use crate::parser::{AstUtils, ParserManager};
 
 /// Python language adapter supporting Python (.py, .pyi).
 pub struct PythonAdapter;
@@ -31,7 +33,9 @@ impl LanguageAdapter for PythonAdapter {
         let (container_query, member_query) = parse_query(symbol_query);
 
         if let Some(container_name) = container_query {
-            if let Some((sym, node)) = find_in_class(root, source, container_name, member_query, file_path) {
+            if let Some((sym, node)) =
+                find_in_class(root, source, container_name, member_query, file_path)
+            {
                 return Ok((sym, node));
             }
         } else {
@@ -98,7 +102,9 @@ impl LanguageAdapter for PythonAdapter {
                     if let Some((left, _)) = text.split_once('=') {
                         let candidate = left.trim();
                         let base_cand = candidate.split('[').next().unwrap_or(candidate).trim();
-                        if base_cand.chars().all(|c| c.is_alphanumeric() || c == '_') && !base_cand.is_empty() {
+                        if base_cand.chars().all(|c| c.is_alphanumeric() || c == '_')
+                            && !base_cand.is_empty()
+                        {
                             symbols.push(base_cand.to_string());
                         }
                     }
@@ -132,17 +138,24 @@ impl LanguageAdapter for PythonAdapter {
         // Collect initial referenced types
         for id in AstUtils::find_descendants_by_kind(target_node, "identifier") {
             let name = AstUtils::node_text(id, source);
-            if !is_builtin_python_type(name) && !is_builtin_python_func(name) && !scoped_generics.contains(name) {
-                if visited.insert(name.to_string()) {
-                    queue.push_back((name.to_string(), 1));
-                }
+            if !is_builtin_python_type(name)
+                && !is_builtin_python_func(name)
+                && !scoped_generics.contains(name)
+                && visited.insert(name.to_string())
+            {
+                queue.push_back((name.to_string(), 1));
             }
         }
 
         // Also check string annotations in quotes (e.g. Optional["ModelA"])
         for str_node in AstUtils::find_descendants_by_kind(target_node, "string") {
-            let text = AstUtils::node_text(str_node, source).trim_matches('"').trim_matches('\'');
-            if !is_builtin_python_type(text) && !scoped_generics.contains(text) && visited.insert(text.to_string()) {
+            let text = AstUtils::node_text(str_node, source)
+                .trim_matches('"')
+                .trim_matches('\'');
+            if !is_builtin_python_type(text)
+                && !scoped_generics.contains(text)
+                && visited.insert(text.to_string())
+            {
                 queue.push_back((text.to_string(), 1));
             }
         }
@@ -157,19 +170,34 @@ impl LanguageAdapter for PythonAdapter {
             }
 
             // 1. Search in local file
-            if let Some(extracted) = find_class_or_type_in_file(root, source, &type_name, file_path) {
+            if let Some(extracted) = find_class_or_type_in_file(root, source, &type_name, file_path)
+            {
                 if depth < opts.depth {
-                    if let Ok(tree) = ParserManager::parse_source(&extracted.definition, &ts_lang, file_path) {
-                        let def_generics = collect_python_scoped_generics(tree.root_node(), &extracted.definition);
-                        for id in AstUtils::find_descendants_by_kind(tree.root_node(), "identifier") {
+                    if let Ok(tree) =
+                        ParserManager::parse_source(&extracted.definition, &ts_lang, file_path)
+                    {
+                        let def_generics =
+                            collect_python_scoped_generics(tree.root_node(), &extracted.definition);
+                        for id in AstUtils::find_descendants_by_kind(tree.root_node(), "identifier")
+                        {
                             let name = AstUtils::node_text(id, &extracted.definition);
-                            if !is_builtin_python_type(name) && !def_generics.contains(name) && visited.insert(name.to_string()) {
+                            if !is_builtin_python_type(name)
+                                && !def_generics.contains(name)
+                                && visited.insert(name.to_string())
+                            {
                                 queue.push_back((name.to_string(), depth + 1));
                             }
                         }
-                        for str_node in AstUtils::find_descendants_by_kind(tree.root_node(), "string") {
-                            let text = AstUtils::node_text(str_node, &extracted.definition).trim_matches('"').trim_matches('\'');
-                            if !is_builtin_python_type(text) && !def_generics.contains(text) && visited.insert(text.to_string()) {
+                        for str_node in
+                            AstUtils::find_descendants_by_kind(tree.root_node(), "string")
+                        {
+                            let text = AstUtils::node_text(str_node, &extracted.definition)
+                                .trim_matches('"')
+                                .trim_matches('\'');
+                            if !is_builtin_python_type(text)
+                                && !def_generics.contains(text)
+                                && visited.insert(text.to_string())
+                            {
                                 queue.push_back((text.to_string(), depth + 1));
                             }
                         }
@@ -183,7 +211,12 @@ impl LanguageAdapter for PythonAdapter {
             let mut found_type = None;
             for mod_path in &known_modules.clone() {
                 let mut visited_files = HashSet::new();
-                if let Some(extracted) = find_type_in_module_or_reexports(mod_path, &type_name, &ts_lang, &mut visited_files) {
+                if let Some(extracted) = find_type_in_module_or_reexports(
+                    mod_path,
+                    &type_name,
+                    &ts_lang,
+                    &mut visited_files,
+                ) {
                     found_type = Some((extracted, mod_path.clone()));
                     break;
                 }
@@ -207,9 +240,17 @@ impl LanguageAdapter for PythonAdapter {
                     if let Ok(entries) = fs::read_dir(&dir) {
                         for entry in entries.flatten() {
                             let path = entry.path();
-                            if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("py") && path != file_path {
+                            if path.is_file()
+                                && path.extension().and_then(|e| e.to_str()) == Some("py")
+                                && path != file_path
+                            {
                                 let mut visited_files = HashSet::new();
-                                if let Some(extracted) = find_type_in_module_or_reexports(&path, &type_name, &ts_lang, &mut visited_files) {
+                                if let Some(extracted) = find_type_in_module_or_reexports(
+                                    &path,
+                                    &type_name,
+                                    &ts_lang,
+                                    &mut visited_files,
+                                ) {
                                     found_type = Some((extracted, path));
                                     break;
                                 }
@@ -232,17 +273,33 @@ impl LanguageAdapter for PythonAdapter {
                 }
 
                 if depth < opts.depth {
-                    if let Ok(tree) = ParserManager::parse_source(&extracted.definition, &ts_lang, &extracted_path) {
-                        let def_generics = collect_python_scoped_generics(tree.root_node(), &extracted.definition);
-                        for id in AstUtils::find_descendants_by_kind(tree.root_node(), "identifier") {
+                    if let Ok(tree) = ParserManager::parse_source(
+                        &extracted.definition,
+                        &ts_lang,
+                        &extracted_path,
+                    ) {
+                        let def_generics =
+                            collect_python_scoped_generics(tree.root_node(), &extracted.definition);
+                        for id in AstUtils::find_descendants_by_kind(tree.root_node(), "identifier")
+                        {
                             let name = AstUtils::node_text(id, &extracted.definition);
-                            if !is_builtin_python_type(name) && !def_generics.contains(name) && visited.insert(name.to_string()) {
+                            if !is_builtin_python_type(name)
+                                && !def_generics.contains(name)
+                                && visited.insert(name.to_string())
+                            {
                                 queue.push_back((name.to_string(), depth + 1));
                             }
                         }
-                        for str_node in AstUtils::find_descendants_by_kind(tree.root_node(), "string") {
-                            let text = AstUtils::node_text(str_node, &extracted.definition).trim_matches('"').trim_matches('\'');
-                            if !is_builtin_python_type(text) && !def_generics.contains(text) && visited.insert(text.to_string()) {
+                        for str_node in
+                            AstUtils::find_descendants_by_kind(tree.root_node(), "string")
+                        {
+                            let text = AstUtils::node_text(str_node, &extracted.definition)
+                                .trim_matches('"')
+                                .trim_matches('\'');
+                            if !is_builtin_python_type(text)
+                                && !def_generics.contains(text)
+                                && visited.insert(text.to_string())
+                            {
                                 queue.push_back((text.to_string(), depth + 1));
                             }
                         }
@@ -269,7 +326,7 @@ impl LanguageAdapter for PythonAdapter {
         for call in call_nodes {
             if let Some(func_node) = call.child_by_field_name("function") {
                 let call_text = AstUtils::node_text(func_node, source);
-                let call_name = call_text.split('.').last().unwrap_or(call_text);
+                let call_name = call_text.split('.').next_back().unwrap_or(call_text);
 
                 if !seen.insert(call_name.to_string()) || is_builtin_python_func(call_name) {
                     continue;
@@ -291,12 +348,22 @@ impl LanguageAdapter for PythonAdapter {
                     for imp in &imports {
                         if let Some(target_file) = resolve_python_import_path(file_path, imp) {
                             if let Ok(imported_src) = fs::read_to_string(&target_file) {
-                                if let Ok(imported_tree) = ParserManager::parse_source(&imported_src, &ts_lang, &target_file) {
-                                    if let Some(sig) = find_python_signature(imported_tree.root_node(), &imported_src, call_name) {
+                                if let Ok(imported_tree) = ParserManager::parse_source(
+                                    &imported_src,
+                                    &ts_lang,
+                                    &target_file,
+                                ) {
+                                    if let Some(sig) = find_python_signature(
+                                        imported_tree.root_node(),
+                                        &imported_src,
+                                        call_name,
+                                    ) {
                                         stubs.push(CallSignatureStub {
                                             name: call_name.to_string(),
                                             receiver: None,
-                                            file_path: Some(target_file.to_string_lossy().to_string()),
+                                            file_path: Some(
+                                                target_file.to_string_lossy().to_string(),
+                                            ),
                                             signature: sig,
                                         });
                                         found = true;
@@ -313,14 +380,27 @@ impl LanguageAdapter for PythonAdapter {
                             if let Ok(entries) = fs::read_dir(dir) {
                                 for entry in entries.flatten() {
                                     let path = entry.path();
-                                    if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("py") && path != file_path {
+                                    if path.is_file()
+                                        && path.extension().and_then(|e| e.to_str()) == Some("py")
+                                        && path != file_path
+                                    {
                                         if let Ok(sibling_src) = fs::read_to_string(&path) {
-                                            if let Ok(sibling_tree) = ParserManager::parse_source(&sibling_src, &ts_lang, &path) {
-                                                if let Some(sig) = find_python_signature(sibling_tree.root_node(), &sibling_src, call_name) {
+                                            if let Ok(sibling_tree) = ParserManager::parse_source(
+                                                &sibling_src,
+                                                &ts_lang,
+                                                &path,
+                                            ) {
+                                                if let Some(sig) = find_python_signature(
+                                                    sibling_tree.root_node(),
+                                                    &sibling_src,
+                                                    call_name,
+                                                ) {
                                                     stubs.push(CallSignatureStub {
                                                         name: call_name.to_string(),
                                                         receiver: None,
-                                                        file_path: Some(path.to_string_lossy().to_string()),
+                                                        file_path: Some(
+                                                            path.to_string_lossy().to_string(),
+                                                        ),
                                                         signature: sig,
                                                     });
                                                     found = true;
@@ -451,7 +531,8 @@ fn extract_python_imports(root: Node<'_>, source: &str) -> Vec<PythonImportMappi
                     match name_node.kind() {
                         "dotted_name" | "identifier" => {
                             let full_text = AstUtils::node_text(name_node, source);
-                            let local = full_text.split('.').next().unwrap_or(full_text).to_string();
+                            let local =
+                                full_text.split('.').next().unwrap_or(full_text).to_string();
                             imports.push(PythonImportMapping {
                                 local_name: local,
                                 imported_name: "*".to_string(),
@@ -494,12 +575,19 @@ fn resolve_python_import_path(from_file: &Path, import: &PythonImportMapping) ->
         for _ in 1..import.level {
             base = base.parent()?;
         }
-        let parts: Vec<&str> = import.module_specifier.split('.').filter(|s| !s.is_empty()).collect();
+        let parts: Vec<&str> = import
+            .module_specifier
+            .split('.')
+            .filter(|s| !s.is_empty())
+            .collect();
         let mut p = base.to_path_buf();
         for part in parts {
             p.push(part);
         }
-        if import.module_specifier.is_empty() && !import.imported_name.is_empty() && import.imported_name != "*" {
+        if import.module_specifier.is_empty()
+            && !import.imported_name.is_empty()
+            && import.imported_name != "*"
+        {
             let specific = p.join(&import.imported_name);
             if let Some(cand) = check_python_candidate(&specific) {
                 return Some(cand);
@@ -507,7 +595,11 @@ fn resolve_python_import_path(from_file: &Path, import: &PythonImportMapping) ->
         }
         check_python_candidate(&p)
     } else {
-        let parts: Vec<&str> = import.module_specifier.split('.').filter(|s| !s.is_empty()).collect();
+        let parts: Vec<&str> = import
+            .module_specifier
+            .split('.')
+            .filter(|s| !s.is_empty())
+            .collect();
         if parts.is_empty() {
             return None;
         }
@@ -583,7 +675,8 @@ fn find_type_in_module_or_reexports(
     // 2. Re-exports / imports
     let imports = extract_python_imports(root, &source);
     for imp in imports {
-        if imp.local_name == type_name || imp.imported_name == type_name || imp.imported_name == "*" {
+        if imp.local_name == type_name || imp.imported_name == type_name || imp.imported_name == "*"
+        {
             let lookup_name = if imp.local_name == type_name && imp.imported_name != "*" {
                 &imp.imported_name
             } else {
@@ -591,7 +684,12 @@ fn find_type_in_module_or_reexports(
             };
 
             if let Some(target_file) = resolve_python_import_path(file_path, &imp) {
-                if let Some(extracted) = find_type_in_module_or_reexports(&target_file, lookup_name, ts_lang, visited_files) {
+                if let Some(extracted) = find_type_in_module_or_reexports(
+                    &target_file,
+                    lookup_name,
+                    ts_lang,
+                    visited_files,
+                ) {
                     return Some(extracted);
                 }
             }
@@ -607,15 +705,27 @@ fn collect_python_scoped_generics(node: Node<'_>, source: &str) -> HashSet<Strin
         for child in tp_list.named_children(&mut tp_list.walk()) {
             match child.kind() {
                 "type_parameter" => {
-                    if let Some(n) = child.child_by_field_name("name").or_else(|| child.named_child(0)) {
+                    if let Some(n) = child
+                        .child_by_field_name("name")
+                        .or_else(|| child.named_child(0))
+                    {
                         generics.insert(AstUtils::node_text(n, source).to_string());
                     }
                 }
                 "type_parameter_vararg" | "type_parameter_kwarg" | "splat_type" => {
-                    if let Some(n) = child.child_by_field_name("name").or_else(|| child.named_child(0)) {
-                        generics.insert(AstUtils::node_text(n, source).trim_start_matches('*').to_string());
+                    if let Some(n) = child
+                        .child_by_field_name("name")
+                        .or_else(|| child.named_child(0))
+                    {
+                        generics.insert(
+                            AstUtils::node_text(n, source)
+                                .trim_start_matches('*')
+                                .to_string(),
+                        );
                     } else {
-                        let text = AstUtils::node_text(child, source).trim_start_matches('*').trim();
+                        let text = AstUtils::node_text(child, source)
+                            .trim_start_matches('*')
+                            .trim();
                         if !text.is_empty() {
                             generics.insert(text.to_string());
                         }
@@ -623,12 +733,16 @@ fn collect_python_scoped_generics(node: Node<'_>, source: &str) -> HashSet<Strin
                 }
                 _ => {
                     if let Some(first) = child.named_children(&mut child.walk()).next() {
-                        let text = AstUtils::node_text(first, source).trim_start_matches('*').trim();
+                        let text = AstUtils::node_text(first, source)
+                            .trim_start_matches('*')
+                            .trim();
                         if !text.is_empty() {
                             generics.insert(text.to_string());
                         }
                     } else {
-                        let text = AstUtils::node_text(child, source).trim_start_matches('*').trim();
+                        let text = AstUtils::node_text(child, source)
+                            .trim_start_matches('*')
+                            .trim();
                         if !text.is_empty() {
                             generics.insert(text.to_string());
                         }
@@ -678,7 +792,10 @@ fn find_top_level<'a>(
                 if let Some(name_node) = decl.child_by_field_name("name") {
                     let name = AstUtils::node_text(name_node, source);
                     if name == target_name {
-                        return Some((build_extracted_symbol(full_node, decl, source, file_path, "function"), full_node));
+                        return Some((
+                            build_extracted_symbol(full_node, decl, source, file_path, "function"),
+                            full_node,
+                        ));
                     }
                 }
             }
@@ -686,7 +803,10 @@ fn find_top_level<'a>(
                 if let Some(name_node) = decl.child_by_field_name("name") {
                     let name = AstUtils::node_text(name_node, source);
                     if name == target_name {
-                        return Some((build_extracted_symbol(full_node, decl, source, file_path, "class"), full_node));
+                        return Some((
+                            build_extracted_symbol(full_node, decl, source, file_path, "class"),
+                            full_node,
+                        ));
                     }
                 }
             }
@@ -698,7 +818,10 @@ fn find_top_level<'a>(
                     .unwrap_or("");
                 let base_name = full_text.split('[').next().unwrap_or(full_text).trim();
                 if base_name == target_name {
-                    return Some((build_extracted_symbol(full_node, decl, source, file_path, "type"), full_node));
+                    return Some((
+                        build_extracted_symbol(full_node, decl, source, file_path, "type"),
+                        full_node,
+                    ));
                 }
             }
             "expression_statement" => {
@@ -707,7 +830,10 @@ fn find_top_level<'a>(
                     let candidate = left.trim();
                     let base_cand = candidate.split('[').next().unwrap_or(candidate).trim();
                     if base_cand == target_name {
-                        return Some((build_extracted_symbol(full_node, decl, source, file_path, "type"), full_node));
+                        return Some((
+                            build_extracted_symbol(full_node, decl, source, file_path, "type"),
+                            full_node,
+                        ));
                     }
                 }
             }
@@ -791,7 +917,12 @@ fn find_in_class<'a>(
                             if m_decl.kind() == "function_definition" {
                                 if let Some(m_name) = m_decl.child_by_field_name("name") {
                                     if AstUtils::node_text(m_name, source) == member_name {
-                                        return Some((build_extracted_symbol(m_full, m_decl, source, file_path, "method"), m_full));
+                                        return Some((
+                                            build_extracted_symbol(
+                                                m_full, m_decl, source, file_path, "method",
+                                            ),
+                                            m_full,
+                                        ));
                                     }
                                 }
                             }
@@ -821,7 +952,12 @@ fn find_any_method<'a>(
                     if m_decl.kind() == "function_definition" {
                         if let Some(m_name) = m_decl.child_by_field_name("name") {
                             if AstUtils::node_text(m_name, source) == method_name {
-                                return Some((build_extracted_symbol(m_full, m_decl, source, file_path, "method"), m_full));
+                                return Some((
+                                    build_extracted_symbol(
+                                        m_full, m_decl, source, file_path, "method",
+                                    ),
+                                    m_full,
+                                ));
                             }
                         }
                     }
@@ -844,7 +980,12 @@ fn build_extracted_symbol(
         .or_else(|| decl.named_child(0))
         .map(|n| AstUtils::node_text(n, source).to_string())
         .unwrap_or_else(|| "anonymous".to_string());
-    let name = raw_name.split('[').next().unwrap_or(&raw_name).trim().to_string();
+    let name = raw_name
+        .split('[')
+        .next()
+        .unwrap_or(&raw_name)
+        .trim()
+        .to_string();
 
     let body = AstUtils::node_text(full_node, source).to_string();
     let mut doc_comment = AstUtils::extract_doc_comment(full_node, source);
@@ -853,7 +994,8 @@ fn build_extracted_symbol(
         if let Some(body_node) = decl.child_by_field_name("body") {
             if let Some(first_stmt) = body_node.named_children(&mut body_node.walk()).next() {
                 if first_stmt.kind() == "expression_statement" {
-                    if let Some(str_node) = first_stmt.named_children(&mut first_stmt.walk()).next() {
+                    if let Some(str_node) = first_stmt.named_children(&mut first_stmt.walk()).next()
+                    {
                         if str_node.kind() == "string" {
                             let text = AstUtils::node_text(str_node, source).trim();
                             let clean = strip_python_string_quotes(text);
@@ -882,15 +1024,27 @@ fn build_extracted_symbol(
 
 fn strip_python_string_quotes(raw: &str) -> String {
     let s = raw.trim();
-    let without_prefix = s.trim_start_matches(|c: char| matches!(c, 'r' | 'R' | 'u' | 'U' | 'f' | 'F' | 'b' | 'B'));
+    let without_prefix = s.trim_start_matches(['r', 'R', 'u', 'U', 'f', 'F', 'b', 'B']);
 
-    let unquoted = if let Some(inner) = without_prefix.strip_prefix("\"\"\"").and_then(|i| i.strip_suffix("\"\"\"")) {
+    let unquoted = if let Some(inner) = without_prefix
+        .strip_prefix("\"\"\"")
+        .and_then(|i| i.strip_suffix("\"\"\""))
+    {
         inner.trim()
-    } else if let Some(inner) = without_prefix.strip_prefix("'''").and_then(|i| i.strip_suffix("'''")) {
+    } else if let Some(inner) = without_prefix
+        .strip_prefix("'''")
+        .and_then(|i| i.strip_suffix("'''"))
+    {
         inner.trim()
-    } else if let Some(inner) = without_prefix.strip_prefix('"').and_then(|i| i.strip_suffix('"')) {
+    } else if let Some(inner) = without_prefix
+        .strip_prefix('"')
+        .and_then(|i| i.strip_suffix('"'))
+    {
         inner.trim()
-    } else if let Some(inner) = without_prefix.strip_prefix('\'').and_then(|i| i.strip_suffix('\'')) {
+    } else if let Some(inner) = without_prefix
+        .strip_prefix('\'')
+        .and_then(|i| i.strip_suffix('\''))
+    {
         inner.trim()
     } else {
         without_prefix
@@ -928,7 +1082,10 @@ fn find_python_signature(root: Node<'_>, source: &str, func_name: &str) -> Optio
                     if m_decl.kind() == "function_definition" {
                         if let Some(m_name) = m_decl.child_by_field_name("name") {
                             if AstUtils::node_text(m_name, source) == func_name {
-                                return Some(format!("{}: ...", extract_python_sig(m_decl, source)));
+                                return Some(format!(
+                                    "{}: ...",
+                                    extract_python_sig(m_decl, source)
+                                ));
                             }
                         }
                     }

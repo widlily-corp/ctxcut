@@ -3,10 +3,10 @@
 //! Provides a high-density, beautifully styled terminal dashboard per Titan Core standards,
 //! displaying lifetime token savings, economic ROI, language breakdowns, and recent slicing activity.
 
-use std::path::Path;
 use anyhow::Result;
 use colored::Colorize;
 use ctxcut_core::{TelemetryLogger, TelemetrySummary};
+use std::path::Path;
 
 /// Formats an integer with thousands separator commas (e.g. 4821390 -> "4,821,390").
 pub fn format_number(num: usize) -> String {
@@ -39,26 +39,55 @@ pub fn render_dashboard(summary: &TelemetrySummary, metrics_path: &Path) -> Stri
     let mut out = String::new();
     let path_display = metrics_path.display().to_string();
 
-    out.push_str("┌─────────────────────────────────────────────────────────────────────────────┐\n");
-    out.push_str("│  ⚡ CTXCUT TELEMETRY & TOKEN SAVINGS DASHBOARD                              │\n");
-    out.push_str("│  Lifetime ROI & Context Optimization Analytics                              │\n");
-    out.push_str("├─────────────────────────────────────────────────────────────────────────────┤\n");
+    out.push_str(
+        "┌─────────────────────────────────────────────────────────────────────────────┐\n",
+    );
+    out.push_str(
+        "│  ⚡ CTXCUT TELEMETRY & TOKEN SAVINGS DASHBOARD                              │\n",
+    );
+    out.push_str(
+        "│  Lifetime ROI & Context Optimization Analytics                              │\n",
+    );
+    out.push_str(
+        "├─────────────────────────────────────────────────────────────────────────────┤\n",
+    );
 
     if summary.total_requests == 0 {
-        out.push_str(&format!("│  No telemetry data recorded yet in {:<40} │\n", path_display));
-        out.push_str("│                                                                             │\n");
-        out.push_str("│  Start saving tokens by running:                                            │\n");
-        out.push_str("│    • ctxcut slice <file:symbol>                                             │\n");
-        out.push_str("│    • ctxcut diff                                                            │\n");
-        out.push_str("│    • or connect AI agents via MCP (ctxcut mcp)                              │\n");
-        out.push_str("└─────────────────────────────────────────────────────────────────────────────┘\n");
+        out.push_str(&format!(
+            "│  No telemetry data recorded yet in {:<40} │\n",
+            path_display
+        ));
+        out.push_str(
+            "│                                                                             │\n",
+        );
+        out.push_str(
+            "│  Start saving tokens by running:                                            │\n",
+        );
+        out.push_str(
+            "│    • ctxcut slice <file:symbol>                                             │\n",
+        );
+        out.push_str(
+            "│    • ctxcut diff                                                            │\n",
+        );
+        out.push_str(
+            "│    • or connect AI agents via MCP (ctxcut mcp)                              │\n",
+        );
+        out.push_str(
+            "└─────────────────────────────────────────────────────────────────────────────┘\n",
+        );
         return out;
     }
 
     // Top Summary KPI Cards
-    out.push_str("│                                                                             │\n");
-    out.push_str("│   TOTAL REQUESTS      TOKENS SAVED         AVG REDUCTION     EST. SAVINGS   │\n");
-    out.push_str("│   ──────────────      ────────────         ─────────────     ────────────   │\n");
+    out.push_str(
+        "│                                                                             │\n",
+    );
+    out.push_str(
+        "│   TOTAL REQUESTS      TOKENS SAVED         AVG REDUCTION     EST. SAVINGS   │\n",
+    );
+    out.push_str(
+        "│   ──────────────      ────────────         ─────────────     ────────────   │\n",
+    );
 
     let req_str = format_number(summary.total_requests);
     let saved_str = format_number(summary.total_saved_tokens);
@@ -69,15 +98,27 @@ pub fn render_dashboard(summary: &TelemetrySummary, metrics_path: &Path) -> Stri
         "│   {:<19} {:<20} {:<17} {:<13} │\n",
         req_str, saved_str, pct_str, cost_str
     ));
-    out.push_str("│                                                                             │\n");
+    out.push_str(
+        "│                                                                             │\n",
+    );
 
     // Language Breakdown Table
     if !summary.by_language.is_empty() {
-        out.push_str("├─────────────────────────────────────────────────────────────────────────────┤\n");
-        out.push_str("│  📊 LANGUAGE BREAKDOWN                                                      │\n");
-        out.push_str("├─────────────────────────────────────────────────────────────────────────────┤\n");
-        out.push_str("│  LANGUAGE      REQUESTS     RAW TOKENS     SLICED TOKENS   SAVED       PCT  │\n");
-        out.push_str("│  ────────      ────────     ──────────     ─────────────   ─────       ───  │\n");
+        out.push_str(
+            "├─────────────────────────────────────────────────────────────────────────────┤\n",
+        );
+        out.push_str(
+            "│  📊 LANGUAGE BREAKDOWN                                                      │\n",
+        );
+        out.push_str(
+            "├─────────────────────────────────────────────────────────────────────────────┤\n",
+        );
+        out.push_str(
+            "│  LANGUAGE      REQUESTS     RAW TOKENS     SLICED TOKENS   SAVED       PCT  │\n",
+        );
+        out.push_str(
+            "│  ────────      ────────     ──────────     ─────────────   ─────       ───  │\n",
+        );
 
         for lang in &summary.by_language {
             let l_name = if lang.language.len() > 14 {
@@ -100,9 +141,15 @@ pub fn render_dashboard(summary: &TelemetrySummary, metrics_path: &Path) -> Stri
 
     // Invocation Sources
     if !summary.by_source.is_empty() {
-        out.push_str("├─────────────────────────────────────────────────────────────────────────────┤\n");
-        out.push_str("│  🔌 INVOCATION SOURCES                                                      │\n");
-        out.push_str("├─────────────────────────────────────────────────────────────────────────────┤\n");
+        out.push_str(
+            "├─────────────────────────────────────────────────────────────────────────────┤\n",
+        );
+        out.push_str(
+            "│  🔌 INVOCATION SOURCES                                                      │\n",
+        );
+        out.push_str(
+            "├─────────────────────────────────────────────────────────────────────────────┤\n",
+        );
 
         for src in &summary.by_source {
             let label = match src.source.as_str() {
@@ -114,7 +161,11 @@ pub fn render_dashboard(summary: &TelemetrySummary, metrics_path: &Path) -> Stri
                 other => other,
             };
             let calls_str = format!("{} calls", format_number(src.requests));
-            let saved_str = format!("{} saved ({})", format_number(src.saved_tokens), format_percentage(src.savings_percentage));
+            let saved_str = format!(
+                "{} saved ({})",
+                format_number(src.saved_tokens),
+                format_percentage(src.savings_percentage)
+            );
             out.push_str(&format!(
                 "│  • {:<31} {:>11} │ {:<27} │\n",
                 label, calls_str, saved_str
@@ -124,13 +175,17 @@ pub fn render_dashboard(summary: &TelemetrySummary, metrics_path: &Path) -> Stri
 
     // Recent Activity Log
     if !summary.recent_events.is_empty() {
-        out.push_str("├─────────────────────────────────────────────────────────────────────────────┤\n");
+        out.push_str(
+            "├─────────────────────────────────────────────────────────────────────────────┤\n",
+        );
         let count = summary.recent_events.len().min(5);
         out.push_str(&format!(
             "│  🕒 RECENT ACTIVITY (LAST {} SLICES)                                         │\n",
             count
         ));
-        out.push_str("├─────────────────────────────────────────────────────────────────────────────┤\n");
+        out.push_str(
+            "├─────────────────────────────────────────────────────────────────────────────┤\n",
+        );
 
         for ev in summary.recent_events.iter().take(5) {
             // Timestamp short display: "YYYY-MM-DD HH:MM"
@@ -159,8 +214,14 @@ pub fn render_dashboard(summary: &TelemetrySummary, metrics_path: &Path) -> Stri
         }
     }
 
-    out.push_str("└─────────────────────────────────────────────────────────────────────────────┘\n");
-    out.push_str(&format!("  {} {}\n", "Telemetry file:".dimmed(), path_display.dimmed()));
+    out.push_str(
+        "└─────────────────────────────────────────────────────────────────────────────┘\n",
+    );
+    out.push_str(&format!(
+        "  {} {}\n",
+        "Telemetry file:".dimmed(),
+        path_display.dimmed()
+    ));
     out.push_str(&format!(
         "  {} {}\n",
         "Pricing model: ".dimmed(),

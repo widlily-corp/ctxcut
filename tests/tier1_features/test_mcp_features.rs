@@ -26,7 +26,9 @@ fn test_mcp_initialize_and_tool_listing() {
 
     // Assert
     assert!(
-        init_res.get("serverInfo").is_some() || init_res.get("protocolVersion").is_some() || init_res.get("capabilities").is_some(),
+        init_res.get("serverInfo").is_some()
+            || init_res.get("protocolVersion").is_some()
+            || init_res.get("capabilities").is_some(),
         "Initialize response must include server metadata: {:?}",
         init_res
     );
@@ -106,7 +108,8 @@ fn test_mcp_get_diff_slice_tool_call() {
         )
         .unwrap();
 
-    let mut client = McpClient::start_in_dir(sandbox.path()).expect("Failed to start MCP client in sandbox");
+    let mut client =
+        McpClient::start_in_dir(sandbox.path()).expect("Failed to start MCP client in sandbox");
     client.initialize().expect("MCP initialize must succeed");
 
     // Act
@@ -144,7 +147,11 @@ fn test_mcp_analyze_token_stats_tool_call() {
     // Assert
     let text = stats_res.to_string();
     assert!(
-        text.contains("token") || text.contains("raw") || text.contains("savings") || text.contains("files") || text.contains("total"),
+        text.contains("token")
+            || text.contains("raw")
+            || text.contains("savings")
+            || text.contains("files")
+            || text.contains("total"),
         "analyze_token_stats response must contain token metrics. Got: {:?}",
         stats_res
     );
@@ -197,8 +204,12 @@ fn test_mcp_unknown_tool_error_handling() {
 
     // Assert
     // Subsequent valid call must still work, proving server did not crash
-    let valid_slice = client.get_symbol_slice("tests/fixtures/typescript/simple_function.ts", "addNumbers");
-    assert!(valid_slice.is_ok(), "Server must remain operational after invalid tool call");
+    let valid_slice =
+        client.get_symbol_slice("tests/fixtures/typescript/simple_function.ts", "addNumbers");
+    assert!(
+        valid_slice.is_ok(),
+        "Server must remain operational after invalid tool call"
+    );
 }
 
 /// Test 7: MCP `--log-file` captures startup, tool execution, timing, and token metrics.
@@ -217,8 +228,8 @@ fn test_mcp_log_file_flag_captures_tool_call() {
     let log_path = temp_file.path().to_path_buf();
 
     // Arrange
-    let mut client =
-        McpClient::start_with_log_file(&log_path).expect("Failed to start MCP client with log file");
+    let mut client = McpClient::start_with_log_file(&log_path)
+        .expect("Failed to start MCP client with log file");
 
     // Act
     client.initialize().expect("MCP initialize must succeed");
@@ -252,10 +263,7 @@ fn test_mcp_log_file_flag_captures_tool_call() {
             entry.get("timestamp").is_some(),
             "Log entry must contain timestamp"
         );
-        assert!(
-            entry.get("level").is_some(),
-            "Log entry must contain level"
-        );
+        assert!(entry.get("level").is_some(), "Log entry must contain level");
 
         if entry.get("event") == Some(&serde_json::json!("server_start")) {
             found_start = true;
@@ -276,7 +284,10 @@ fn test_mcp_log_file_flag_captures_tool_call() {
     }
 
     assert!(found_start, "Log must record server_start event");
-    assert!(found_tool_call, "Log must record tool_call event with metrics");
+    assert!(
+        found_tool_call,
+        "Log must record tool_call event with metrics"
+    );
 }
 
 /// Test 8: MCP `--log-file` captures error traces when tool call fails.
@@ -294,8 +305,8 @@ fn test_mcp_log_file_captures_error_trace() {
     let log_path = temp_file.path().to_path_buf();
 
     // Arrange
-    let mut client =
-        McpClient::start_with_log_file(&log_path).expect("Failed to start MCP client with log file");
+    let mut client = McpClient::start_with_log_file(&log_path)
+        .expect("Failed to start MCP client with log file");
 
     client.initialize().expect("MCP initialize must succeed");
 
@@ -381,8 +392,8 @@ fn test_mcp_stdout_cleanliness_under_logging() {
     let log_path = temp_file.path().to_path_buf();
 
     // Arrange
-    let mut client =
-        McpClient::start_with_log_file(&log_path).expect("Failed to start MCP client with log file");
+    let mut client = McpClient::start_with_log_file(&log_path)
+        .expect("Failed to start MCP client with log file");
 
     // Act: Send multiple rapid calls
     let init_res = client.initialize().expect("Initialize must succeed");
@@ -400,4 +411,3 @@ fn test_mcp_stdout_cleanliness_under_logging() {
 
     client.stop().expect("Client stop failed");
 }
-

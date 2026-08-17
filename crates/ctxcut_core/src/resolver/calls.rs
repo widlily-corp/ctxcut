@@ -1,13 +1,13 @@
 //! External call expression extractor and signature stripper.
 
-use std::collections::HashSet;
-use std::fs;
-use std::path::Path;
-use tree_sitter::Node;
 use crate::error::Result;
 use crate::model::CallSignatureStub;
 use crate::parser::{AstUtils, ParserManager};
 use crate::resolver::imports::ImportResolver;
+use std::collections::HashSet;
+use std::fs;
+use std::path::Path;
+use tree_sitter::Node;
 
 /// Extracts call expressions and strips implementations to pure signatures.
 pub struct SignatureStripper;
@@ -64,8 +64,10 @@ impl SignatureStripper {
             }
         }
 
-        let mut file_cache: std::collections::HashMap<std::path::PathBuf, (String, tree_sitter::Tree)> =
-            std::collections::HashMap::new();
+        let mut file_cache: std::collections::HashMap<
+            std::path::PathBuf,
+            (String, tree_sitter::Tree),
+        > = std::collections::HashMap::new();
 
         let imports = ImportResolver::extract_imports(root, source);
 
@@ -79,7 +81,9 @@ impl SignatureStripper {
 
             // A. Check local file (e.g. this.method or local helper function)
             if receiver.as_deref() == Some("this") {
-                if let Some(stub) = find_method_in_class(target_node, root, source, &name, file_path) {
+                if let Some(stub) =
+                    find_method_in_class(target_node, root, source, &name, file_path)
+                {
                     stubs.push(stub);
                     continue;
                 }
@@ -97,7 +101,9 @@ impl SignatureStripper {
             let mut resolved = false;
 
             if let Some(mapping) = imports.get(lookup_name) {
-                if let Some(target_file) = ImportResolver::resolve_module_path(file_path, &mapping.specifier) {
+                if let Some(target_file) =
+                    ImportResolver::resolve_module_path(file_path, &mapping.specifier)
+                {
                     if let Some(stub) = resolve_call_from_module(
                         &name,
                         &target_file,
@@ -113,7 +119,9 @@ impl SignatureStripper {
             // C. If not resolved, search all imported module files for matching method
             if !resolved {
                 for mapping in imports.values() {
-                    if let Some(target_file) = ImportResolver::resolve_module_path(file_path, &mapping.specifier) {
+                    if let Some(target_file) =
+                        ImportResolver::resolve_module_path(file_path, &mapping.specifier)
+                    {
                         if let Some(stub) = resolve_call_from_module(
                             &name,
                             &target_file,
@@ -133,9 +141,14 @@ impl SignatureStripper {
                 if let Some(ref r) = receiver {
                     if r.starts_with("this.") {
                         let field_name = r.strip_prefix("this.").unwrap_or(r);
-                        if let Some(type_name) = find_field_type_in_class(target_node, root, source, field_name) {
+                        if let Some(type_name) =
+                            find_field_type_in_class(target_node, root, source, field_name)
+                        {
                             if let Some(mapping) = imports.get(&type_name) {
-                                if let Some(target_file) = ImportResolver::resolve_module_path(file_path, &mapping.specifier) {
+                                if let Some(target_file) = ImportResolver::resolve_module_path(
+                                    file_path,
+                                    &mapping.specifier,
+                                ) {
                                     if let Some(stub) = resolve_call_from_module(
                                         &name,
                                         &target_file,
@@ -167,11 +180,17 @@ fn find_field_type_in_class(
         if parent.kind() == "class_declaration" || parent.kind() == "abstract_class_declaration" {
             if let Some(body) = parent.child_by_field_name("body") {
                 for member in body.named_children(&mut body.walk()) {
-                    if member.kind() == "property_definition" || member.kind() == "public_field_definition" || member.kind() == "field_definition" {
+                    if member.kind() == "property_definition"
+                        || member.kind() == "public_field_definition"
+                        || member.kind() == "field_definition"
+                    {
                         if let Some(name_node) = member.child_by_field_name("name") {
                             if AstUtils::node_text(name_node, source) == field_name {
                                 if let Some(type_node) = member.child_by_field_name("type") {
-                                    let type_text = AstUtils::node_text(type_node, source).trim_start_matches(':').trim().to_string();
+                                    let type_text = AstUtils::node_text(type_node, source)
+                                        .trim_start_matches(':')
+                                        .trim()
+                                        .to_string();
                                     return Some(type_text);
                                 }
                             }
@@ -181,10 +200,18 @@ fn find_field_type_in_class(
                             if AstUtils::node_text(name_node, source) == "constructor" {
                                 if let Some(params) = member.child_by_field_name("parameters") {
                                     for p in params.named_children(&mut params.walk()) {
-                                        if let Some(p_name) = p.child_by_field_name("name").or_else(|| p.child_by_field_name("pattern")) {
+                                        if let Some(p_name) = p
+                                            .child_by_field_name("name")
+                                            .or_else(|| p.child_by_field_name("pattern"))
+                                        {
                                             if AstUtils::node_text(p_name, source) == field_name {
-                                                if let Some(t_node) = p.child_by_field_name("type") {
-                                                    let type_text = AstUtils::node_text(t_node, source).trim_start_matches(':').trim().to_string();
+                                                if let Some(t_node) = p.child_by_field_name("type")
+                                                {
+                                                    let type_text =
+                                                        AstUtils::node_text(t_node, source)
+                                                            .trim_start_matches(':')
+                                                            .trim()
+                                                            .to_string();
                                                     return Some(type_text);
                                                 }
                                             }
@@ -203,12 +230,18 @@ fn find_field_type_in_class(
     None
 }
 
-fn find_function_in_file(root: Node<'_>, source: &str, target_name: &str, file_path: &Path) -> Option<CallSignatureStub> {
+fn find_function_in_file(
+    root: Node<'_>,
+    source: &str,
+    target_name: &str,
+    file_path: &Path,
+) -> Option<CallSignatureStub> {
     let mut cursor = root.walk();
     for child in root.children(&mut cursor) {
         let decl = AstUtils::unwrap_export(child);
 
-        if decl.kind() == "function_declaration" || decl.kind() == "generator_function_declaration" {
+        if decl.kind() == "function_declaration" || decl.kind() == "generator_function_declaration"
+        {
             if let Some(name_node) = decl.child_by_field_name("name") {
                 if AstUtils::node_text(name_node, source) == target_name {
                     let sig = extract_signature_stub(child, decl, source);
@@ -350,8 +383,11 @@ fn resolve_call_from_module(
     for (exported_alias, specifier) in reexports {
         if let Some(alias) = exported_alias {
             if alias == name {
-                if let Some(sub_file) = ImportResolver::resolve_module_path(target_file, &specifier) {
-                    if let Some(res) = resolve_call_from_module(name, &sub_file, tree_sitter_lang, cache) {
+                if let Some(sub_file) = ImportResolver::resolve_module_path(target_file, &specifier)
+                {
+                    if let Some(res) =
+                        resolve_call_from_module(name, &sub_file, tree_sitter_lang, cache)
+                    {
                         return Some(res);
                     }
                 }
@@ -359,7 +395,9 @@ fn resolve_call_from_module(
         } else {
             // Wildcard export *
             if let Some(sub_file) = ImportResolver::resolve_module_path(target_file, &specifier) {
-                if let Some(res) = resolve_call_from_module(name, &sub_file, tree_sitter_lang, cache) {
+                if let Some(res) =
+                    resolve_call_from_module(name, &sub_file, tree_sitter_lang, cache)
+                {
                     return Some(res);
                 }
             }
@@ -373,7 +411,9 @@ fn extract_signature_stub(outer_node: Node<'_>, decl_node: Node<'_>, source: &st
     let is_export = outer_node.kind() == "export_statement";
     let prefix = if is_export { "export " } else { "" };
 
-    if decl_node.kind() == "function_declaration" || decl_node.kind() == "generator_function_declaration" {
+    if decl_node.kind() == "function_declaration"
+        || decl_node.kind() == "generator_function_declaration"
+    {
         if let Some(body) = decl_node.child_by_field_name("body") {
             let start = decl_node.start_byte();
             let body_start = body.start_byte();
@@ -475,7 +515,16 @@ fn is_builtin_global(name: &str) -> bool {
 fn is_builtin_receiver_or_method(receiver: &str, method: &str) -> bool {
     matches!(
         receiver,
-        "console" | "Math" | "JSON" | "Object" | "Array" | "String" | "Number" | "Promise" | "Reflect" | "process"
+        "console"
+            | "Math"
+            | "JSON"
+            | "Object"
+            | "Array"
+            | "String"
+            | "Number"
+            | "Promise"
+            | "Reflect"
+            | "process"
     ) || matches!(
         method,
         "log"

@@ -62,7 +62,9 @@ fn test_workload_rs_inventory_reserve_stock() {
 
     // 2. Semantic Verification: Type Hoisting
     assert!(
-        slice_markdown.contains("ReservationRequest") || slice_markdown.contains("StockReservation") || slice_markdown.contains("InventoryError"),
+        slice_markdown.contains("ReservationRequest")
+            || slice_markdown.contains("StockReservation")
+            || slice_markdown.contains("InventoryError"),
         "Required Rust structs and error enums must be hoisted"
     );
 

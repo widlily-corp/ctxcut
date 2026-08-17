@@ -115,10 +115,32 @@ impl CliRunner {
 
         for root in search_roots.into_iter().flatten() {
             let candidates = [
-                root.join("target").join("debug").join(if cfg!(windows) { "ctxcut.exe" } else { "ctxcut" }),
-                root.join("target").join("release").join(if cfg!(windows) { "ctxcut.exe" } else { "ctxcut" }),
-                root.join("..").join("target").join("debug").join(if cfg!(windows) { "ctxcut.exe" } else { "ctxcut" }),
-                root.join("..").join("target").join("release").join(if cfg!(windows) { "ctxcut.exe" } else { "ctxcut" }),
+                root.join("target").join("debug").join(if cfg!(windows) {
+                    "ctxcut.exe"
+                } else {
+                    "ctxcut"
+                }),
+                root.join("target").join("release").join(if cfg!(windows) {
+                    "ctxcut.exe"
+                } else {
+                    "ctxcut"
+                }),
+                root.join("..")
+                    .join("target")
+                    .join("debug")
+                    .join(if cfg!(windows) {
+                        "ctxcut.exe"
+                    } else {
+                        "ctxcut"
+                    }),
+                root.join("..")
+                    .join("target")
+                    .join("release")
+                    .join(if cfg!(windows) {
+                        "ctxcut.exe"
+                    } else {
+                        "ctxcut"
+                    }),
             ];
 
             for candidate in candidates {
@@ -265,10 +287,16 @@ impl McpClient {
 
         let mut child = cmd.spawn()?;
         let stdin = child.stdin.take().ok_or_else(|| {
-            io::Error::new(io::ErrorKind::BrokenPipe, "Failed to capture MCP child stdin")
+            io::Error::new(
+                io::ErrorKind::BrokenPipe,
+                "Failed to capture MCP child stdin",
+            )
         })?;
         let stdout = child.stdout.take().ok_or_else(|| {
-            io::Error::new(io::ErrorKind::BrokenPipe, "Failed to capture MCP child stdout")
+            io::Error::new(
+                io::ErrorKind::BrokenPipe,
+                "Failed to capture MCP child stdout",
+            )
         })?;
 
         Ok(Self {
@@ -310,7 +338,10 @@ impl McpClient {
         let parsed: Value = serde_json::from_str(&response_line).map_err(|e| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("Failed to parse MCP JSON-RPC response: {}. Line was: {}", e, response_line),
+                format!(
+                    "Failed to parse MCP JSON-RPC response: {}. Line was: {}",
+                    e, response_line
+                ),
             )
         })?;
 
@@ -328,7 +359,10 @@ impl McpClient {
         };
 
         let req_json = serde_json::to_string(&req).map_err(|e| {
-            io::Error::new(io::ErrorKind::InvalidInput, format!("Serialization error: {}", e))
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("Serialization error: {}", e),
+            )
         })?;
 
         let response = self.send_raw_line(&req_json)?;

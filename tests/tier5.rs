@@ -11,10 +11,6 @@
 #[path = "common/mod.rs"]
 mod common;
 
-use std::collections::BTreeMap;
-use std::fs::{self, File, OpenOptions};
-use std::io::Write;
-use std::path::{Path, PathBuf};
 use common::{CliRunner, GitSandbox, McpClient};
 use ctxcut_cli::metrics::{format_currency, format_number, format_percentage, render_dashboard};
 use ctxcut_core::{
@@ -22,6 +18,10 @@ use ctxcut_core::{
     TelemetryEvent, TelemetryLogger, TelemetrySummary,
 };
 use serde_json::{json, Value};
+use std::collections::BTreeMap;
+use std::fs::{self, File, OpenOptions};
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use tempfile::NamedTempFile;
 
 #[test]
@@ -133,7 +133,8 @@ fn test_telemetry_corrupt_line_fault_tolerance() {
     )
     .unwrap();
 
-    let events = TelemetryLogger::read_events_from_path(path).expect("Reading corrupt file must not fail");
+    let events =
+        TelemetryLogger::read_events_from_path(path).expect("Reading corrupt file must not fail");
     assert_eq!(events.len(), 2);
     assert_eq!(events[0].symbol, "func1");
     assert_eq!(events[1].symbol, "func2");
@@ -410,7 +411,9 @@ export function startServer(cfg: Config): void {
 "#;
     sandbox.write_file("src/server.ts", mutated).unwrap();
 
-    let diff_res = client.get_diff_slice(false).expect("get_diff_slice must succeed");
+    let diff_res = client
+        .get_diff_slice(false)
+        .expect("get_diff_slice must succeed");
     assert!(diff_res.to_string().contains("startServer"));
 
     let events = TelemetryLogger::read_events_from_path(&metrics_path).unwrap();

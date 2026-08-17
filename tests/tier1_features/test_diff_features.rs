@@ -45,13 +45,21 @@ export function unusedHelper(): void {
 
     // Act
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(sandbox.path(), &["diff"]).expect("Failed to execute ctxcut diff");
+    let output = runner
+        .run_in_dir(sandbox.path(), &["diff"])
+        .expect("Failed to execute ctxcut diff");
 
     // Assert
     output.assert_success();
     let stdout = &output.stdout;
-    assert!(stdout.contains("calculateTax"), "Must contain slice for modified calculateTax");
-    assert!(stdout.contains("const rate = 0.20;"), "Must contain updated function body");
+    assert!(
+        stdout.contains("calculateTax"),
+        "Must contain slice for modified calculateTax"
+    );
+    assert!(
+        stdout.contains("const rate = 0.20;"),
+        "Must contain updated function body"
+    );
 }
 
 /// Test 2: Slicing staged changes only with `--staged`.
@@ -103,13 +111,21 @@ export function funcB(): string {
 
     // Act
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(sandbox.path(), &["diff", "--staged"]).expect("Failed to run ctxcut diff --staged");
+    let output = runner
+        .run_in_dir(sandbox.path(), &["diff", "--staged"])
+        .expect("Failed to run ctxcut diff --staged");
 
     // Assert
     output.assert_success();
     let stdout = &output.stdout;
-    assert!(stdout.contains("funcA"), "Must contain slice for staged funcA");
-    assert!(stdout.contains("A_staged_modified"), "Must contain staged body");
+    assert!(
+        stdout.contains("funcA"),
+        "Must contain slice for staged funcA"
+    );
+    assert!(
+        stdout.contains("A_staged_modified"),
+        "Must contain staged body"
+    );
 }
 
 /// Test 3: Detecting and slicing multiple modified functions across multiple files and languages.
@@ -121,24 +137,44 @@ export function funcB(): string {
 fn test_diff_multiple_functions_across_files() {
     // Arrange
     let sandbox = GitSandbox::new().expect("Failed to create Git sandbox");
-    sandbox.write_file("src/math.ts", "export function add(a: number, b: number): number {\n    return a + b;\n}\n").unwrap();
-    sandbox.write_file("src/calc.py", "def multiply(x: int, y: int) -> int:\n    return x * y\n").unwrap();
+    sandbox
+        .write_file(
+            "src/math.ts",
+            "export function add(a: number, b: number): number {\n    return a + b;\n}\n",
+        )
+        .unwrap();
+    sandbox
+        .write_file(
+            "src/calc.py",
+            "def multiply(x: int, y: int) -> int:\n    return x * y\n",
+        )
+        .unwrap();
     sandbox.stage_all().unwrap();
     sandbox.commit("Initial commit").unwrap();
 
     // Mutate both
     sandbox.modify_file("src/math.ts", "export function add(a: number, b: number): number {\n    // comment\n    return a + b;\n}\n").unwrap();
-    sandbox.modify_file("src/calc.py", "def multiply(x: int, y: int) -> int:\n    # comment\n    return x * y\n").unwrap();
+    sandbox
+        .modify_file(
+            "src/calc.py",
+            "def multiply(x: int, y: int) -> int:\n    # comment\n    return x * y\n",
+        )
+        .unwrap();
 
     // Act
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(sandbox.path(), &["diff"]).expect("Failed to run ctxcut diff");
+    let output = runner
+        .run_in_dir(sandbox.path(), &["diff"])
+        .expect("Failed to run ctxcut diff");
 
     // Assert
     output.assert_success();
     let stdout = &output.stdout;
     assert!(stdout.contains("add"), "Must contain TS add function");
-    assert!(stdout.contains("multiply"), "Must contain Python multiply function");
+    assert!(
+        stdout.contains("multiply"),
+        "Must contain Python multiply function"
+    );
 }
 
 /// Test 4: Handling renamed files with modifications.
@@ -150,22 +186,42 @@ fn test_diff_multiple_functions_across_files() {
 fn test_diff_renamed_file_with_modifications() {
     // Arrange
     let sandbox = GitSandbox::new().expect("Failed to create Git sandbox");
-    sandbox.write_file("src/service.ts", "export function processData(d: string): string {\n    return d;\n}\n").unwrap();
+    sandbox
+        .write_file(
+            "src/service.ts",
+            "export function processData(d: string): string {\n    return d;\n}\n",
+        )
+        .unwrap();
     sandbox.stage_all().unwrap();
     sandbox.commit("Initial commit").unwrap();
 
-    sandbox.rename_file("src/service.ts", "src/order_service.ts").unwrap();
-    sandbox.modify_file("src/order_service.ts", "export function processData(d: string): string {\n    return d.toUpperCase();\n}\n").unwrap();
+    sandbox
+        .rename_file("src/service.ts", "src/order_service.ts")
+        .unwrap();
+    sandbox
+        .modify_file(
+            "src/order_service.ts",
+            "export function processData(d: string): string {\n    return d.toUpperCase();\n}\n",
+        )
+        .unwrap();
 
     // Act
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(sandbox.path(), &["diff"]).expect("Failed to run ctxcut diff");
+    let output = runner
+        .run_in_dir(sandbox.path(), &["diff"])
+        .expect("Failed to run ctxcut diff");
 
     // Assert
     output.assert_success();
     let stdout = &output.stdout;
-    assert!(stdout.contains("processData"), "Must extract processData from renamed file");
-    assert!(stdout.contains("toUpperCase"), "Must reflect modified content");
+    assert!(
+        stdout.contains("processData"),
+        "Must extract processData from renamed file"
+    );
+    assert!(
+        stdout.contains("toUpperCase"),
+        "Must reflect modified content"
+    );
 }
 
 /// Test 5: Type change contextual expansion.
@@ -204,7 +260,9 @@ export function initClient(cfg: UserConfig): boolean {
 
     // Act
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(sandbox.path(), &["diff"]).expect("Failed to run ctxcut diff");
+    let output = runner
+        .run_in_dir(sandbox.path(), &["diff"])
+        .expect("Failed to run ctxcut diff");
 
     // Assert
     output.assert_success();
@@ -224,19 +282,26 @@ export function initClient(cfg: UserConfig): boolean {
 fn test_diff_clean_working_tree_no_modifications() {
     // Arrange
     let sandbox = GitSandbox::new().expect("Failed to create Git sandbox");
-    sandbox.write_file("src/app.ts", "export function main(): void {}\n").unwrap();
+    sandbox
+        .write_file("src/app.ts", "export function main(): void {}\n")
+        .unwrap();
     sandbox.stage_all().unwrap();
     sandbox.commit("Initial commit").unwrap();
 
     // Act
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(sandbox.path(), &["diff"]).expect("Failed to run ctxcut diff");
+    let output = runner
+        .run_in_dir(sandbox.path(), &["diff"])
+        .expect("Failed to run ctxcut diff");
 
     // Assert
     output.assert_success();
     let stdout = &output.stdout;
     assert!(
-        stdout.contains("No modified") || stdout.contains("0 modified") || stdout.trim().is_empty() || stdout.contains("clean"),
+        stdout.contains("No modified")
+            || stdout.contains("0 modified")
+            || stdout.trim().is_empty()
+            || stdout.contains("clean"),
         "Must cleanly report clean working tree without errors"
     );
 }

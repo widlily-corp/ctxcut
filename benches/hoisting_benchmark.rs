@@ -3,9 +3,7 @@
 //! Measures performance of AST scope walking, transitive type dependency resolution,
 //! and signature stripping on complex real-world type graphs across languages.
 
-use criterion::{
-    black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput,
-};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use std::collections::{HashMap, HashSet};
 
 /// Mock representation of an AST symbol for benchmarking graph traversal.

@@ -1,13 +1,15 @@
 //! LanguageAdapter implementation for Rust.
 
+use crate::error::{CoreError, Result};
+use crate::lang::LanguageAdapter;
+use crate::model::{
+    CallSignatureStub, ExtractedSymbol, ExtractedType, SliceOptions, SupportedLanguage,
+};
+use crate::parser::{AstUtils, ParserManager};
 use std::collections::{HashSet, VecDeque};
 use std::fs;
 use std::path::Path;
 use tree_sitter::{Language, Node};
-use crate::error::{CoreError, Result};
-use crate::lang::LanguageAdapter;
-use crate::model::{CallSignatureStub, ExtractedSymbol, ExtractedType, SliceOptions, SupportedLanguage};
-use crate::parser::{AstUtils, ParserManager};
 
 /// Rust language adapter supporting Rust (.rs).
 pub struct RustAdapter;
@@ -31,7 +33,9 @@ impl LanguageAdapter for RustAdapter {
         let (impl_query, member_query) = parse_query(symbol_query);
 
         if let Some(impl_type) = impl_query {
-            if let Some((sym, node)) = find_in_impl(root, source, impl_type, member_query, file_path) {
+            if let Some((sym, node)) =
+                find_in_impl(root, source, impl_type, member_query, file_path)
+            {
                 return Ok((sym, node));
             }
         } else {
@@ -112,7 +116,10 @@ impl LanguageAdapter for RustAdapter {
                         if let Some(t_node) = impl_node.child_by_field_name("type") {
                             let raw_type = AstUtils::node_text(t_node, source);
                             let type_name = raw_type.split('<').next().unwrap_or(raw_type).trim();
-                            if !is_builtin_rust_type(type_name) && !scoped_generics.contains(type_name) && visited.insert(type_name.to_string()) {
+                            if !is_builtin_rust_type(type_name)
+                                && !scoped_generics.contains(type_name)
+                                && visited.insert(type_name.to_string())
+                            {
                                 queue.push_back((type_name.to_string(), 1));
                             }
                         }
@@ -124,7 +131,10 @@ impl LanguageAdapter for RustAdapter {
         // 2. Collect type identifiers in target node
         for id in AstUtils::find_descendants_by_kind(target_node, "type_identifier") {
             let name = AstUtils::node_text(id, source);
-            if !is_builtin_rust_type(name) && !scoped_generics.contains(name) && visited.insert(name.to_string()) {
+            if !is_builtin_rust_type(name)
+                && !scoped_generics.contains(name)
+                && visited.insert(name.to_string())
+            {
                 queue.push_back((name.to_string(), 1));
             }
         }
@@ -140,11 +150,19 @@ impl LanguageAdapter for RustAdapter {
             // A. Check local file
             if let Some(extracted) = find_rust_type_in_file(root, source, &type_name, file_path) {
                 if depth < opts.depth {
-                    if let Ok(tree) = ParserManager::parse_source(&extracted.definition, &ts_lang, file_path) {
-                        let def_generics = collect_rust_scoped_generics(tree.root_node(), &extracted.definition);
-                        for id in AstUtils::find_descendants_by_kind(tree.root_node(), "type_identifier") {
+                    if let Ok(tree) =
+                        ParserManager::parse_source(&extracted.definition, &ts_lang, file_path)
+                    {
+                        let def_generics =
+                            collect_rust_scoped_generics(tree.root_node(), &extracted.definition);
+                        for id in
+                            AstUtils::find_descendants_by_kind(tree.root_node(), "type_identifier")
+                        {
                             let name = AstUtils::node_text(id, &extracted.definition);
-                            if !is_builtin_rust_type(name) && !def_generics.contains(name) && visited.insert(name.to_string()) {
+                            if !is_builtin_rust_type(name)
+                                && !def_generics.contains(name)
+                                && visited.insert(name.to_string())
+                            {
                                 queue.push_back((name.to_string(), depth + 1));
                             }
                         }
@@ -159,19 +177,41 @@ impl LanguageAdapter for RustAdapter {
                 let mut found = false;
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if path == file_path || path.extension().and_then(|e| e.to_str()) != Some("rs") {
+                    if path == file_path || path.extension().and_then(|e| e.to_str()) != Some("rs")
+                    {
                         continue;
                     }
 
                     if let Ok(sibling_src) = fs::read_to_string(&path) {
-                        if let Ok(sibling_tree) = ParserManager::parse_source(&sibling_src, &ts_lang, &path) {
-                            if let Some(extracted) = find_rust_type_in_file(sibling_tree.root_node(), &sibling_src, &type_name, &path) {
+                        if let Ok(sibling_tree) =
+                            ParserManager::parse_source(&sibling_src, &ts_lang, &path)
+                        {
+                            if let Some(extracted) = find_rust_type_in_file(
+                                sibling_tree.root_node(),
+                                &sibling_src,
+                                &type_name,
+                                &path,
+                            ) {
                                 if depth < opts.depth {
-                                    if let Ok(tree) = ParserManager::parse_source(&extracted.definition, &ts_lang, &path) {
-                                        let def_generics = collect_rust_scoped_generics(tree.root_node(), &extracted.definition);
-                                        for id in AstUtils::find_descendants_by_kind(tree.root_node(), "type_identifier") {
-                                            let name = AstUtils::node_text(id, &extracted.definition);
-                                            if !is_builtin_rust_type(name) && !def_generics.contains(name) && visited.insert(name.to_string()) {
+                                    if let Ok(tree) = ParserManager::parse_source(
+                                        &extracted.definition,
+                                        &ts_lang,
+                                        &path,
+                                    ) {
+                                        let def_generics = collect_rust_scoped_generics(
+                                            tree.root_node(),
+                                            &extracted.definition,
+                                        );
+                                        for id in AstUtils::find_descendants_by_kind(
+                                            tree.root_node(),
+                                            "type_identifier",
+                                        ) {
+                                            let name =
+                                                AstUtils::node_text(id, &extracted.definition);
+                                            if !is_builtin_rust_type(name)
+                                                && !def_generics.contains(name)
+                                                && visited.insert(name.to_string())
+                                            {
                                                 queue.push_back((name.to_string(), depth + 1));
                                             }
                                         }
@@ -211,10 +251,10 @@ impl LanguageAdapter for RustAdapter {
                     if let Some(field) = func_node.child_by_field_name("field") {
                         AstUtils::node_text(field, source)
                     } else {
-                        call_text.split('.').last().unwrap_or(call_text)
+                        call_text.split('.').next_back().unwrap_or(call_text)
                     }
                 } else {
-                    call_text.split("::").last().unwrap_or(call_text)
+                    call_text.rsplit("::").next().unwrap_or(call_text)
                 };
 
                 if is_builtin_rust_method(call_name) || !seen.insert(call_name.to_string()) {
@@ -233,13 +273,21 @@ impl LanguageAdapter for RustAdapter {
                     if let Ok(entries) = fs::read_dir(dir) {
                         for entry in entries.flatten() {
                             let path = entry.path();
-                            if path == file_path || path.extension().and_then(|e| e.to_str()) != Some("rs") {
+                            if path == file_path
+                                || path.extension().and_then(|e| e.to_str()) != Some("rs")
+                            {
                                 continue;
                             }
                             if let Ok(sibling_src) = fs::read_to_string(&path) {
                                 let ts_lang = self.tree_sitter_language(&path);
-                                if let Ok(tree) = ParserManager::parse_source(&sibling_src, &ts_lang, &path) {
-                                    if let Some(sig) = find_rust_signature(tree.root_node(), &sibling_src, call_name) {
+                                if let Ok(tree) =
+                                    ParserManager::parse_source(&sibling_src, &ts_lang, &path)
+                                {
+                                    if let Some(sig) = find_rust_signature(
+                                        tree.root_node(),
+                                        &sibling_src,
+                                        call_name,
+                                    ) {
                                         stubs.push(CallSignatureStub {
                                             name: call_name.to_string(),
                                             receiver: None,
@@ -268,7 +316,10 @@ fn collect_rust_scoped_generics(node: Node<'_>, source: &str) -> HashSet<String>
             if child.kind() == "type_identifier" {
                 generics.insert(AstUtils::node_text(child, source).to_string());
             } else if child.kind() == "constrained_type_parameter" {
-                if let Some(left) = child.child_by_field_name("left").or_else(|| child.named_child(0)) {
+                if let Some(left) = child
+                    .child_by_field_name("left")
+                    .or_else(|| child.named_child(0))
+                {
                     generics.insert(AstUtils::node_text(left, source).to_string());
                 }
             }
@@ -299,14 +350,20 @@ fn find_top_level<'a>(
             "function_item" => {
                 if let Some(name_node) = child.child_by_field_name("name") {
                     if AstUtils::node_text(name_node, source) == target_name {
-                        return Some((build_rust_symbol(child, source, file_path, "function"), child));
+                        return Some((
+                            build_rust_symbol(child, source, file_path, "function"),
+                            child,
+                        ));
                     }
                 }
             }
             "struct_item" => {
                 if let Some(name_node) = child.child_by_field_name("name") {
                     if AstUtils::node_text(name_node, source) == target_name {
-                        return Some((build_rust_symbol(child, source, file_path, "struct"), child));
+                        return Some((
+                            build_rust_symbol(child, source, file_path, "struct"),
+                            child,
+                        ));
                     }
                 }
             }
@@ -331,7 +388,10 @@ fn find_rust_type_in_file(
 ) -> Option<ExtractedType> {
     let mut cursor = root.walk();
     for child in root.children(&mut cursor) {
-        if matches!(child.kind(), "struct_item" | "enum_item" | "trait_item" | "type_item") {
+        if matches!(
+            child.kind(),
+            "struct_item" | "enum_item" | "trait_item" | "type_item"
+        ) {
             if let Some(name_node) = child.child_by_field_name("name") {
                 if AstUtils::node_text(name_node, source) == target_name {
                     return Some(ExtractedType {
@@ -369,7 +429,10 @@ fn find_in_impl<'a>(
                             if member.kind() == "function_item" {
                                 if let Some(m_name) = member.child_by_field_name("name") {
                                     if AstUtils::node_text(m_name, source) == method_name {
-                                        return Some((build_rust_symbol(member, source, file_path, "method"), member));
+                                        return Some((
+                                            build_rust_symbol(member, source, file_path, "method"),
+                                            member,
+                                        ));
                                     }
                                 }
                             }
@@ -396,7 +459,10 @@ fn find_any_method<'a>(
                     if member.kind() == "function_item" {
                         if let Some(m_name) = member.child_by_field_name("name") {
                             if AstUtils::node_text(m_name, source) == method_name {
-                                return Some((build_rust_symbol(member, source, file_path, "method"), member));
+                                return Some((
+                                    build_rust_symbol(member, source, file_path, "method"),
+                                    member,
+                                ));
                             }
                         }
                     }
@@ -407,7 +473,12 @@ fn find_any_method<'a>(
     None
 }
 
-fn build_rust_symbol(node: Node<'_>, source: &str, file_path: &Path, kind: &str) -> ExtractedSymbol {
+fn build_rust_symbol(
+    node: Node<'_>,
+    source: &str,
+    file_path: &Path,
+    kind: &str,
+) -> ExtractedSymbol {
     let name = node
         .child_by_field_name("name")
         .map(|n| AstUtils::node_text(n, source).to_string())
@@ -478,10 +549,48 @@ fn find_rust_signature(root: Node<'_>, source: &str, func_name: &str) -> Option<
 fn is_builtin_rust_type(name: &str) -> bool {
     matches!(
         name,
-        "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "u8" | "u16" | "u32" | "u64" | "u128" | "usize"
-            | "f32" | "f64" | "bool" | "char" | "str" | "String" | "Option" | "Result" | "Vec" | "Box" | "Arc"
-            | "Rc" | "Path" | "PathBuf" | "Self" | "self" | "Send" | "Sync" | "Clone" | "Copy" | "Debug"
-            | "Display" | "Default" | "Error" | "AsRef" | "AsMut" | "From" | "Into" | "Fn" | "FnMut" | "FnOnce"
+        "i8" | "i16"
+            | "i32"
+            | "i64"
+            | "i128"
+            | "isize"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "u64"
+            | "u128"
+            | "usize"
+            | "f32"
+            | "f64"
+            | "bool"
+            | "char"
+            | "str"
+            | "String"
+            | "Option"
+            | "Result"
+            | "Vec"
+            | "Box"
+            | "Arc"
+            | "Rc"
+            | "Path"
+            | "PathBuf"
+            | "Self"
+            | "self"
+            | "Send"
+            | "Sync"
+            | "Clone"
+            | "Copy"
+            | "Debug"
+            | "Display"
+            | "Default"
+            | "Error"
+            | "AsRef"
+            | "AsMut"
+            | "From"
+            | "Into"
+            | "Fn"
+            | "FnMut"
+            | "FnOnce"
     )
 }
 

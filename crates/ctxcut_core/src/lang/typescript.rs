@@ -1,11 +1,13 @@
 //! LanguageAdapter implementation for TypeScript, TSX, and JavaScript.
 
-use std::path::Path;
-use tree_sitter::{Language, Node};
 use crate::error::Result;
 use crate::lang::LanguageAdapter;
-use crate::model::{CallSignatureStub, ExtractedSymbol, ExtractedType, SliceOptions, SupportedLanguage};
+use crate::model::{
+    CallSignatureStub, ExtractedSymbol, ExtractedType, SliceOptions, SupportedLanguage,
+};
 use crate::resolver::{SignatureStripper, SymbolLocator, TypeHoister};
+use std::path::Path;
+use tree_sitter::{Language, Node};
 
 /// Language adapter supporting TypeScript (.ts, .mts, .cts, .d.ts), TSX (.tsx), and JavaScript (.js, .jsx, .mjs, .cjs).
 pub struct TypeScriptAdapter {

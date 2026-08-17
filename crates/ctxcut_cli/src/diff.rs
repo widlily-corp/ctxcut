@@ -1,9 +1,9 @@
 //! Git diff contextualizer module.
 
-use std::path::{Path, PathBuf};
-use std::process::Command;
 use anyhow::{bail, Result};
 use ctxcut_core::{ContextSlicer, LanguageRegistry, ParserManager, SliceOptions, SliceResult};
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use tree_sitter::Node;
 
 /// Extracts contextual slices for symbols modified in Git diff.
@@ -12,7 +12,11 @@ pub fn run_diff_slicer(staged: bool, opts: &SliceOptions) -> Result<Vec<SliceRes
 }
 
 /// Extracts contextual slices for symbols modified in Git diff within a specific directory.
-pub fn run_diff_slicer_in(repo_dir: Option<&Path>, staged: bool, opts: &SliceOptions) -> Result<Vec<SliceResult>> {
+pub fn run_diff_slicer_in(
+    repo_dir: Option<&Path>,
+    staged: bool,
+    opts: &SliceOptions,
+) -> Result<Vec<SliceResult>> {
     let diff_output = get_git_diff(repo_dir, staged)?;
     if diff_output.trim().is_empty() {
         return Ok(Vec::new());
@@ -51,7 +55,8 @@ pub fn run_diff_slicer_in(repo_dir: Option<&Path>, staged: bool, opts: &SliceOpt
         };
 
         let root = tree.root_node();
-        let symbols = find_symbols_intersecting_lines(root, &source, &changed_lines, &file_path, &*adapter);
+        let symbols =
+            find_symbols_intersecting_lines(root, &source, &changed_lines, &file_path, &*adapter);
 
         for sym_name in symbols {
             if let Ok(slice) = slicer.slice_symbol(&file_path, &sym_name, opts) {
@@ -89,14 +94,14 @@ fn parse_git_diff(diff: &str) -> Vec<(String, Vec<usize>)> {
     let mut current_lines: Vec<usize> = Vec::new();
 
     for line in diff.lines() {
-        if line.starts_with("+++ b/") {
+        if let Some(path) = line.strip_prefix("+++ b/") {
             if let Some(file) = current_file.take() {
                 if !current_lines.is_empty() {
                     results.push((file, current_lines));
                     current_lines = Vec::new();
                 }
             }
-            current_file = Some(line[6..].to_string());
+            current_file = Some(path.to_string());
         } else if line.starts_with("@@ ") {
             // e.g. @@ -10,3 +10,5 @@ or @@ -5 +5,2 @@
             if let Some(hunk) = parse_hunk_header(line) {
@@ -150,7 +155,7 @@ fn find_symbols_intersecting_lines(
     let symbols = adapter.list_symbols(root, source);
 
     for sym in symbols {
-        let clean_name = sym.split('.').last().unwrap_or(&sym);
+        let clean_name = sym.split('.').next_back().unwrap_or(&sym);
         let Ok((extracted, _)) = adapter.locate_symbol(root, source, clean_name, file_path) else {
             continue;
         };
@@ -158,7 +163,9 @@ fn find_symbols_intersecting_lines(
         let sym_start = extracted.start_line;
         let sym_end = extracted.end_line;
 
-        let intersects = changed_lines.iter().any(|&l| l >= sym_start && l <= sym_end);
+        let intersects = changed_lines
+            .iter()
+            .any(|&l| l >= sym_start && l <= sym_end);
         if intersects && !matched.contains(&clean_name.to_string()) {
             matched.push(clean_name.to_string());
         }
@@ -167,12 +174,14 @@ fn find_symbols_intersecting_lines(
     // Fallback: If no top-level symbol matched but lines changed, search any top-level functions or classes
     if matched.is_empty() {
         for sym in adapter.list_symbols(root, source) {
-            let clean_name = sym.split('.').last().unwrap_or(&sym);
+            let clean_name = sym.split('.').next_back().unwrap_or(&sym);
             if let Ok((extracted, _)) = adapter.locate_symbol(root, source, clean_name, file_path) {
-                if changed_lines.iter().any(|&l| l >= extracted.start_line && l <= extracted.end_line) {
-                    if !matched.contains(&clean_name.to_string()) {
-                        matched.push(clean_name.to_string());
-                    }
+                if changed_lines
+                    .iter()
+                    .any(|&l| l >= extracted.start_line && l <= extracted.end_line)
+                    && !matched.contains(&clean_name.to_string())
+                {
+                    matched.push(clean_name.to_string());
                 }
             }
         }

@@ -25,15 +25,22 @@ fn test_slicing_2k_loc_ts_file() {
 
     // Act
     let start = Instant::now();
-    let output = runner.run(&["slice", &target]).expect("Failed to slice 2k LOC file");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Failed to slice 2k LOC file");
     let duration = start.elapsed();
 
     // Assert
     output.assert_success();
     let stdout = &output.stdout;
-    assert!(stdout.contains("computeEngineFunction_119"), "Must extract target function");
     assert!(
-        stdout.contains("PortfolioRiskMetrics") || stdout.contains("AccountBalanceSnapshot") || stdout.contains("valueAtRisk95"),
+        stdout.contains("computeEngineFunction_119"),
+        "Must extract target function"
+    );
+    assert!(
+        stdout.contains("PortfolioRiskMetrics")
+            || stdout.contains("AccountBalanceSnapshot")
+            || stdout.contains("valueAtRisk95"),
         "Must hoist referenced return types"
     );
     println!("Slicing 2,350 LOC TS file completed in: {:?}", duration);
@@ -88,7 +95,10 @@ fn test_synthetic_10k_loc_monolith_slicing() {
         ));
     }
 
-    assert!(content.lines().count() >= 3500, "Must be large synthetic file");
+    assert!(
+        content.lines().count() >= 3500,
+        "Must be large synthetic file"
+    );
     fs::write(&file_path, &content).unwrap();
 
     // Act
@@ -96,7 +106,9 @@ fn test_synthetic_10k_loc_monolith_slicing() {
     let target = format!("{}:processItemBatch_480", file_path.to_str().unwrap());
 
     let start = Instant::now();
-    let output = runner.run(&["slice", &target]).expect("Command failed on 10k synthetic file");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command failed on 10k synthetic file");
     let duration = start.elapsed();
 
     // Assert
@@ -118,7 +130,9 @@ fn test_stats_on_large_fixtures() {
     let runner = CliRunner::new();
 
     // Act
-    let output = runner.run(&["stats", "tests/fixtures/typescript"]).expect("Stats command failed");
+    let output = runner
+        .run(&["stats", "tests/fixtures/typescript"])
+        .expect("Stats command failed");
 
     // Assert
     output.assert_success();
@@ -147,7 +161,9 @@ fn test_repeated_slicing_stability() {
 
     for target in targets {
         // Act
-        let output = runner.run(&["slice", &target]).expect("Repeated slice failed");
+        let output = runner
+            .run(&["slice", &target])
+            .expect("Repeated slice failed");
 
         // Assert
         output.assert_success();

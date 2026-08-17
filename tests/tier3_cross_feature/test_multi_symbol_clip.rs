@@ -25,15 +25,23 @@ fn test_multi_symbol_slicing_with_type_deduplication() {
     let target = format!("{}:processOrder,processRefund", file_path);
 
     // Act
-    let output = runner.run(&["slice", &target]).expect("Failed to execute multi-symbol slice");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Failed to execute multi-symbol slice");
 
     // Assert
     output.assert_success();
     let stdout = &output.stdout;
 
     // Both target methods must be present
-    assert!(stdout.contains("processOrder"), "Must contain processOrder method");
-    assert!(stdout.contains("processRefund"), "Must contain processRefund method");
+    assert!(
+        stdout.contains("processOrder"),
+        "Must contain processOrder method"
+    );
+    assert!(
+        stdout.contains("processRefund"),
+        "Must contain processRefund method"
+    );
 
     // Shared types must be deduplicated
     let order_status_count = stdout.matches("enum OrderStatus").count();
@@ -71,11 +79,20 @@ fn test_slice_file_output_flag() {
 
     // Assert
     output.assert_success();
-    assert!(out_file.exists(), "Output file must be created at specified path");
+    assert!(
+        out_file.exists(),
+        "Output file must be created at specified path"
+    );
 
     let saved_content = fs::read_to_string(&out_file).expect("Must read created output file");
-    assert!(saved_content.contains("addNumbers"), "Saved file must contain addNumbers");
-    assert!(saved_content.contains("clamp"), "Saved file must contain clamp");
+    assert!(
+        saved_content.contains("addNumbers"),
+        "Saved file must contain addNumbers"
+    );
+    assert!(
+        saved_content.contains("clamp"),
+        "Saved file must contain clamp"
+    );
 }
 
 /// Test 3: Slicing with `--clip` (clipboard copy) in headless or desktop environments.
@@ -98,7 +115,10 @@ fn test_slice_clipboard_flag_execution() {
     // Assert
     output.assert_success();
     assert!(
-        output.stdout.contains("addNumbers") || output.stderr.contains("clipboard") || output.stdout.contains("clipboard") || output.stdout.contains("Copied"),
+        output.stdout.contains("addNumbers")
+            || output.stderr.contains("clipboard")
+            || output.stdout.contains("clipboard")
+            || output.stdout.contains("Copied"),
         "Must either output markdown or report clipboard copy"
     );
 }
@@ -126,7 +146,10 @@ fn test_slice_combined_file_output_and_clip() {
     output.assert_success();
     assert!(out_file.exists(), "Output file must exist");
     let saved = fs::read_to_string(&out_file).unwrap();
-    assert!(saved.contains("formatUserName"), "Saved file must contain formatUserName");
+    assert!(
+        saved.contains("formatUserName"),
+        "Saved file must contain formatUserName"
+    );
 }
 
 /// Test 5: Multi-symbol slicing where one symbol is a class and another is a standalone function.

@@ -1,9 +1,9 @@
 //! Import and module resolver for TypeScript and JavaScript ASTs.
 
+use crate::parser::AstUtils;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tree_sitter::Node;
-use crate::parser::AstUtils;
 
 /// Represents an imported symbol mapping.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,7 +60,9 @@ impl ImportResolver {
 
                 // Named imports: import { A, B as C } from './foo'
                 for named in AstUtils::find_descendants_by_kind(child, "import_specifier") {
-                    let name_node = named.child_by_field_name("name").or_else(|| named.named_child(0));
+                    let name_node = named
+                        .child_by_field_name("name")
+                        .or_else(|| named.named_child(0));
                     let alias_node = named.child_by_field_name("alias").or_else(|| {
                         if named.named_child_count() > 1 {
                             named.named_child(1)
@@ -102,7 +104,9 @@ impl ImportResolver {
                         );
                     }
                 }
-            } else if child.kind() == "lexical_declaration" || child.kind() == "variable_declaration" {
+            } else if child.kind() == "lexical_declaration"
+                || child.kind() == "variable_declaration"
+            {
                 // CommonJS require: const { foo } = require('./foo') or const bar = require('./bar')
                 for declarator in AstUtils::find_children_by_kind(child, "variable_declarator") {
                     if let Some(val) = declarator.child_by_field_name("value") {
@@ -111,11 +115,16 @@ impl ImportResolver {
                                 if AstUtils::node_text(fn_node, source) == "require" {
                                     if let Some(args) = val.child_by_field_name("arguments") {
                                         if let Some(first_arg) = args.named_child(0) {
-                                            let specifier = AstUtils::node_text(first_arg, source).trim_matches(['\'', '"', '`']);
+                                            let specifier = AstUtils::node_text(first_arg, source)
+                                                .trim_matches(['\'', '"', '`']);
                                             if !specifier.is_empty() {
-                                                if let Some(name_node) = declarator.child_by_field_name("name") {
+                                                if let Some(name_node) =
+                                                    declarator.child_by_field_name("name")
+                                                {
                                                     if name_node.kind() == "object_pattern" {
-                                                        for pattern_child in name_node.named_children(&mut name_node.walk()) {
+                                                        for pattern_child in name_node
+                                                            .named_children(&mut name_node.walk())
+                                                        {
                                                             if pattern_child.kind() == "shorthand_property_identifier_pattern" || pattern_child.kind() == "identifier" {
                                                                 let name = AstUtils::node_text(pattern_child, source).to_string();
                                                                 map.insert(
@@ -142,12 +151,15 @@ impl ImportResolver {
                                                             }
                                                         }
                                                     } else if name_node.kind() == "identifier" {
-                                                        let name = AstUtils::node_text(name_node, source).to_string();
+                                                        let name =
+                                                            AstUtils::node_text(name_node, source)
+                                                                .to_string();
                                                         map.insert(
                                                             name.clone(),
                                                             ImportMapping {
                                                                 local_name: name.clone(),
-                                                                imported_name: "default".to_string(),
+                                                                imported_name: "default"
+                                                                    .to_string(),
                                                                 specifier: specifier.to_string(),
                                                             },
                                                         );
@@ -169,7 +181,10 @@ impl ImportResolver {
 
     /// Resolves a module specifier to an existing file path on disk.
     pub fn resolve_module_path(from_file: &Path, specifier: &str) -> Option<PathBuf> {
-        if !specifier.starts_with('.') && !specifier.starts_with('/') && !specifier.starts_with('\\') {
+        if !specifier.starts_with('.')
+            && !specifier.starts_with('/')
+            && !specifier.starts_with('\\')
+        {
             return None;
         }
 
@@ -231,15 +246,21 @@ impl ImportResolver {
                 }
 
                 // Check for wildcard `export * from './sub'`
-                let has_star = child.children(&mut child.walk()).any(|c| c.kind() == "*" || c.kind() == "asterisk");
-                let has_no_specs = AstUtils::find_descendants_by_kind(child, "export_specifier").is_empty();
-                if has_star || (child.child_by_field_name("declaration").is_none() && has_no_specs) {
+                let has_star = child
+                    .children(&mut child.walk())
+                    .any(|c| c.kind() == "*" || c.kind() == "asterisk");
+                let has_no_specs =
+                    AstUtils::find_descendants_by_kind(child, "export_specifier").is_empty();
+                if has_star || (child.child_by_field_name("declaration").is_none() && has_no_specs)
+                {
                     reexports.push((None, specifier.to_string()));
                 }
 
                 // Check for named re-exports: `export { A, B as C } from './sub'`
                 for spec in AstUtils::find_descendants_by_kind(child, "export_specifier") {
-                    let name_node = spec.child_by_field_name("name").or_else(|| spec.named_child(0));
+                    let name_node = spec
+                        .child_by_field_name("name")
+                        .or_else(|| spec.named_child(0));
                     let alias_node = spec.child_by_field_name("alias").or_else(|| {
                         if spec.named_child_count() > 1 {
                             spec.named_child(1)

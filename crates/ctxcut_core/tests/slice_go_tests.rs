@@ -1,9 +1,9 @@
 //! Integration tests for Go AST parsing, symbol location, type hoisting, and slicing.
 
-use std::path::Path;
 use ctxcut_core::error::CoreError;
 use ctxcut_core::model::SliceOptions;
 use ctxcut_core::slice::ContextSlicer;
+use std::path::Path;
 
 #[test]
 fn test_slice_go_standalone_function() {
@@ -18,7 +18,10 @@ fn test_slice_go_standalone_function() {
     assert_eq!(result.target_symbol.name, "AddNumbers");
     assert_eq!(result.target_symbol.kind, "function");
     assert_eq!(result.target_symbol.language, "go");
-    assert!(result.target_symbol.signature.contains("func AddNumbers(a int, b int) int"));
+    assert!(result
+        .target_symbol
+        .signature
+        .contains("func AddNumbers(a int, b int) int"));
     assert!(result.target_symbol.body.contains("return a + b"));
     assert_eq!(
         result.target_symbol.doc_comment.as_deref(),
@@ -38,7 +41,10 @@ fn test_slice_go_multiple_returns_and_named_parameters() {
 
     assert_eq!(result.target_symbol.name, "DivideWithRemainder");
     assert!(result.target_symbol.signature.contains("func DivideWithRemainder(numerator, denominator int) (quotient int, remainder int, err error)"));
-    assert!(result.target_symbol.body.contains("return quotient, remainder, nil"));
+    assert!(result
+        .target_symbol
+        .body
+        .contains("return quotient, remainder, nil"));
 }
 
 #[test]
@@ -62,7 +68,10 @@ fn test_slice_go_struct_receivers_and_pointers() {
         .expect("Should slice Service.Status");
 
     assert_eq!(res2.target_symbol.name, "Status");
-    assert!(res2.target_symbol.signature.contains("func (s *Service) Status() string"));
+    assert!(res2
+        .target_symbol
+        .signature
+        .contains("func (s *Service) Status() string"));
 }
 
 #[test]
@@ -79,7 +88,11 @@ fn test_slice_go_struct_and_interface_hoisting() {
         .slice_symbol(file_path, "Service.Execute", &opts)
         .expect("Should slice Service.Execute");
 
-    let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted_names: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted_names.contains(&"ExecutionRequest"),
         "Must hoist ExecutionRequest, found: {:?}",
@@ -111,7 +124,11 @@ fn test_slice_go_sibling_package_resolution() {
     assert!(result.target_symbol.signature.contains("func (s *AuthService) AuthenticateUser(ctx context.Context, creds LoginCredentials) (*AuthResult, error)"));
 
     // Sibling models.go hoisted types: LoginCredentials, AuthResult, User, Session, Role
-    let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted_names: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted_names.contains(&"LoginCredentials"),
         "Must hoist LoginCredentials from sibling models.go, found: {:?}",
@@ -123,7 +140,9 @@ fn test_slice_go_sibling_package_resolution() {
         hoisted_names
     );
     assert!(
-        hoisted_names.contains(&"User") || hoisted_names.contains(&"Session") || hoisted_names.contains(&"Role"),
+        hoisted_names.contains(&"User")
+            || hoisted_names.contains(&"Session")
+            || hoisted_names.contains(&"Role"),
         "Must hoist transitive User/Session/Role types, found: {:?}",
         hoisted_names
     );
@@ -143,10 +162,19 @@ fn test_slice_go_call_stripping() {
         .slice_symbol(file_path, "AuthService.AuthenticateUser", &opts)
         .expect("Should slice AuthService.AuthenticateUser");
 
-    assert!(!result.stripped_calls.is_empty(), "Must strip external calls");
-    let stub_names: Vec<&str> = result.stripped_calls.iter().map(|s| s.name.as_str()).collect();
     assert!(
-        stub_names.contains(&"hashPassword") || stub_names.contains(&"generateRandomToken") || stub_names.contains(&"GenerateAccessToken"),
+        !result.stripped_calls.is_empty(),
+        "Must strip external calls"
+    );
+    let stub_names: Vec<&str> = result
+        .stripped_calls
+        .iter()
+        .map(|s| s.name.as_str())
+        .collect();
+    assert!(
+        stub_names.contains(&"hashPassword")
+            || stub_names.contains(&"generateRandomToken")
+            || stub_names.contains(&"GenerateAccessToken"),
         "Must strip internal and external call stubs, found: {:?}",
         stub_names
     );
@@ -167,7 +195,11 @@ fn test_slice_go_circular_types_cycle_protection() {
         .expect("Should slice BuildSampleDoublyLinkedList without infinite recursion");
 
     assert_eq!(result.target_symbol.name, "BuildSampleDoublyLinkedList");
-    let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted_names: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted_names.contains(&"Node"),
         "Must hoist recursive Node struct, found: {:?}",
@@ -202,7 +234,10 @@ fn test_slice_go_constructor_function() {
         .expect("Should slice NewService constructor");
 
     assert_eq!(result.target_symbol.name, "NewService");
-    assert!(result.target_symbol.signature.contains("func NewService(id, name, version string) *Service"));
+    assert!(result
+        .target_symbol
+        .signature
+        .contains("func NewService(id, name, version string) *Service"));
 }
 
 #[test]
@@ -216,7 +251,11 @@ fn test_slice_go_symbol_not_found_returns_available() {
         .expect_err("Should error on non-existent Go symbol");
 
     match err {
-        CoreError::SymbolNotFound { symbol, available_symbols, .. } => {
+        CoreError::SymbolNotFound {
+            symbol,
+            available_symbols,
+            ..
+        } => {
             assert_eq!(symbol, "NonExistentFunc");
             assert!(available_symbols.contains(&"AddNumbers".to_string()));
             assert!(available_symbols.contains(&"FormatUserName".to_string()));
@@ -239,8 +278,14 @@ fn test_slice_go_disabled_options() {
         .slice_symbol(file_path, "Service.Execute", &opts)
         .expect("Should slice Service.Execute");
 
-    assert!(result.hoisted_types.is_empty(), "Hoisted types must be empty when disabled");
-    assert!(result.stripped_calls.is_empty(), "Stripped calls must be empty when disabled");
+    assert!(
+        result.hoisted_types.is_empty(),
+        "Hoisted types must be empty when disabled"
+    );
+    assert!(
+        result.stripped_calls.is_empty(),
+        "Stripped calls must be empty when disabled"
+    );
 }
 
 #[test]

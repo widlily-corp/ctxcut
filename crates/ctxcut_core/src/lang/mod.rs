@@ -5,10 +5,12 @@ pub mod python;
 pub mod rust_lang;
 pub mod typescript;
 
+use crate::error::{CoreError, Result};
+use crate::model::{
+    CallSignatureStub, ExtractedSymbol, ExtractedType, SliceOptions, SupportedLanguage,
+};
 use std::path::Path;
 use tree_sitter::{Language, Node};
-use crate::error::{CoreError, Result};
-use crate::model::{CallSignatureStub, ExtractedSymbol, ExtractedType, SliceOptions, SupportedLanguage};
 
 pub use go::GoAdapter;
 pub use python::PythonAdapter;

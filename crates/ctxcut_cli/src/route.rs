@@ -1,10 +1,10 @@
 //! Web framework route handler resolver.
 
-use std::fs;
-use std::path::Path;
 use anyhow::{bail, Result};
 use ctxcut_core::{ContextSlicer, SliceOptions, SliceResult, SupportedLanguage};
 use ignore::WalkBuilder;
+use std::fs;
+use std::path::Path;
 
 /// Resolves a route handler by HTTP method and URL path, returning its contextual slice.
 pub fn resolve_route_slice(
@@ -38,21 +38,31 @@ pub fn resolve_route_slice(
         // Check if file contains method or route path match
         if !source.contains(target_path_clean) && !source.contains(route_path) {
             // Check segment match (e.g. "/checkout" inside "/api/v1/checkout")
-            let last_segment = target_path_clean.split('/').last().unwrap_or(target_path_clean);
+            let last_segment = target_path_clean
+                .split('/')
+                .next_back()
+                .unwrap_or(target_path_clean);
             if !source.contains(last_segment) {
                 continue;
             }
         }
 
         // Try resolving in this file
-        if let Some(symbol_name) = extract_route_handler_symbol(&source, &method_upper, &method_lower, target_path_clean) {
+        if let Some(symbol_name) =
+            extract_route_handler_symbol(&source, &method_upper, &method_lower, target_path_clean)
+        {
             if let Ok(slice) = slicer.slice_symbol(path, &symbol_name, opts) {
                 return Ok(slice);
             }
         }
     }
 
-    bail!("No route found matching `{} {}` in `{}`", method.to_uppercase(), route_path, search_root.display());
+    bail!(
+        "No route found matching `{} {}` in `{}`",
+        method.to_uppercase(),
+        route_path,
+        search_root.display()
+    );
 }
 
 fn extract_route_handler_symbol(
@@ -61,13 +71,17 @@ fn extract_route_handler_symbol(
     method_lower: &str,
     target_path_clean: &str,
 ) -> Option<String> {
-    let last_segment = target_path_clean.split('/').last().unwrap_or(target_path_clean);
+    let last_segment = target_path_clean
+        .split('/')
+        .next_back()
+        .unwrap_or(target_path_clean);
 
     for line in source.lines() {
         let line_trimmed = line.trim();
 
         // 1. Express / Koa / Node: router.post('/...', ..., handler) or app.get('/...', handler)
-        if (line_trimmed.contains(&format!(".{method_lower}(")) || line_trimmed.contains(&format!(".{method_upper}(")))
+        if (line_trimmed.contains(&format!(".{method_lower}("))
+            || line_trimmed.contains(&format!(".{method_upper}(")))
             && (line_trimmed.contains(target_path_clean) || line_trimmed.contains(last_segment))
         {
             if let Some(handler) = extract_last_identifier_before_closing_paren(line_trimmed) {
@@ -77,7 +91,8 @@ fn extract_route_handler_symbol(
 
         // 2. FastAPI / Flask: @router.get("/...", ...) or @app.post("/...", ...)
         if line_trimmed.starts_with('@')
-            && (line_trimmed.contains(&format!(".{method_lower}(")) || line_trimmed.contains(&format!(".{method_upper}(")))
+            && (line_trimmed.contains(&format!(".{method_lower}("))
+                || line_trimmed.contains(&format!(".{method_upper}(")))
             && (line_trimmed.contains(target_path_clean) || line_trimmed.contains(last_segment))
         {
             // The handler is the def/async def on the next lines
@@ -87,7 +102,8 @@ fn extract_route_handler_symbol(
         }
 
         // 3. Gin / Go: r.POST("/...", handler)
-        if (line_trimmed.contains(&format!(".{method_upper}(")) || line_trimmed.contains(&format!(".{method_lower}(")))
+        if (line_trimmed.contains(&format!(".{method_upper}("))
+            || line_trimmed.contains(&format!(".{method_lower}(")))
             && (line_trimmed.contains(target_path_clean) || line_trimmed.contains(last_segment))
         {
             if let Some(handler) = extract_last_identifier_before_closing_paren(line_trimmed) {
@@ -97,7 +113,8 @@ fn extract_route_handler_symbol(
 
         // 4. Axum / Actix (Rust): route("/...", post(handler)) or web::post().to(handler)
         if line_trimmed.contains("route(")
-            && (line_trimmed.contains(&format!("{method_lower}(")) || line_trimmed.contains(&format!("{method_upper}(")))
+            && (line_trimmed.contains(&format!("{method_lower}("))
+                || line_trimmed.contains(&format!("{method_upper}(")))
             && (line_trimmed.contains(target_path_clean) || line_trimmed.contains(last_segment))
         {
             if let Some(handler) = extract_inside_method_call(line_trimmed, method_lower) {
@@ -112,7 +129,9 @@ fn extract_route_handler_symbol(
 fn extract_last_identifier_before_closing_paren(line: &str) -> Option<String> {
     let before_paren = line.rsplit_once(')')?.0;
     let last_arg = before_paren.rsplit(',').next()?.trim();
-    let ident = last_arg.split(|c: char| !c.is_alphanumeric() && c != '_').find(|s| !s.is_empty())?;
+    let ident = last_arg
+        .split(|c: char| !c.is_alphanumeric() && c != '_')
+        .find(|s| !s.is_empty())?;
     Some(ident.to_string())
 }
 
@@ -120,7 +139,9 @@ fn extract_inside_method_call(line: &str, method: &str) -> Option<String> {
     let marker = format!("{method}(");
     let after = line.split(&marker).nth(1)?;
     let inside = after.split(')').next()?.trim();
-    let ident = inside.split(|c: char| !c.is_alphanumeric() && c != '_').find(|s| !s.is_empty())?;
+    let ident = inside
+        .split(|c: char| !c.is_alphanumeric() && c != '_')
+        .find(|s| !s.is_empty())?;
     Some(ident.to_string())
 }
 

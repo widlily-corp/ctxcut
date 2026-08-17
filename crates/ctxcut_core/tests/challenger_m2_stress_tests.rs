@@ -1,15 +1,15 @@
 //! Challenger Milestone 2 deep adversarial, stress, and boundary test suite.
 //! Tests Python, Go, and Rust AST slicing engines under hostile, pathological, and edge-case conditions.
 
+use ctxcut_core::error::CoreError;
+use ctxcut_core::model::SliceOptions;
+use ctxcut_core::slice::ContextSlicer;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 use std::thread;
 use std::time::Instant;
 use tempfile::tempdir;
-use ctxcut_core::error::CoreError;
-use ctxcut_core::model::SliceOptions;
-use ctxcut_core::slice::ContextSlicer;
 
 #[test]
 fn test_python_deep_nested_and_multiline_decorators() {
@@ -68,19 +68,48 @@ async def execute_secure_transaction(
     assert_eq!(result.target_symbol.kind, "function");
     assert!(result.target_symbol.body.contains("@app.post("));
     assert!(result.target_symbol.body.contains("@rate_limiter("));
-    assert!(result.target_symbol.body.contains("@auth_required(role=\"admin\")"));
-    assert!(result.target_symbol.signature.contains("async def execute_secure_transaction"));
-    
-    let doc = result.target_symbol.doc_comment.expect("Docstring should be extracted");
+    assert!(result
+        .target_symbol
+        .body
+        .contains("@auth_required(role=\"admin\")"));
+    assert!(result
+        .target_symbol
+        .signature
+        .contains("async def execute_secure_transaction"));
+
+    let doc = result
+        .target_symbol
+        .doc_comment
+        .expect("Docstring should be extracted");
     assert!(doc.contains("Execute high security financial transaction"));
 
-    let hoisted: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
-    assert!(hoisted.contains(&"RequestPayload"), "Must hoist RequestPayload: {:?}", hoisted);
-    assert!(hoisted.contains(&"ResponseResult"), "Must hoist ResponseResult: {:?}", hoisted);
+    let hoisted: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
+    assert!(
+        hoisted.contains(&"RequestPayload"),
+        "Must hoist RequestPayload: {:?}",
+        hoisted
+    );
+    assert!(
+        hoisted.contains(&"ResponseResult"),
+        "Must hoist ResponseResult: {:?}",
+        hoisted
+    );
 
     // Call stripping check
-    let calls: Vec<&str> = result.stripped_calls.iter().map(|c| c.name.as_str()).collect();
-    assert!(calls.contains(&"process_charge"), "Must strip process_charge call: {:?}", calls);
+    let calls: Vec<&str> = result
+        .stripped_calls
+        .iter()
+        .map(|c| c.name.as_str())
+        .collect();
+    assert!(
+        calls.contains(&"process_charge"),
+        "Must strip process_charge call: {:?}",
+        calls
+    );
 }
 
 #[test]
@@ -125,9 +154,17 @@ class UserStore[T]:
 
     assert_eq!(result.target_symbol.name, "retrieve_user");
     assert_eq!(result.target_symbol.kind, "method");
-    
-    let hoisted: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
-    assert!(hoisted.contains(&"UserEntity"), "Must hoist UserEntity: {:?}", hoisted);
+
+    let hoisted: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
+    assert!(
+        hoisted.contains(&"UserEntity"),
+        "Must hoist UserEntity: {:?}",
+        hoisted
+    );
 }
 
 #[test]
@@ -179,7 +216,10 @@ def traverse_ring(start: NodeA) -> NodeJ:
 
     println!("Python 10-node circular ring traversal took: {:?}", elapsed);
     assert_eq!(result.target_symbol.name, "traverse_ring");
-    assert!(result.hoisted_types.len() >= 2, "Must hoist at least NodeA and NodeJ");
+    assert!(
+        result.hoisted_types.len() >= 2,
+        "Must hoist at least NodeA and NodeJ"
+    );
 }
 
 #[test]
@@ -233,14 +273,37 @@ func (p *DataPipeline[T, R]) Transform(filter FilterFunc[T]) ([]StreamElement[T]
 
     assert_eq!(result.target_symbol.name, "Transform");
     assert_eq!(result.target_symbol.kind, "method");
-    assert!(result.target_symbol.signature.contains("func (p *DataPipeline[T, R]) Transform"));
+    assert!(result
+        .target_symbol
+        .signature
+        .contains("func (p *DataPipeline[T, R]) Transform"));
 
-    let hoisted: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
-    assert!(hoisted.contains(&"StreamElement"), "Must hoist StreamElement: {:?}", hoisted);
-    assert!(hoisted.contains(&"FilterFunc"), "Must hoist FilterFunc: {:?}", hoisted);
+    let hoisted: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
+    assert!(
+        hoisted.contains(&"StreamElement"),
+        "Must hoist StreamElement: {:?}",
+        hoisted
+    );
+    assert!(
+        hoisted.contains(&"FilterFunc"),
+        "Must hoist FilterFunc: {:?}",
+        hoisted
+    );
     // Generics T and R should NOT be hoisted as standalone types
-    assert!(!hoisted.contains(&"T"), "Generic T must not be hoisted: {:?}", hoisted);
-    assert!(!hoisted.contains(&"R"), "Generic R must not be hoisted: {:?}", hoisted);
+    assert!(
+        !hoisted.contains(&"T"),
+        "Generic T must not be hoisted: {:?}",
+        hoisted
+    );
+    assert!(
+        !hoisted.contains(&"R"),
+        "Generic R must not be hoisted: {:?}",
+        hoisted
+    );
 }
 
 #[test]
@@ -291,8 +354,16 @@ func (a *AuditLogger) LogEvent(message string) error {
         .expect("Should slice AuditLogger.LogEvent");
 
     assert_eq!(result.target_symbol.name, "LogEvent");
-    let hoisted: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
-    assert!(hoisted.contains(&"ReadWriter"), "Must hoist ReadWriter: {:?}", hoisted);
+    let hoisted: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
+    assert!(
+        hoisted.contains(&"ReadWriter"),
+        "Must hoist ReadWriter: {:?}",
+        hoisted
+    );
 }
 
 #[test]
@@ -353,15 +424,42 @@ impl<S> GatewayClient<S> {
 
     assert_eq!(result.target_symbol.name, "dispatch_async");
     assert_eq!(result.target_symbol.kind, "method");
-    assert!(result.target_symbol.signature.contains("pub async fn dispatch_async<'a, T, R>"));
+    assert!(result
+        .target_symbol
+        .signature
+        .contains("pub async fn dispatch_async<'a, T, R>"));
     assert!(result.target_symbol.signature.contains("where"));
 
-    let hoisted: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
-    assert!(hoisted.contains(&"GatewayClient"), "Must hoist enclosing GatewayClient struct: {:?}", hoisted);
-    assert!(hoisted.contains(&"Serializer"), "Must hoist Serializer trait: {:?}", hoisted);
-    assert!(!hoisted.contains(&"T"), "Generic T must not be hoisted: {:?}", hoisted);
-    assert!(!hoisted.contains(&"S"), "Generic S must not be hoisted: {:?}", hoisted);
-    assert!(!hoisted.contains(&"R"), "Generic R must not be hoisted: {:?}", hoisted);
+    let hoisted: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
+    assert!(
+        hoisted.contains(&"GatewayClient"),
+        "Must hoist enclosing GatewayClient struct: {:?}",
+        hoisted
+    );
+    assert!(
+        hoisted.contains(&"Serializer"),
+        "Must hoist Serializer trait: {:?}",
+        hoisted
+    );
+    assert!(
+        !hoisted.contains(&"T"),
+        "Generic T must not be hoisted: {:?}",
+        hoisted
+    );
+    assert!(
+        !hoisted.contains(&"S"),
+        "Generic S must not be hoisted: {:?}",
+        hoisted
+    );
+    assert!(
+        !hoisted.contains(&"R"),
+        "Generic R must not be hoisted: {:?}",
+        hoisted
+    );
 }
 
 #[test]
@@ -408,9 +506,21 @@ pub fn evaluate_ast(root: Expression) -> i64 {
         .expect("Mutually recursive Expression and Statement must slice cleanly");
 
     assert_eq!(result.target_symbol.name, "evaluate_ast");
-    let hoisted: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
-    assert!(hoisted.contains(&"Expression"), "Must hoist Expression: {:?}", hoisted);
-    assert!(hoisted.contains(&"Statement"), "Must hoist Statement: {:?}", hoisted);
+    let hoisted: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
+    assert!(
+        hoisted.contains(&"Expression"),
+        "Must hoist Expression: {:?}",
+        hoisted
+    );
+    assert!(
+        hoisted.contains(&"Statement"),
+        "Must hoist Statement: {:?}",
+        hoisted
+    );
 }
 
 #[test]
@@ -422,9 +532,12 @@ fn test_stress_multithreaded_concurrent_slicing() {
         let slicer_clone = Arc::clone(&slicer);
         let handle = thread::spawn(move || {
             let opts = SliceOptions::default();
-            let py_path = Path::new("../../tests/fixtures/python/realistic_payment_service/payment_service.py");
+            let py_path = Path::new(
+                "../../tests/fixtures/python/realistic_payment_service/payment_service.py",
+            );
             let go_path = Path::new("../../tests/fixtures/go/realistic_auth_service/service.go");
-            let rs_path = Path::new("../../tests/fixtures/rust/realistic_inventory_service/inventory.rs");
+            let rs_path =
+                Path::new("../../tests/fixtures/rust/realistic_inventory_service/inventory.rs");
 
             let r1 = slicer_clone.slice_symbol(py_path, "PaymentProcessor.execute_charge", &opts);
             assert!(r1.is_ok(), "Thread {} Py slice failed", i);
@@ -461,7 +574,10 @@ def broken_syntax_function(:
 ";
     fs::write(&py_path, py_code).expect("write");
     let r1 = slicer.slice_symbol(&py_path, "first_valid_function", &opts);
-    assert!(r1.is_ok(), "Tree-sitter error recovery should slice first valid python function");
+    assert!(
+        r1.is_ok(),
+        "Tree-sitter error recovery should slice first valid python function"
+    );
 
     // Hostile Go: broken struct, invalid tokens
     let go_path = dir.path().join("broken.go");
@@ -482,9 +598,15 @@ func BottomValidFunc(b string) string {
 "#;
     fs::write(&go_path, go_code).expect("write");
     let g1 = slicer.slice_symbol(&go_path, "TopValidFunc", &opts);
-    assert!(g1.is_ok(), "Tree-sitter error recovery should slice TopValidFunc in Go");
+    assert!(
+        g1.is_ok(),
+        "Tree-sitter error recovery should slice TopValidFunc in Go"
+    );
     let g2 = slicer.slice_symbol(&go_path, "BottomValidFunc", &opts);
-    assert!(g2.is_ok(), "Tree-sitter error recovery should slice BottomValidFunc in Go");
+    assert!(
+        g2.is_ok(),
+        "Tree-sitter error recovery should slice BottomValidFunc in Go"
+    );
 
     // Hostile Rust: broken macro, missing semicolons, unbalanced braces
     let rs_path = dir.path().join("broken.rs");
@@ -503,9 +625,15 @@ pub fn bottom_valid_rs(msg: &str) -> String {
 "#;
     fs::write(&rs_path, rs_code).expect("write");
     let rs1 = slicer.slice_symbol(&rs_path, "top_valid_rs", &opts);
-    assert!(rs1.is_ok(), "Tree-sitter error recovery should slice top_valid_rs in Rust");
+    assert!(
+        rs1.is_ok(),
+        "Tree-sitter error recovery should slice top_valid_rs in Rust"
+    );
     let rs2 = slicer.slice_symbol(&rs_path, "bottom_valid_rs", &opts);
-    assert!(rs2.is_ok(), "Tree-sitter error recovery should slice bottom_valid_rs in Rust");
+    assert!(
+        rs2.is_ok(),
+        "Tree-sitter error recovery should slice bottom_valid_rs in Rust"
+    );
 }
 
 #[test]
@@ -514,9 +642,13 @@ fn test_missing_symbol_available_list_fidelity() {
     let opts = SliceOptions::default();
 
     let py_path = Path::new("../../tests/fixtures/python/fastapi_routes.py");
-    let err_py = slicer.slice_symbol(py_path, "non_existent_handler", &opts).unwrap_err();
+    let err_py = slicer
+        .slice_symbol(py_path, "non_existent_handler", &opts)
+        .unwrap_err();
     match err_py {
-        CoreError::SymbolNotFound { available_symbols, .. } => {
+        CoreError::SymbolNotFound {
+            available_symbols, ..
+        } => {
             assert!(available_symbols.contains(&"get_user_profile".to_string()));
             assert!(available_symbols.contains(&"create_item".to_string()));
         }
@@ -524,18 +656,26 @@ fn test_missing_symbol_available_list_fidelity() {
     }
 
     let go_path = Path::new("../../tests/fixtures/go/structs_interfaces.go");
-    let err_go = slicer.slice_symbol(go_path, "NonExistentMethod", &opts).unwrap_err();
+    let err_go = slicer
+        .slice_symbol(go_path, "NonExistentMethod", &opts)
+        .unwrap_err();
     match err_go {
-        CoreError::SymbolNotFound { available_symbols, .. } => {
+        CoreError::SymbolNotFound {
+            available_symbols, ..
+        } => {
             assert!(available_symbols.contains(&"Service.Execute".to_string()));
         }
         _ => panic!("Expected SymbolNotFound"),
     }
 
     let rs_path = Path::new("../../tests/fixtures/rust/traits_generics_lifetimes.rs");
-    let err_rs = slicer.slice_symbol(rs_path, "NonExistentRustFn", &opts).unwrap_err();
+    let err_rs = slicer
+        .slice_symbol(rs_path, "NonExistentRustFn", &opts)
+        .unwrap_err();
     match err_rs {
-        CoreError::SymbolNotFound { available_symbols, .. } => {
+        CoreError::SymbolNotFound {
+            available_symbols, ..
+        } => {
             assert!(available_symbols.contains(&"process_batch".to_string()));
         }
         _ => panic!("Expected SymbolNotFound"),
@@ -549,7 +689,9 @@ fn test_adversarial_token_reduction_empirical_measurements() {
 
     // 1. Python large file
     let py_path = Path::new("../../tests/fixtures/python/large_file.py");
-    let py_res = slicer.slice_symbol(py_path, "analytics_module_fn_001", &opts).expect("py slice");
+    let py_res = slicer
+        .slice_symbol(py_path, "analytics_module_fn_001", &opts)
+        .expect("py slice");
     println!(
         "PYTHON Large File Reduction: Raw = {} tokens, Sliced = {} tokens, Savings = {:.2}%",
         py_res.stats.raw_file_tokens, py_res.stats.sliced_tokens, py_res.stats.savings_percentage
@@ -558,7 +700,9 @@ fn test_adversarial_token_reduction_empirical_measurements() {
 
     // 2. Go large file
     let go_path = Path::new("../../tests/fixtures/go/large_file.go");
-    let go_res = slicer.slice_symbol(go_path, "ComputeGoClusterMetric_001", &opts).expect("go slice");
+    let go_res = slicer
+        .slice_symbol(go_path, "ComputeGoClusterMetric_001", &opts)
+        .expect("go slice");
     println!(
         "GO Large File Reduction: Raw = {} tokens, Sliced = {} tokens, Savings = {:.2}%",
         go_res.stats.raw_file_tokens, go_res.stats.sliced_tokens, go_res.stats.savings_percentage
@@ -567,7 +711,9 @@ fn test_adversarial_token_reduction_empirical_measurements() {
 
     // 3. Rust large file
     let rs_path = Path::new("../../tests/fixtures/rust/large_file.rs");
-    let rs_res = slicer.slice_symbol(rs_path, "compute_rust_engine_fn_001", &opts).expect("rs slice");
+    let rs_res = slicer
+        .slice_symbol(rs_path, "compute_rust_engine_fn_001", &opts)
+        .expect("rs slice");
     println!(
         "RUST Large File Reduction: Raw = {} tokens, Sliced = {} tokens, Savings = {:.2}%",
         rs_res.stats.raw_file_tokens, rs_res.stats.sliced_tokens, rs_res.stats.savings_percentage

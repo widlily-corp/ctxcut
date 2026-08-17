@@ -3,12 +3,12 @@
 //! Provides thread-safe, non-blocking file logging for incoming JSON-RPC requests,
 //! tool execution timing, token reduction metrics, and error traces without polluting STDOUT.
 
+use serde_json::{json, Value};
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use serde_json::{json, Value};
 
 /// Parameters for logging a tool execution event.
 #[derive(Debug, Clone)]
@@ -333,7 +333,12 @@ mod tests {
             error: None,
         });
         logger.log_response("tools/call", Some(&json!(1)), 5, Some(80), None);
-        logger.log_rpc_error(Some(&json!(2)), "unknown_method", -32601, "Method not found");
+        logger.log_rpc_error(
+            Some(&json!(2)),
+            "unknown_method",
+            -32601,
+            "Method not found",
+        );
 
         let file = File::open(&log_path).expect("failed to open log file");
         let lines: Vec<String> = std::io::BufReader::new(file)

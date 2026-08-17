@@ -58,14 +58,25 @@ export function registerRoutes(app: any): void {
 
     // Act
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(sandbox.path(), &["diff"]).expect("ctxcut diff failed");
+    let output = runner
+        .run_in_dir(sandbox.path(), &["diff"])
+        .expect("ctxcut diff failed");
 
     // Assert
     output.assert_success();
     let stdout = &output.stdout;
-    assert!(stdout.contains("handleCheckout"), "Must identify modified route handler handleCheckout");
-    assert!(stdout.contains("feeCents"), "Must capture modified handler logic");
-    assert!(stdout.contains("CheckoutRequest") || stdout.contains("customerId"), "Must retain DTO context");
+    assert!(
+        stdout.contains("handleCheckout"),
+        "Must identify modified route handler handleCheckout"
+    );
+    assert!(
+        stdout.contains("feeCents"),
+        "Must capture modified handler logic"
+    );
+    assert!(
+        stdout.contains("CheckoutRequest") || stdout.contains("customerId"),
+        "Must retain DTO context"
+    );
 }
 
 /// Test 2: Modifying a FastAPI route handler and slicing via `ctxcut diff --staged`.
@@ -109,14 +120,25 @@ def create_item_endpoint(payload: ItemPayload) -> dict:
 
     // Act
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(sandbox.path(), &["diff", "--staged"]).expect("ctxcut diff --staged failed");
+    let output = runner
+        .run_in_dir(sandbox.path(), &["diff", "--staged"])
+        .expect("ctxcut diff --staged failed");
 
     // Assert
     output.assert_success();
     let stdout = &output.stdout;
-    assert!(stdout.contains("create_item_endpoint"), "Must identify modified FastAPI endpoint");
-    assert!(stdout.contains("final_price"), "Must capture modified discount logic");
-    assert!(stdout.contains("ItemPayload"), "Must hoist ItemPayload schema");
+    assert!(
+        stdout.contains("create_item_endpoint"),
+        "Must identify modified FastAPI endpoint"
+    );
+    assert!(
+        stdout.contains("final_price"),
+        "Must capture modified discount logic"
+    );
+    assert!(
+        stdout.contains("ItemPayload"),
+        "Must hoist ItemPayload schema"
+    );
 }
 
 /// Test 3: Modifying route DTO while route handler function body is unchanged.
@@ -156,7 +178,9 @@ export function handleLogin(dto: LoginDTO): boolean {
 
     // Act
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(sandbox.path(), &["diff"]).expect("ctxcut diff failed");
+    let output = runner
+        .run_in_dir(sandbox.path(), &["diff"])
+        .expect("ctxcut diff failed");
 
     // Assert
     output.assert_success();

@@ -4,9 +4,7 @@
 //! `File Read -> AST Parse -> Symbol Location -> Type Hoisting -> Signature Stripping -> Markdown Format -> Token Counting`
 //! Verifies the strict <10ms SLA across TypeScript, Python, Go, and Rust on 2,000 LOC files.
 
-use criterion::{
-    black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput,
-};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use ctxcut_core::{ContextSlicer, SliceOptions};
 use std::fs;
 use std::path::PathBuf;
@@ -67,7 +65,9 @@ fn ensure_benchmark_fixtures() -> Vec<(&'static str, PathBuf, &'static str)> {
     let rs_path = tmp_dir.join("large_inventory_service.rs");
     if !rs_path.exists() {
         let mut rs = String::new();
-        rs.push_str("#[derive(Debug, Clone)]\npub struct StockEntry { pub sku: String, pub qty: u32 }\n\n");
+        rs.push_str(
+            "#[derive(Debug, Clone)]\npub struct StockEntry { pub sku: String, pub qty: u32 }\n\n",
+        );
         for i in 0..100 {
             rs.push_str(&format!(
                 "pub fn reserve_stock_batch_{i}(entry: &StockEntry) -> Result<u32, &'static str> {{\n\

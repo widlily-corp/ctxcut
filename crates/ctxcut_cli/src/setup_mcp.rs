@@ -4,18 +4,18 @@
 //! and idempotency checks across Google Antigravity, Claude Desktop, Cursor,
 //! and VS Code / Cline / Roo Code.
 
+use anyhow::{bail, Context, Result};
+use colored::Colorize;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use std::fmt;
 use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use anyhow::{bail, Context, Result};
-use colored::Colorize;
-use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
 
 /// Target IDE for Model Context Protocol (MCP) configuration.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum IdeTarget {
     /// Google Antigravity IDE (`~/.gemini/config/mcp_config.json`)
@@ -27,13 +27,8 @@ pub enum IdeTarget {
     /// VS Code / Cline / Roo Code (`.vscode/mcp.json` or cline settings)
     Vscode,
     /// Configure all detected IDEs
+    #[default]
     All,
-}
-
-impl Default for IdeTarget {
-    fn default() -> Self {
-        Self::All
-    }
 }
 
 impl fmt::Display for IdeTarget {
@@ -202,7 +197,10 @@ pub fn run_setup_mcp(options: &SetupMcpOptions) -> Result<Vec<SetupResult>> {
 }
 
 /// Convenience helper conforming to standard interface contract.
-pub fn setup_ide_mcp(target: IdeTarget, workspace_dir: Option<PathBuf>) -> Result<Vec<SetupResult>> {
+pub fn setup_ide_mcp(
+    target: IdeTarget,
+    workspace_dir: Option<PathBuf>,
+) -> Result<Vec<SetupResult>> {
     let options = SetupMcpOptions {
         ide: target,
         workspace_dir,
@@ -220,7 +218,11 @@ fn apply_config_target(
     dry_run: bool,
 ) -> SetupResult {
     if dry_run {
-        let action = if remove { "would remove from" } else { "would configure in" };
+        let action = if remove {
+            "would remove from"
+        } else {
+            "would configure in"
+        };
         return SetupResult {
             ide_name: ide_name.to_string(),
             config_path: path.to_path_buf(),
@@ -233,11 +235,19 @@ fn apply_config_target(
     match safe_merge_json(path, command, args, remove) {
         Ok(status) => {
             let msg = match status {
-                MergeStatus::Created => format!("Created config with ctxcut in `{}`", path.display()),
-                MergeStatus::Updated => format!("Updated config with ctxcut in `{}`", path.display()),
-                MergeStatus::NoChange => format!("Config already up-to-date in `{}`", path.display()),
+                MergeStatus::Created => {
+                    format!("Created config with ctxcut in `{}`", path.display())
+                }
+                MergeStatus::Updated => {
+                    format!("Updated config with ctxcut in `{}`", path.display())
+                }
+                MergeStatus::NoChange => {
+                    format!("Config already up-to-date in `{}`", path.display())
+                }
                 MergeStatus::Removed => format!("Removed ctxcut from `{}`", path.display()),
-                MergeStatus::NoChangeRemoved => format!("ctxcut was not present in `{}`", path.display()),
+                MergeStatus::NoChangeRemoved => {
+                    format!("ctxcut was not present in `{}`", path.display())
+                }
             };
 
             SetupResult {
@@ -312,9 +322,7 @@ pub fn safe_merge_json(
         .as_object_mut()
         .context("Root JSON structure is not an object")?;
 
-    let servers = root_obj
-        .entry("mcpServers")
-        .or_insert_with(|| json!({}));
+    let servers = root_obj.entry("mcpServers").or_insert_with(|| json!({}));
 
     if !servers.is_object() {
         *servers = json!({});
@@ -602,9 +610,9 @@ pub fn format_setup_report(results: &[SetupResult]) -> String {
     out.push_str("                       CTXCUT IDE MCP CONFIGURATOR                      \n");
     out.push_str(&"=".repeat(80));
     out.push('\n');
-    let _ = write!(
+    let _ = writeln!(
         out,
-        " {:<22} {:<16} {}\n",
+        " {:<22} {:<16} {}",
         "TARGET IDE".bold(),
         "STATUS".bold(),
         "CONFIG PATH".bold()
@@ -680,8 +688,14 @@ mod tests {
 
     #[test]
     fn test_ide_target_from_str() {
-        assert_eq!(IdeTarget::from_str("antigravity").unwrap(), IdeTarget::Antigravity);
-        assert_eq!(IdeTarget::from_str("gemini").unwrap(), IdeTarget::Antigravity);
+        assert_eq!(
+            IdeTarget::from_str("antigravity").unwrap(),
+            IdeTarget::Antigravity
+        );
+        assert_eq!(
+            IdeTarget::from_str("gemini").unwrap(),
+            IdeTarget::Antigravity
+        );
         assert_eq!(IdeTarget::from_str("claude").unwrap(), IdeTarget::Claude);
         assert_eq!(IdeTarget::from_str("cursor").unwrap(), IdeTarget::Cursor);
         assert_eq!(IdeTarget::from_str("vscode").unwrap(), IdeTarget::Vscode);

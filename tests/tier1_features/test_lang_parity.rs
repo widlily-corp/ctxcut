@@ -22,7 +22,9 @@ fn test_parity_typescript_arrow_and_async() {
     let target = format!("{}:handleUserProfile", file_path);
 
     // Act
-    let output = runner.run(&["slice", &target]).expect("Failed to slice TS async function");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Failed to slice TS async function");
 
     // Assert
     output.assert_success();
@@ -32,7 +34,9 @@ fn test_parity_typescript_arrow_and_async() {
         "Must extract TS async function"
     );
     assert!(
-        stdout.contains("UserProfileResponseDTO") || stdout.contains("UserProfileUpdateDTO") || stdout.contains("userId"),
+        stdout.contains("UserProfileResponseDTO")
+            || stdout.contains("UserProfileUpdateDTO")
+            || stdout.contains("userId"),
         "Must hoist TS interfaces"
     );
 }
@@ -50,7 +54,9 @@ fn test_parity_python_async_and_decorators() {
     let target = format!("{}:create_item", file_path);
 
     // Act
-    let output = runner.run(&["slice", &target]).expect("Failed to slice Python async function");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Failed to slice Python async function");
 
     // Assert
     output.assert_success();
@@ -60,7 +66,10 @@ fn test_parity_python_async_and_decorators() {
         "Must extract Python create_item function"
     );
     assert!(
-        stdout.contains("class ItemCreate") || stdout.contains("class ItemResponse") || stdout.contains("ItemCreate") || stdout.contains("ItemResponse"),
+        stdout.contains("class ItemCreate")
+            || stdout.contains("class ItemResponse")
+            || stdout.contains("ItemCreate")
+            || stdout.contains("ItemResponse"),
         "Must hoist Pydantic models"
     );
 }
@@ -78,7 +87,9 @@ fn test_parity_go_struct_receivers_and_pointers() {
     let target = format!("{}:AddNumbers", file_path);
 
     // Act
-    let output = runner.run(&["slice", &target]).expect("Failed to slice Go function");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Failed to slice Go function");
 
     // Assert
     output.assert_success();
@@ -141,13 +152,17 @@ fn test_parity_cross_language_markdown_structure() {
 
     for target in targets {
         // Act
-        let output = runner.run(&["slice", target]).expect("Slice command must execute");
+        let output = runner
+            .run(&["slice", target])
+            .expect("Slice command must execute");
 
         // Assert
         output.assert_success();
         let stdout = &output.stdout;
         assert!(
-            stdout.contains("# Context Slice") || stdout.contains("Target Function") || stdout.contains("```"),
+            stdout.contains("# Context Slice")
+                || stdout.contains("Target Function")
+                || stdout.contains("```"),
             "Markdown structure must be uniform across languages. Target: {}",
             target
         );

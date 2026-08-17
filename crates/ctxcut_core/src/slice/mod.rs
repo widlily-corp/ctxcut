@@ -1,13 +1,13 @@
 //! Context slicing orchestrator module.
 
-use std::fs;
-use std::path::Path;
 use crate::error::{CoreError, Result};
 use crate::formatter::MarkdownFormatter;
 use crate::lang::LanguageRegistry;
 use crate::model::{SliceOptions, SliceResult, SupportedLanguage, TokenStats};
 use crate::parser::ParserManager;
 use crate::tokenizer::compute_stats;
+use std::fs;
+use std::path::Path;
 
 /// Context slicer engine coordinating parsing, symbol location, type hoisting,
 /// signature stripping, formatting, and token reduction metrics.
@@ -49,7 +49,8 @@ impl ContextSlicer {
         let root = tree.root_node();
 
         // 1. Locate target symbol
-        let (target_symbol, target_node) = adapter.locate_symbol(root, &source, symbol_name, file_path)?;
+        let (target_symbol, target_node) =
+            adapter.locate_symbol(root, &source, symbol_name, file_path)?;
 
         // 2. Hoist referenced types
         let hoisted_types = if opts.include_types {

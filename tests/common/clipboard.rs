@@ -62,7 +62,10 @@ mod tests {
 
         clip.set_text("# Context Slice\nfn hello() {}");
         assert!(!clip.is_empty());
-        assert_eq!(clip.get_text().as_deref(), Some("# Context Slice\nfn hello() {}"));
+        assert_eq!(
+            clip.get_text().as_deref(),
+            Some("# Context Slice\nfn hello() {}")
+        );
         assert!(clip.contains("Context Slice"));
         assert!(clip.contains("fn hello()"));
         assert!(!clip.contains("non_existent"));

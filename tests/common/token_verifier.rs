@@ -51,9 +51,7 @@ impl TokenVerifier {
     pub fn new() -> Self {
         let bpe = tiktoken_rs::cl100k_base()
             .expect("Failed to initialize cl100k_base tokenizer for TokenVerifier");
-        Self {
-            bpe: Arc::new(bpe),
-        }
+        Self { bpe: Arc::new(bpe) }
     }
 
     /// Counts the exact number of BPE tokens in the provided text.
@@ -248,9 +246,8 @@ mod tests {
     #[test]
     fn test_token_verifier_verify_reduction_success() {
         let verifier = TokenVerifier::new();
-        let large_full = "fn large_function() {\n".to_string()
-            + &"    println!(\"work\");\n".repeat(50)
-            + "}\n";
+        let large_full =
+            "fn large_function() {\n".to_string() + &"    println!(\"work\");\n".repeat(50) + "}\n";
         let minimal_slice = "fn large_function() {}\n";
 
         let metrics = verifier.verify_reduction(&large_full, minimal_slice, 80.0);

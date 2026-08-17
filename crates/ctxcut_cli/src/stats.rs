@@ -1,11 +1,14 @@
 //! Repository and file token statistics calculator.
 
-use std::fs;
-use std::path::Path;
 use anyhow::Result;
-use ctxcut_core::{count_lines, count_tokens, ContextSlicer, LanguageRegistry, ParserManager, SliceOptions, SupportedLanguage};
+use ctxcut_core::{
+    count_lines, count_tokens, ContextSlicer, LanguageRegistry, ParserManager, SliceOptions,
+    SupportedLanguage,
+};
 use ignore::WalkBuilder;
 use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::Path;
 
 /// Summary report of token statistics.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -117,7 +120,7 @@ fn analyze_single_file(file_path: &Path) -> Result<FileStatItem> {
             let symbols = adapter.list_symbols(root, &source);
 
             for sym in symbols.iter().take(5) {
-                let clean_name = sym.split('.').last().unwrap_or(sym);
+                let clean_name = sym.split('.').next_back().unwrap_or(sym);
                 if let Ok(slice) = slicer.slice_symbol(file_path, clean_name, &opts) {
                     total_slice_tokens += slice.stats.sliced_tokens;
                     symbol_count += 1;
@@ -126,12 +129,9 @@ fn analyze_single_file(file_path: &Path) -> Result<FileStatItem> {
         }
     }
 
-    let avg_sliced_tokens = if symbol_count > 0 {
-        total_slice_tokens / symbol_count
-    } else {
-        // Fallback for one-liners / minimal files
-        (raw_tokens / 5).max(1).min(raw_tokens)
-    };
+    let avg_sliced_tokens = total_slice_tokens
+        .checked_div(symbol_count)
+        .unwrap_or_else(|| (raw_tokens / 5).max(1).min(raw_tokens));
 
     #[allow(clippy::cast_precision_loss)]
     let savings_percentage = if raw_tokens == 0 || avg_sliced_tokens >= raw_tokens {
@@ -157,9 +157,18 @@ pub fn format_stats_text(report: &StatsReport) -> String {
     out.push_str("======================================================\n");
     out.push_str(&format!("Total Files Analyzed: {}\n", report.total_files));
     out.push_str(&format!("Total Lines of Code:  {}\n", report.total_lines));
-    out.push_str(&format!("Full Context Tokens:  {} tokens\n", report.total_raw_tokens));
-    out.push_str(&format!("Target Sliced Tokens: {} tokens\n", report.total_sliced_tokens));
-    out.push_str(&format!("Estimated Savings:    {:.1}%\n", report.savings_percentage));
+    out.push_str(&format!(
+        "Full Context Tokens:  {} tokens\n",
+        report.total_raw_tokens
+    ));
+    out.push_str(&format!(
+        "Target Sliced Tokens: {} tokens\n",
+        report.total_sliced_tokens
+    ));
+    out.push_str(&format!(
+        "Estimated Savings:    {:.1}%\n",
+        report.savings_percentage
+    ));
     out.push_str("======================================================\n");
 
     if !report.files.is_empty() {

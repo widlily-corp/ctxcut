@@ -23,20 +23,34 @@ fn test_mutual_recursion_interfaces_ts() {
     let target = format!("{}:buildSampleGraph", file_path);
 
     // Act
-    let output = runner.run(&["slice", &target]).expect("Command failed on circular types TS");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command failed on circular types TS");
 
     // Assert
     output.assert_success();
     let stdout = &output.stdout;
-    assert!(stdout.contains("buildSampleGraph"), "Must extract target function");
-    assert!(stdout.contains("GraphNode"), "Must inline GraphNode interface");
+    assert!(
+        stdout.contains("buildSampleGraph"),
+        "Must extract target function"
+    );
+    assert!(
+        stdout.contains("GraphNode"),
+        "Must inline GraphNode interface"
+    );
     assert!(stdout.contains("Edge"), "Must inline Edge interface");
 
     // Cycle detection verification: Type definitions must appear once, not duplicated recursively
     let graph_node_count = stdout.matches("interface GraphNode").count();
     let edge_count = stdout.matches("interface Edge").count();
-    assert!(graph_node_count <= 2, "GraphNode interface must not be duplicated in loop");
-    assert!(edge_count <= 2, "Edge interface must not be duplicated in loop");
+    assert!(
+        graph_node_count <= 2,
+        "GraphNode interface must not be duplicated in loop"
+    );
+    assert!(
+        edge_count <= 2,
+        "Edge interface must not be duplicated in loop"
+    );
 }
 
 /// Test 2: Self-referential tree structure in TypeScript (`TreeNode` referencing `TreeNode`).
@@ -52,7 +66,9 @@ fn test_self_referencing_tree_node_ts() {
     let target = format!("{}:traverseTreeDepthFirst", file_path);
 
     // Act
-    let output = runner.run(&["slice", &target]).expect("Command failed on self-referential TS");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command failed on self-referential TS");
 
     // Assert
     output.assert_success();
@@ -74,7 +90,9 @@ fn test_circular_models_python() {
     let target = format!("{}:build_taxonomy_tree", file_path);
 
     // Act
-    let output = runner.run(&["slice", &target]).expect("Command failed on circular Python models");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command failed on circular Python models");
 
     // Assert
     output.assert_success();
@@ -117,7 +135,9 @@ func NewDoublyLinkedList() *List {
     // Act
     let runner = CliRunner::new();
     let target = format!("{}:NewDoublyLinkedList", file_path.to_str().unwrap());
-    let output = runner.run(&["slice", &target]).expect("Command failed on Go struct cycles");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command failed on Go struct cycles");
 
     // Assert
     output.assert_success();
@@ -164,7 +184,9 @@ pub fn evaluate_expr(expr: &AstExpr) -> i64 {
     // Act
     let runner = CliRunner::new();
     let target = format!("{}:evaluate_expr", file_path.to_str().unwrap());
-    let output = runner.run(&["slice", &target]).expect("Command failed on recursive Rust enum");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command failed on recursive Rust enum");
 
     // Assert
     output.assert_success();

@@ -79,7 +79,10 @@ mod tests {
     fn test_normalize_windows_paths() {
         let input = "### File: tests\\fixtures\\typescript\\order.ts\r\nLine 1\r\n";
         let normalized = NormalizedSnapshot::normalize(input);
-        assert_eq!(normalized, "### File: tests/fixtures/typescript/order.ts\nLine 1");
+        assert_eq!(
+            normalized,
+            "### File: tests/fixtures/typescript/order.ts\nLine 1"
+        );
     }
 
     #[test]

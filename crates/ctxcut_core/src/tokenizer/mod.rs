@@ -1,8 +1,8 @@
 //! BPE Token Counting Engine using `tiktoken-rs` with `OpenAI` `cl100k_base` encoding.
 
+use crate::model::TokenStats;
 use std::sync::OnceLock;
 use tiktoken_rs::CoreBPE;
-use crate::model::TokenStats;
 
 static BPE_TOKENIZER: OnceLock<CoreBPE> = OnceLock::new();
 

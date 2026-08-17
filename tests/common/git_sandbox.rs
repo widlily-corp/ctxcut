@@ -133,7 +133,8 @@ impl GitSandbox {
 
     /// Unstages all staged changes using `git restore --staged .` or `git reset`.
     pub fn unstage_all(&self) -> io::Result<()> {
-        let _ = self.git(&["restore", "--staged", "."])
+        let _ = self
+            .git(&["restore", "--staged", "."])
             .or_else(|_| self.git(&["reset", "HEAD"]));
         Ok(())
     }
@@ -177,7 +178,10 @@ impl GitSandbox {
 
         for entry in walk_dir_recursive(src_dir)? {
             let relative = entry.strip_prefix(src_dir).map_err(|e| {
-                io::Error::new(io::ErrorKind::Other, format!("Path strip prefix error: {}", e))
+                io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("Path strip prefix error: {}", e),
+                )
             })?;
             let target_path = dest_root.join(relative);
 
@@ -222,7 +226,10 @@ mod tests {
         assert!(sandbox.path().exists());
 
         // Write and stage initial file
-        sandbox.write_file("src/math.ts", "export function add(a: number, b: number): number {\n    return a + b;\n}\n")?;
+        sandbox.write_file(
+            "src/math.ts",
+            "export function add(a: number, b: number): number {\n    return a + b;\n}\n",
+        )?;
         sandbox.stage_all()?;
         sandbox.commit("Initial commit")?;
 

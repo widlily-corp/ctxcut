@@ -40,12 +40,15 @@ export function terminateSession(session: UserSession): void {
     sandbox.stage_all().unwrap();
     sandbox.commit("Initial session commit").unwrap();
 
-    let mut client = McpClient::start_in_dir(sandbox.path()).expect("Failed to start MCP client in sandbox");
+    let mut client =
+        McpClient::start_in_dir(sandbox.path()).expect("Failed to start MCP client in sandbox");
 
     // Step 1: Initialize
     let init_res = client.initialize().expect("MCP initialize must succeed");
     assert!(
-        init_res.get("protocolVersion").is_some() || init_res.get("serverInfo").is_some() || init_res.get("capabilities").is_some(),
+        init_res.get("protocolVersion").is_some()
+            || init_res.get("serverInfo").is_some()
+            || init_res.get("capabilities").is_some(),
         "Init response must be valid: {:?}",
         init_res
     );
@@ -56,7 +59,10 @@ export function terminateSession(session: UserSession): void {
         .expect("analyze_token_stats must succeed");
     let stats_str = stats_res.to_string();
     assert!(
-        stats_str.contains("token") || stats_str.contains("raw") || stats_str.contains("session.ts") || stats_str.contains("total"),
+        stats_str.contains("token")
+            || stats_str.contains("raw")
+            || stats_str.contains("session.ts")
+            || stats_str.contains("total"),
         "Stats response must describe session.ts: {:?}",
         stats_res
     );
@@ -91,7 +97,9 @@ export function terminateSession(session: UserSession): void {
     console.log("Terminated:", session.sessionId);
 }
 "#;
-    sandbox.modify_file("src/session.ts", modified_code).unwrap();
+    sandbox
+        .modify_file("src/session.ts", modified_code)
+        .unwrap();
 
     // Step 5: Get diff slice over same MCP connection
     let diff_markdown = client
@@ -120,7 +128,8 @@ fn test_mcp_rapid_sequential_invocations() {
 
     // Act
     for i in 1..=5 {
-        let result = client.get_symbol_slice("tests/fixtures/typescript/simple_function.ts", "addNumbers");
+        let result =
+            client.get_symbol_slice("tests/fixtures/typescript/simple_function.ts", "addNumbers");
         assert!(
             result.is_ok(),
             "Iteration {} of rapid MCP calls failed: {:?}",

@@ -24,7 +24,9 @@ fn test_unclosed_brackets_ts_error_recovery() {
     let target = format!("{}:intactTargetFunction", file_path);
 
     // Act
-    let output = runner.run(&["slice", &target]).expect("Failed to execute slice on malformed TS");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Failed to execute slice on malformed TS");
 
     // Assert
     output.assert_success();
@@ -52,7 +54,9 @@ fn test_python_indentation_fault_recovery() {
     let target = format!("{}:valid_header_function", file_path);
 
     // Act
-    let output = runner.run(&["slice", &target]).expect("Failed to execute slice on malformed Python");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Failed to execute slice on malformed Python");
 
     // Assert
     output.assert_success();
@@ -94,13 +98,21 @@ func ValidGoFunction(x int, y int) int {
     // Act
     let runner = CliRunner::new();
     let target = format!("{}:ValidGoFunction", file_path.to_str().unwrap());
-    let output = runner.run(&["slice", &target]).expect("Failed to execute slice on malformed Go");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Failed to execute slice on malformed Go");
 
     // Assert
     output.assert_success();
     let stdout = &output.stdout;
-    assert!(stdout.contains("ValidGoFunction"), "Must extract ValidGoFunction");
-    assert!(stdout.contains("return x + y + 100"), "Must preserve Go body");
+    assert!(
+        stdout.contains("ValidGoFunction"),
+        "Must extract ValidGoFunction"
+    );
+    assert!(
+        stdout.contains("return x + y + 100"),
+        "Must preserve Go body"
+    );
 }
 
 /// Test 4: Completely unparseable garbage / binary tokens.
@@ -113,16 +125,25 @@ fn test_completely_unparseable_garbage() {
     // Arrange
     let temp_dir = TempDir::new().unwrap();
     let garbage_path = temp_dir.path().join("garbage.ts");
-    fs::write(&garbage_path, &[0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0xFF, 0xFE, 0x12, 0x34]).unwrap();
+    fs::write(
+        &garbage_path,
+        &[0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0xFF, 0xFE, 0x12, 0x34],
+    )
+    .unwrap();
 
     // Act
     let runner = CliRunner::new();
     let target = format!("{}:nonExistent", garbage_path.to_str().unwrap());
-    let output = runner.run(&["slice", &target]).expect("Command execution failed");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command execution failed");
 
     // Assert
     output.assert_failure();
-    assert!(!output.stderr.contains("panic"), "Must not panic on binary garbage");
+    assert!(
+        !output.stderr.contains("panic"),
+        "Must not panic on binary garbage"
+    );
 }
 
 /// Test 5: Corrupted type definition in same file does not crash target function extraction.
@@ -148,8 +169,13 @@ export function targetWithBrokenNeighborType(val: string): string {
 
     // Act
     let runner = CliRunner::new();
-    let target = format!("{}:targetWithBrokenNeighborType", file_path.to_str().unwrap());
-    let output = runner.run(&["slice", &target]).expect("Command execution failed");
+    let target = format!(
+        "{}:targetWithBrokenNeighborType",
+        file_path.to_str().unwrap()
+    );
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command execution failed");
 
     // Assert
     output.assert_success();

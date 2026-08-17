@@ -1,13 +1,13 @@
 //! Type reference extraction and transitive type hoisting for TypeScript and TSX.
 
-use std::collections::{HashSet, VecDeque};
-use std::fs;
-use std::path::Path;
-use tree_sitter::Node;
 use crate::error::Result;
 use crate::model::{ExtractedType, SliceOptions};
 use crate::parser::{AstUtils, ParserManager};
 use crate::resolver::imports::ImportResolver;
+use std::collections::{HashSet, VecDeque};
+use std::fs;
+use std::path::Path;
+use tree_sitter::Node;
 
 /// Type hoister resolving interfaces, type aliases, enums, and DTOs.
 pub struct TypeHoister;
@@ -43,8 +43,10 @@ impl TypeHoister {
         }
 
         // Cache for loaded and parsed external files
-        let mut file_cache: std::collections::HashMap<std::path::PathBuf, (String, tree_sitter::Tree)> =
-            std::collections::HashMap::new();
+        let mut file_cache: std::collections::HashMap<
+            std::path::PathBuf,
+            (String, tree_sitter::Tree),
+        > = std::collections::HashMap::new();
 
         // 3. Process queue up to opts.depth
         while let Some((type_name, depth)) = queue.pop_front() {
@@ -56,8 +58,16 @@ impl TypeHoister {
             if let Some(extracted) = find_type_in_file(root, source, &type_name, file_path) {
                 // If depth < opts.depth, parse definition and enqueue referenced types
                 if depth < opts.depth {
-                    if let Ok(def_tree) = ParserManager::parse_source(&extracted.definition, tree_sitter_lang, file_path) {
-                        let inner_types = extract_type_identifiers(def_tree.root_node(), &extracted.definition, &HashSet::new());
+                    if let Ok(def_tree) = ParserManager::parse_source(
+                        &extracted.definition,
+                        tree_sitter_lang,
+                        file_path,
+                    ) {
+                        let inner_types = extract_type_identifiers(
+                            def_tree.root_node(),
+                            &extracted.definition,
+                            &HashSet::new(),
+                        );
                         for inner in inner_types {
                             if !visited.contains(&inner) && !is_builtin_or_primitive(&inner) {
                                 visited.insert(inner.clone());
@@ -73,7 +83,9 @@ impl TypeHoister {
             // Attempt imported resolution
             let imports = ImportResolver::extract_imports(root, source);
             if let Some(mapping) = imports.get(&type_name) {
-                if let Some(target_file) = ImportResolver::resolve_module_path(file_path, &mapping.specifier) {
+                if let Some(target_file) =
+                    ImportResolver::resolve_module_path(file_path, &mapping.specifier)
+                {
                     if let Some(extracted) = resolve_type_from_module(
                         &mapping.imported_name,
                         &target_file,
@@ -81,10 +93,19 @@ impl TypeHoister {
                         &mut file_cache,
                     ) {
                         if depth < opts.depth {
-                            if let Ok(def_tree) = ParserManager::parse_source(&extracted.definition, tree_sitter_lang, &target_file) {
-                                let inner_types = extract_type_identifiers(def_tree.root_node(), &extracted.definition, &HashSet::new());
+                            if let Ok(def_tree) = ParserManager::parse_source(
+                                &extracted.definition,
+                                tree_sitter_lang,
+                                &target_file,
+                            ) {
+                                let inner_types = extract_type_identifiers(
+                                    def_tree.root_node(),
+                                    &extracted.definition,
+                                    &HashSet::new(),
+                                );
                                 for inner in inner_types {
-                                    if !visited.contains(&inner) && !is_builtin_or_primitive(&inner) {
+                                    if !visited.contains(&inner) && !is_builtin_or_primitive(&inner)
+                                    {
                                         visited.insert(inner.clone());
                                         queue.push_back((inner, depth + 1));
                                     }
@@ -115,7 +136,11 @@ fn collect_scoped_generics(node: Node<'_>, source: &str) -> HashSet<String> {
     generics
 }
 
-fn extract_type_identifiers(node: Node<'_>, source: &str, scoped_generics: &HashSet<String>) -> Vec<String> {
+fn extract_type_identifiers(
+    node: Node<'_>,
+    source: &str,
+    scoped_generics: &HashSet<String>,
+) -> Vec<String> {
     let mut type_names = Vec::new();
     let mut cursor = node.walk();
 
@@ -220,8 +245,11 @@ fn resolve_type_from_module(
     for (exported_alias, specifier) in reexports {
         if let Some(alias) = exported_alias {
             if alias == type_name {
-                if let Some(sub_file) = ImportResolver::resolve_module_path(target_file, &specifier) {
-                    if let Some(res) = resolve_type_from_module(type_name, &sub_file, tree_sitter_lang, cache) {
+                if let Some(sub_file) = ImportResolver::resolve_module_path(target_file, &specifier)
+                {
+                    if let Some(res) =
+                        resolve_type_from_module(type_name, &sub_file, tree_sitter_lang, cache)
+                    {
                         return Some(res);
                     }
                 }
@@ -229,7 +257,9 @@ fn resolve_type_from_module(
         } else {
             // Wildcard export * from './sub'
             if let Some(sub_file) = ImportResolver::resolve_module_path(target_file, &specifier) {
-                if let Some(res) = resolve_type_from_module(type_name, &sub_file, tree_sitter_lang, cache) {
+                if let Some(res) =
+                    resolve_type_from_module(type_name, &sub_file, tree_sitter_lang, cache)
+                {
                     return Some(res);
                 }
             }

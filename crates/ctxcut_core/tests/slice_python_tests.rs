@@ -1,9 +1,9 @@
 //! Integration tests for Python AST parsing, symbol location, type hoisting, and slicing.
 
-use std::path::Path;
 use ctxcut_core::error::CoreError;
 use ctxcut_core::model::SliceOptions;
 use ctxcut_core::slice::ContextSlicer;
+use std::path::Path;
 
 #[test]
 fn test_slice_python_standalone_function() {
@@ -18,7 +18,10 @@ fn test_slice_python_standalone_function() {
     assert_eq!(result.target_symbol.name, "add_numbers");
     assert_eq!(result.target_symbol.kind, "function");
     assert_eq!(result.target_symbol.language, "python");
-    assert!(result.target_symbol.signature.contains("def add_numbers(a: int | float, b: int | float) -> int | float"));
+    assert!(result
+        .target_symbol
+        .signature
+        .contains("def add_numbers(a: int | float, b: int | float) -> int | float"));
     assert!(result.target_symbol.body.contains("return a + b"));
     assert_eq!(
         result.target_symbol.doc_comment.as_deref(),
@@ -37,7 +40,10 @@ fn test_slice_python_format_user_name_docstring() {
         .expect("Should slice format_user_name");
 
     assert_eq!(result.target_symbol.name, "format_user_name");
-    assert!(result.target_symbol.signature.contains("def format_user_name"));
+    assert!(result
+        .target_symbol
+        .signature
+        .contains("def format_user_name"));
     assert_eq!(
         result.target_symbol.doc_comment.as_deref(),
         Some("Format a user's full name with an optional honorific prefix.")
@@ -61,7 +67,11 @@ fn test_slice_python_pydantic_local_hoisting() {
     assert_eq!(result.target_symbol.name, "register_user");
     assert!(result.target_symbol.body.contains("def register_user"));
 
-    let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted_names: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted_names.contains(&"UserCreate"),
         "Must hoist UserCreate, found: {:?}",
@@ -90,11 +100,21 @@ fn test_slice_python_fastapi_route_with_decorators() {
         .expect("Should slice create_item");
 
     assert_eq!(result.target_symbol.name, "create_item");
-    assert!(result.target_symbol.signature.contains("async def create_item"));
+    assert!(result
+        .target_symbol
+        .signature
+        .contains("async def create_item"));
     assert!(result.target_symbol.body.contains("@router.post"));
-    assert!(result.target_symbol.body.contains("response_model=ItemResponse"));
+    assert!(result
+        .target_symbol
+        .body
+        .contains("response_model=ItemResponse"));
 
-    let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted_names: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted_names.contains(&"ItemCreate") || hoisted_names.contains(&"ItemResponse"),
         "Must hoist ItemCreate/ItemResponse, found: {:?}",
@@ -105,7 +125,8 @@ fn test_slice_python_fastapi_route_with_decorators() {
 #[test]
 fn test_slice_python_cross_file_payment_service() {
     let slicer = ContextSlicer::new();
-    let file_path = Path::new("../../tests/fixtures/python/realistic_payment_service/payment_service.py");
+    let file_path =
+        Path::new("../../tests/fixtures/python/realistic_payment_service/payment_service.py");
     let opts = SliceOptions {
         depth: 2,
         include_types: true,
@@ -118,11 +139,21 @@ fn test_slice_python_cross_file_payment_service() {
 
     assert_eq!(result.target_symbol.name, "execute_charge");
     assert_eq!(result.target_symbol.kind, "method");
-    assert!(result.target_symbol.signature.contains("async def execute_charge"));
-    assert!(result.target_symbol.body.contains("self.gateway.authorize_charge"));
+    assert!(result
+        .target_symbol
+        .signature
+        .contains("async def execute_charge"));
+    assert!(result
+        .target_symbol
+        .body
+        .contains("self.gateway.authorize_charge"));
 
     // Verify cross-file type hoisting from .schemas
-    let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted_names: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted_names.contains(&"ChargeRequest") || hoisted_names.contains(&"ChargeResult"),
         "Must hoist ChargeRequest and ChargeResult across files, found: {:?}",
@@ -130,7 +161,10 @@ fn test_slice_python_cross_file_payment_service() {
     );
 
     // Verify call stubs
-    assert!(!result.stripped_calls.is_empty(), "Must strip external calls");
+    assert!(
+        !result.stripped_calls.is_empty(),
+        "Must strip external calls"
+    );
 }
 
 #[test]
@@ -168,7 +202,11 @@ fn test_slice_python_circular_models_cycle_protection() {
         .expect("Should slice build_taxonomy_tree without infinite loop");
 
     assert_eq!(result.target_symbol.name, "build_taxonomy_tree");
-    let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted_names: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted_names.contains(&"CategoryNode"),
         "Must hoist CategoryNode, found: {:?}",
@@ -179,7 +217,8 @@ fn test_slice_python_circular_models_cycle_protection() {
 #[test]
 fn test_slice_python_class_symbol_query() {
     let slicer = ContextSlicer::new();
-    let file_path = Path::new("../../tests/fixtures/python/realistic_payment_service/payment_service.py");
+    let file_path =
+        Path::new("../../tests/fixtures/python/realistic_payment_service/payment_service.py");
     let opts = SliceOptions::default();
 
     let result = slicer
@@ -188,7 +227,10 @@ fn test_slice_python_class_symbol_query() {
 
     assert_eq!(result.target_symbol.name, "PaymentRepository");
     assert_eq!(result.target_symbol.kind, "class");
-    assert!(result.target_symbol.body.contains("class PaymentRepository"));
+    assert!(result
+        .target_symbol
+        .body
+        .contains("class PaymentRepository"));
 }
 
 #[test]
@@ -202,7 +244,11 @@ fn test_slice_python_symbol_not_found_returns_available() {
         .expect_err("Should error on nonexistent symbol");
 
     match err {
-        CoreError::SymbolNotFound { symbol, available_symbols, .. } => {
+        CoreError::SymbolNotFound {
+            symbol,
+            available_symbols,
+            ..
+        } => {
             assert_eq!(symbol, "nonexistent_function");
             assert!(available_symbols.contains(&"add_numbers".to_string()));
             assert!(available_symbols.contains(&"format_user_name".to_string()));
@@ -225,8 +271,14 @@ fn test_slice_python_disabled_options() {
         .slice_symbol(file_path, "register_user", &opts)
         .expect("Should slice register_user");
 
-    assert!(result.hoisted_types.is_empty(), "Hoisted types must be empty when disabled");
-    assert!(result.stripped_calls.is_empty(), "Stripped calls must be empty when disabled");
+    assert!(
+        result.hoisted_types.is_empty(),
+        "Hoisted types must be empty when disabled"
+    );
+    assert!(
+        result.stripped_calls.is_empty(),
+        "Stripped calls must be empty when disabled"
+    );
 }
 
 #[test]

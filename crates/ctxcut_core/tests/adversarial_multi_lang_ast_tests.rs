@@ -1,11 +1,11 @@
 //! Adversarial and stress tests across Python, Go, and Rust AST adapters.
 
-use std::fs;
-use std::path::Path;
-use tempfile::tempdir;
 use ctxcut_core::error::CoreError;
 use ctxcut_core::model::SliceOptions;
 use ctxcut_core::slice::ContextSlicer;
+use std::fs;
+use std::path::Path;
+use tempfile::tempdir;
 
 #[test]
 fn test_adversarial_python_async_decorators_and_pydantic() {
@@ -23,9 +23,16 @@ fn test_adversarial_python_async_decorators_and_pydantic() {
 
     assert_eq!(result.target_symbol.name, "get_user_profile");
     assert!(result.target_symbol.body.contains("Query(default=False"));
-    assert!(result.target_symbol.body.contains("Annotated[DatabaseSession, Depends(get_db)]"));
+    assert!(result
+        .target_symbol
+        .body
+        .contains("Annotated[DatabaseSession, Depends(get_db)]"));
 
-    let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted_names: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted_names.contains(&"UserProfile"),
         "Must hoist UserProfile, found: {:?}",
@@ -61,8 +68,15 @@ def calculate_distance[T: float](p1: Coordinate[T], p2: Coordinate[T]) -> float:
         .expect("Should slice PEP 695 function");
 
     assert_eq!(result.target_symbol.name, "calculate_distance");
-    assert!(result.target_symbol.signature.contains("def calculate_distance[T: float]"));
-    let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    assert!(result
+        .target_symbol
+        .signature
+        .contains("def calculate_distance[T: float]"));
+    let hoisted_names: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted_names.contains(&"Coordinate"),
         "Must hoist PEP 695 type alias Coordinate, found: {:?}",
@@ -100,9 +114,14 @@ fn test_adversarial_go_sibling_multi_file_package() {
         .expect("Should slice AuthService.RefreshToken");
 
     assert_eq!(result.target_symbol.name, "RefreshToken");
-    let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted_names: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
-        hoisted_names.contains(&"AuthResult") && (hoisted_names.contains(&"User") || hoisted_names.contains(&"Session")),
+        hoisted_names.contains(&"AuthResult")
+            && (hoisted_names.contains(&"User") || hoisted_names.contains(&"Session")),
         "Must resolve types from models.go, found: {:?}",
         hoisted_names
     );
@@ -123,7 +142,10 @@ fn test_adversarial_rust_generics_lifetimes_where_clauses() {
         .expect("Should slice complex lifetime and generic function process_batch");
 
     assert_eq!(result.target_symbol.name, "process_batch");
-    assert!(result.target_symbol.signature.contains("pub fn process_batch<'a, 'b, T, K, V>"));
+    assert!(result
+        .target_symbol
+        .signature
+        .contains("pub fn process_batch<'a, 'b, T, K, V>"));
     assert!(result.target_symbol.signature.contains("where"));
 }
 
@@ -175,17 +197,26 @@ fn test_adversarial_syntax_corruption_resilience_all_languages() {
     // 1. Python syntax errors
     let py_path = Path::new("../../tests/fixtures/python/syntax_errors.py");
     let py_res = slicer.slice_symbol(py_path, "valid_header_function", &opts);
-    assert!(py_res.is_ok(), "Python error recovery should locate valid function");
+    assert!(
+        py_res.is_ok(),
+        "Python error recovery should locate valid function"
+    );
 
     // 2. Go syntax errors
     let go_path = Path::new("../../tests/fixtures/go/syntax_errors.go");
     let go_res = slicer.slice_symbol(go_path, "ValidHeaderFunc", &opts);
-    assert!(go_res.is_ok(), "Go error recovery should locate valid function");
+    assert!(
+        go_res.is_ok(),
+        "Go error recovery should locate valid function"
+    );
 
     // 3. Rust syntax errors
     let rs_path = Path::new("../../tests/fixtures/rust/syntax_errors.rs");
     let rs_res = slicer.slice_symbol(rs_path, "valid_header_function", &opts);
-    assert!(rs_res.is_ok(), "Rust error recovery should locate valid function");
+    assert!(
+        rs_res.is_ok(),
+        "Rust error recovery should locate valid function"
+    );
 }
 
 #[test]
@@ -194,19 +225,33 @@ fn test_adversarial_unicode_and_special_identifiers() {
 
     // Python Unicode
     let py_file = dir.path().join("unicode_test.py");
-    fs::write(&py_file, "def calculate_π_рассчитать(число: float) -> float:\n    return число * 3.14159\n").expect("write");
+    fs::write(
+        &py_file,
+        "def calculate_π_рассчитать(число: float) -> float:\n    return число * 3.14159\n",
+    )
+    .expect("write");
 
     let slicer = ContextSlicer::new();
     let opts = SliceOptions::default();
     let py_res = slicer.slice_symbol(&py_file, "calculate_π_рассчитать", &opts);
-    assert!(py_res.is_ok(), "Python unicode identifier should slice cleanly");
+    assert!(
+        py_res.is_ok(),
+        "Python unicode identifier should slice cleanly"
+    );
     assert_eq!(py_res.unwrap().target_symbol.name, "calculate_π_рассчитать");
 
     // Rust Unicode
     let rs_file = dir.path().join("unicode_test.rs");
-    fs::write(&rs_file, "pub fn calculate_π(r: f64) -> f64 {\n    r * 3.14159\n}\n").expect("write");
+    fs::write(
+        &rs_file,
+        "pub fn calculate_π(r: f64) -> f64 {\n    r * 3.14159\n}\n",
+    )
+    .expect("write");
     let rs_res = slicer.slice_symbol(&rs_file, "calculate_π", &opts);
-    assert!(rs_res.is_ok(), "Rust unicode identifier should slice cleanly");
+    assert!(
+        rs_res.is_ok(),
+        "Rust unicode identifier should slice cleanly"
+    );
     assert_eq!(rs_res.unwrap().target_symbol.name, "calculate_π");
 }
 
@@ -223,7 +268,9 @@ fn test_adversarial_empty_and_whitespace_files() {
         let res = slicer.slice_symbol(&file_path, "target_func", &opts);
         assert!(res.is_err(), "Empty file must return error: {ext}");
         match res.unwrap_err() {
-            CoreError::SymbolNotFound { available_symbols, .. } => {
+            CoreError::SymbolNotFound {
+                available_symbols, ..
+            } => {
                 assert!(available_symbols.is_empty());
             }
             err => panic!("Expected SymbolNotFound, got: {:?}", err),

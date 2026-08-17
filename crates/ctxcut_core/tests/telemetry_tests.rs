@@ -1,14 +1,18 @@
 //! Unit test suite for `ctxcut_core::telemetry`.
 
+use ctxcut_core::{current_rfc3339_timestamp, TelemetryEvent, TelemetryLogger};
 use std::fs::OpenOptions;
 use std::io::Write;
-use ctxcut_core::{current_rfc3339_timestamp, TelemetryEvent, TelemetryLogger};
 use tempfile::NamedTempFile;
 
 #[test]
 fn test_iso8601_timestamp_format() {
     let ts = current_rfc3339_timestamp();
-    assert_eq!(ts.len(), 20, "Timestamp must be 20 chars (YYYY-MM-DDTHH:MM:SSZ)");
+    assert_eq!(
+        ts.len(),
+        20,
+        "Timestamp must be 20 chars (YYYY-MM-DDTHH:MM:SSZ)"
+    );
     assert!(ts.ends_with('Z'));
     assert!(ts.contains('T'));
 }

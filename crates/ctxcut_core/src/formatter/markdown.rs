@@ -1,8 +1,8 @@
 //! Markdown formatter for generating prompt-optimized context slices.
 
+use crate::model::SliceResult;
 use std::collections::HashSet;
 use std::fmt::Write;
-use crate::model::SliceResult;
 
 /// Formats AST slice results into prompt-optimized Markdown documents for LLMs.
 pub struct MarkdownFormatter;

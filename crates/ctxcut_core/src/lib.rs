@@ -25,9 +25,7 @@ pub use model::{
     SupportedLanguage, TokenStats,
 };
 pub use parser::{AstUtils, ParserManager};
-pub use resolver::{
-    ImportMapping, ImportResolver, SignatureStripper, SymbolLocator, TypeHoister,
-};
+pub use resolver::{ImportMapping, ImportResolver, SignatureStripper, SymbolLocator, TypeHoister};
 pub use slice::ContextSlicer;
 pub use telemetry::{
     current_rfc3339_timestamp, format_rfc3339, LanguageMetric, ModelTierSavings, SourceMetric,

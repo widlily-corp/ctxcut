@@ -1,10 +1,10 @@
 //! Symbol locator for TypeScript, TSX, and JavaScript ASTs.
 
-use std::path::Path;
-use tree_sitter::Node;
 use crate::error::{CoreError, Result};
 use crate::model::ExtractedSymbol;
 use crate::parser::AstUtils;
+use std::path::Path;
+use tree_sitter::Node;
 
 /// Symbol locator and metadata extractor.
 pub struct SymbolLocator;
@@ -22,17 +22,28 @@ impl SymbolLocator {
 
         // 1. If container is specified, look inside matching container (class, interface)
         if let Some(container_name) = container_query {
-            if let Some((sym, node)) = Self::find_in_container(root, source, container_name, member_query, file_path, language) {
+            if let Some((sym, node)) = Self::find_in_container(
+                root,
+                source,
+                container_name,
+                member_query,
+                file_path,
+                language,
+            ) {
                 return Ok((sym, node));
             }
         } else {
             // 2. Search top-level declarations (including error recovery inside ERROR nodes)
-            if let Some((sym, node)) = Self::find_top_level(root, source, member_query, file_path, language) {
+            if let Some((sym, node)) =
+                Self::find_top_level(root, source, member_query, file_path, language)
+            {
                 return Ok((sym, node));
             }
 
             // 3. Fallback: Search inside all classes for method with matching name
-            if let Some((sym, node)) = Self::find_any_method(root, source, member_query, file_path, language) {
+            if let Some((sym, node)) =
+                Self::find_any_method(root, source, member_query, file_path, language)
+            {
                 return Ok((sym, node));
             }
 
@@ -95,8 +106,12 @@ impl SymbolLocator {
                                 ) {
                                     if let Some(m_name) = member.child_by_field_name("name") {
                                         if AstUtils::node_text(m_name, source) == member_name {
-                                            let full_name = format!("{container_name}.{member_name}");
-                                            let sym = build_symbol(member, member, "method", &full_name, source, file_path, language);
+                                            let full_name =
+                                                format!("{container_name}.{member_name}");
+                                            let sym = build_symbol(
+                                                member, member, "method", &full_name, source,
+                                                file_path, language,
+                                            );
                                             return Some((sym, member));
                                         }
                                     }
@@ -141,7 +156,10 @@ impl SymbolLocator {
                             if let Some(m_name) = member.child_by_field_name("name") {
                                 if AstUtils::node_text(m_name, source) == member_name {
                                     let full_name = format!("{class_name}.{member_name}");
-                                    let sym = build_symbol(member, member, "method", &full_name, source, file_path, language);
+                                    let sym = build_symbol(
+                                        member, member, "method", &full_name, source, file_path,
+                                        language,
+                                    );
                                     return Some((sym, member));
                                 }
                             }
@@ -233,7 +251,15 @@ fn find_symbol_recursive<'a>(
             "function_declaration" | "generator_function_declaration" => {
                 if let Some(name_node) = decl.child_by_field_name("name") {
                     if AstUtils::node_text(name_node, source) == target_name {
-                        let sym = build_symbol(enclosing, decl, "function", target_name, source, file_path, language);
+                        let sym = build_symbol(
+                            enclosing,
+                            decl,
+                            "function",
+                            target_name,
+                            source,
+                            file_path,
+                            language,
+                        );
                         return Some((sym, decl));
                     }
                 }
@@ -243,7 +269,9 @@ fn find_symbol_recursive<'a>(
                     if let Some(name_node) = declarator.child_by_field_name("name") {
                         if AstUtils::node_text(name_node, source) == target_name {
                             let kind = if let Some(val) = declarator.child_by_field_name("value") {
-                                if val.kind() == "arrow_function" || val.kind() == "function_expression" {
+                                if val.kind() == "arrow_function"
+                                    || val.kind() == "function_expression"
+                                {
                                     "function"
                                 } else {
                                     "variable"
@@ -251,7 +279,15 @@ fn find_symbol_recursive<'a>(
                             } else {
                                 "variable"
                             };
-                            let sym = build_symbol(enclosing, enclosing, kind, target_name, source, file_path, language);
+                            let sym = build_symbol(
+                                enclosing,
+                                enclosing,
+                                kind,
+                                target_name,
+                                source,
+                                file_path,
+                                language,
+                            );
                             return Some((sym, declarator));
                         }
                     }
@@ -260,7 +296,15 @@ fn find_symbol_recursive<'a>(
             "class_declaration" | "abstract_class_declaration" => {
                 if let Some(name_node) = decl.child_by_field_name("name") {
                     if AstUtils::node_text(name_node, source) == target_name {
-                        let sym = build_symbol(enclosing, decl, "class", target_name, source, file_path, language);
+                        let sym = build_symbol(
+                            enclosing,
+                            decl,
+                            "class",
+                            target_name,
+                            source,
+                            file_path,
+                            language,
+                        );
                         return Some((sym, decl));
                     }
                 }
@@ -268,7 +312,15 @@ fn find_symbol_recursive<'a>(
             "interface_declaration" => {
                 if let Some(name_node) = decl.child_by_field_name("name") {
                     if AstUtils::node_text(name_node, source) == target_name {
-                        let sym = build_symbol(enclosing, decl, "interface", target_name, source, file_path, language);
+                        let sym = build_symbol(
+                            enclosing,
+                            decl,
+                            "interface",
+                            target_name,
+                            source,
+                            file_path,
+                            language,
+                        );
                         return Some((sym, decl));
                     }
                 }
@@ -276,7 +328,15 @@ fn find_symbol_recursive<'a>(
             "type_alias_declaration" => {
                 if let Some(name_node) = decl.child_by_field_name("name") {
                     if AstUtils::node_text(name_node, source) == target_name {
-                        let sym = build_symbol(enclosing, decl, "type", target_name, source, file_path, language);
+                        let sym = build_symbol(
+                            enclosing,
+                            decl,
+                            "type",
+                            target_name,
+                            source,
+                            file_path,
+                            language,
+                        );
                         return Some((sym, decl));
                     }
                 }
@@ -284,13 +344,23 @@ fn find_symbol_recursive<'a>(
             "enum_declaration" => {
                 if let Some(name_node) = decl.child_by_field_name("name") {
                     if AstUtils::node_text(name_node, source) == target_name {
-                        let sym = build_symbol(enclosing, decl, "enum", target_name, source, file_path, language);
+                        let sym = build_symbol(
+                            enclosing,
+                            decl,
+                            "enum",
+                            target_name,
+                            source,
+                            file_path,
+                            language,
+                        );
                         return Some((sym, decl));
                     }
                 }
             }
             "ERROR" => {
-                if let Some(found) = find_symbol_recursive(decl, source, target_name, file_path, language) {
+                if let Some(found) =
+                    find_symbol_recursive(decl, source, target_name, file_path, language)
+                {
                     return Some(found);
                 }
             }

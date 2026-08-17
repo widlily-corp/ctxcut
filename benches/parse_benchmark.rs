@@ -3,9 +3,7 @@
 //! Measures parse latency and throughput across TypeScript, Python, Go, and Rust
 //! for small (500 LOC), medium (2,000 LOC), and large (10,000 LOC) source files.
 
-use criterion::{
-    black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput,
-};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use tree_sitter::Parser;
 
 /// Generates synthetic TypeScript source code of approximately `target_lines` LOC.
@@ -138,7 +136,9 @@ fn bench_tree_sitter_parsing(c: &mut Criterion) {
 
         let mut parser = Parser::new();
         let lang: tree_sitter::Language = tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into();
-        parser.set_language(&lang).expect("Error loading TypeScript grammar");
+        parser
+            .set_language(&lang)
+            .expect("Error loading TypeScript grammar");
 
         group.bench_with_input(
             BenchmarkId::new("typescript", format!("{}_loc", loc)),
@@ -159,7 +159,9 @@ fn bench_tree_sitter_parsing(c: &mut Criterion) {
 
         let mut parser = Parser::new();
         let lang: tree_sitter::Language = tree_sitter_python::LANGUAGE.into();
-        parser.set_language(&lang).expect("Error loading Python grammar");
+        parser
+            .set_language(&lang)
+            .expect("Error loading Python grammar");
 
         group.bench_with_input(
             BenchmarkId::new("python", format!("{}_loc", loc)),
@@ -180,7 +182,9 @@ fn bench_tree_sitter_parsing(c: &mut Criterion) {
 
         let mut parser = Parser::new();
         let lang: tree_sitter::Language = tree_sitter_go::LANGUAGE.into();
-        parser.set_language(&lang).expect("Error loading Go grammar");
+        parser
+            .set_language(&lang)
+            .expect("Error loading Go grammar");
 
         group.bench_with_input(
             BenchmarkId::new("go", format!("{}_loc", loc)),
@@ -201,7 +205,9 @@ fn bench_tree_sitter_parsing(c: &mut Criterion) {
 
         let mut parser = Parser::new();
         let lang: tree_sitter::Language = tree_sitter_rust::LANGUAGE.into();
-        parser.set_language(&lang).expect("Error loading Rust grammar");
+        parser
+            .set_language(&lang)
+            .expect("Error loading Rust grammar");
 
         group.bench_with_input(
             BenchmarkId::new("rust", format!("{}_loc", loc)),

@@ -1,13 +1,14 @@
 //! Token reduction and context savings benchmark validation across Python, Go, and Rust.
 
-use std::path::Path;
 use ctxcut_core::model::SliceOptions;
 use ctxcut_core::slice::ContextSlicer;
+use std::path::Path;
 
 #[test]
 fn test_benchmark_python_realistic_service_token_reduction() {
     let slicer = ContextSlicer::new();
-    let file_path = Path::new("../../tests/fixtures/python/realistic_payment_service/payment_service.py");
+    let file_path =
+        Path::new("../../tests/fixtures/python/realistic_payment_service/payment_service.py");
     let opts = SliceOptions::default();
 
     let result = slicer

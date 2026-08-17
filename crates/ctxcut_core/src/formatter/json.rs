@@ -58,7 +58,8 @@ mod tests {
         };
 
         let json = JsonFormatter::format_pretty(&result).expect("Failed to serialize to JSON");
-        let deserialized: SliceResult = serde_json::from_str(&json).expect("Failed to deserialize JSON");
+        let deserialized: SliceResult =
+            serde_json::from_str(&json).expect("Failed to deserialize JSON");
         assert_eq!(result, deserialized);
     }
 }

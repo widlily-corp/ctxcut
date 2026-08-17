@@ -3,13 +3,13 @@
 //! Automatically records AST context slicing events into an append-only JSON Lines file (`~/.ctxcut/metrics.jsonl`)
 //! and computes aggregated ROI statistics, compression rates, language breakdowns, and estimated API cost savings.
 
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::env;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use serde::{Deserialize, Serialize};
 
 use crate::model::SliceResult;
 
@@ -182,7 +182,8 @@ impl TelemetryLogger {
             }
         }
 
-        if let Some(dir_override) = env::var_os("CTXCUT_DIR").or_else(|| env::var_os("CTXCUT_HOME")) {
+        if let Some(dir_override) = env::var_os("CTXCUT_DIR").or_else(|| env::var_os("CTXCUT_HOME"))
+        {
             if !dir_override.is_empty() {
                 return PathBuf::from(dir_override).join("metrics.jsonl");
             }

@@ -7,13 +7,13 @@ pub mod logger;
 
 pub use logger::{format_rfc3339, McpFileLogger, ToolLogRecord};
 
-use std::io::{self, BufRead, Write};
-use std::path::{Path, PathBuf};
-use std::time::Instant;
 use anyhow::Result;
 use ctxcut_core::{ContextSlicer, MarkdownFormatter, SliceOptions, TelemetryLogger};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::io::{self, BufRead, Write};
+use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 /// Configuration options for the MCP server.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

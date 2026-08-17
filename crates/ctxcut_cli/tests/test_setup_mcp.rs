@@ -1,8 +1,8 @@
 //! Integration tests for `ctxcut_cli::setup_mcp` module.
 
-use std::fs;
 use ctxcut_cli::setup_mcp::{safe_merge_json, MergeStatus};
 use serde_json::{json, Value};
+use std::fs;
 use tempfile::{tempdir, NamedTempFile};
 
 #[test]

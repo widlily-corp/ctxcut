@@ -28,13 +28,18 @@ fn test_zero_byte_files_across_languages() {
 
         // Act
         let target = format!("{}:targetSymbol", file_path.to_str().unwrap());
-        let output = runner.run(&["slice", &target]).expect("Command execution failed");
+        let output = runner
+            .run(&["slice", &target])
+            .expect("Command execution failed");
 
         // Assert
         output.assert_failure();
         let stderr_or_stdout = format!("{}\n{}", output.stderr, output.stdout);
         assert!(
-            stderr_or_stdout.contains("not found") || stderr_or_stdout.contains("SymbolNotFound") || stderr_or_stdout.contains("empty") || stderr_or_stdout.contains("Error"),
+            stderr_or_stdout.contains("not found")
+                || stderr_or_stdout.contains("SymbolNotFound")
+                || stderr_or_stdout.contains("empty")
+                || stderr_or_stdout.contains("Error"),
             "Empty file must gracefully report symbol not found. Output: {}",
             stderr_or_stdout
         );
@@ -58,11 +63,16 @@ fn test_whitespace_only_files() {
 
     // Act
     let target = format!("{}:nonExistent", file_path.to_str().unwrap());
-    let output = runner.run(&["slice", &target]).expect("Command execution failed");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command execution failed");
 
     // Assert
     output.assert_failure();
-    assert!(!output.stderr.contains("panic"), "Must not panic on whitespace-only file");
+    assert!(
+        !output.stderr.contains("panic"),
+        "Must not panic on whitespace-only file"
+    );
 }
 
 /// Test 3: Comment-only files (single line and block comments).
@@ -82,11 +92,16 @@ fn test_comment_only_files() {
 
     // Act
     let target = format!("{}:missingFunc", file_path.to_str().unwrap());
-    let output = runner.run(&["slice", &target]).expect("Command execution failed");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command execution failed");
 
     // Assert
     output.assert_failure();
-    assert!(!output.stderr.contains("panic"), "Must not panic on comment-only file");
+    assert!(
+        !output.stderr.contains("panic"),
+        "Must not panic on comment-only file"
+    );
 }
 
 /// Test 4: Running `ctxcut stats` on empty files.
@@ -103,11 +118,16 @@ fn test_stats_on_empty_file() {
     fs::write(&file_path, "").unwrap();
 
     // Act
-    let output = runner.run(&["stats", file_path.to_str().unwrap()]).expect("Command execution failed");
+    let output = runner
+        .run(&["stats", file_path.to_str().unwrap()])
+        .expect("Command execution failed");
 
     // Assert
     output.assert_success();
-    assert!(!output.stdout.contains("NaN"), "Stats must not produce NaN on empty files");
+    assert!(
+        !output.stdout.contains("NaN"),
+        "Stats must not produce NaN on empty files"
+    );
 }
 
 /// Test 5: Running `ctxcut diff` when a modified file was emptied (truncated to 0 bytes).
@@ -119,7 +139,9 @@ fn test_stats_on_empty_file() {
 fn test_diff_on_truncated_empty_file() {
     // Arrange
     let sandbox = common::GitSandbox::new().unwrap();
-    sandbox.write_file("src/temp.ts", "export function hello(): void {}\n").unwrap();
+    sandbox
+        .write_file("src/temp.ts", "export function hello(): void {}\n")
+        .unwrap();
     sandbox.stage_all().unwrap();
     sandbox.commit("Init").unwrap();
 
@@ -128,9 +150,14 @@ fn test_diff_on_truncated_empty_file() {
 
     // Act
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(sandbox.path(), &["diff"]).expect("Command execution failed");
+    let output = runner
+        .run_in_dir(sandbox.path(), &["diff"])
+        .expect("Command execution failed");
 
     // Assert
     output.assert_success();
-    assert!(!output.stderr.contains("panic"), "Must not panic when file is truncated to empty");
+    assert!(
+        !output.stderr.contains("panic"),
+        "Must not panic when file is truncated to empty"
+    );
 }

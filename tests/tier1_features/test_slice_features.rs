@@ -24,7 +24,9 @@ fn test_slice_pure_function() {
     let target = format!("{}:addNumbers", file_path);
 
     // Act
-    let output = runner.run(&["slice", &target]).expect("Failed to execute ctxcut slice");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Failed to execute ctxcut slice");
 
     // Assert
     output.assert_success();
@@ -57,7 +59,9 @@ fn test_slice_with_local_type_hoisting() {
     let target = format!("{}:register_user", file_path);
 
     // Act
-    let output = runner.run(&["slice", &target]).expect("Failed to execute ctxcut slice");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Failed to execute ctxcut slice");
 
     // Assert
     output.assert_success();
@@ -90,7 +94,9 @@ fn test_slice_with_external_signature_stripping() {
     let target = format!("{}:processOrder", file_path);
 
     // Act
-    let output = runner.run(&["slice", &target]).expect("Failed to execute ctxcut slice");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Failed to execute ctxcut slice");
 
     // Assert
     output.assert_success();
@@ -105,7 +111,10 @@ fn test_slice_with_external_signature_stripping() {
     );
     // Verify external call signatures are referenced/stubbed while bodies are not included in full
     assert!(
-        stdout.contains("calculateTax") || stdout.contains("chargeCard") || stdout.contains("External Dependencies") || stdout.contains("Dependencies"),
+        stdout.contains("calculateTax")
+            || stdout.contains("chargeCard")
+            || stdout.contains("External Dependencies")
+            || stdout.contains("Dependencies"),
         "External dependencies or signature stubs section must be present"
     );
 }
@@ -124,7 +133,9 @@ fn test_slice_method_in_class_or_impl() {
     let target = format!("{}:processRefund", file_path);
 
     // Act
-    let output = runner.run(&["slice", &target]).expect("Failed to execute ctxcut slice");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Failed to execute ctxcut slice");
 
     // Assert
     output.assert_success();
@@ -138,7 +149,8 @@ fn test_slice_method_in_class_or_impl() {
         "Required return and argument types must be hoisted"
     );
     assert!(
-        !stdout.contains("async cancelOrder(orderId: string, customerId: string): Promise<Order> {"),
+        !stdout
+            .contains("async cancelOrder(orderId: string, customerId: string): Promise<Order> {"),
         "Sibling method body 'cancelOrder' must not be embedded in target slice"
     );
 }
@@ -156,7 +168,9 @@ fn test_slice_generic_function_with_bounds() {
     let target = format!("{}:fetchUserProfile", file_path);
 
     // Act
-    let output = runner.run(&["slice", &target]).expect("Failed to execute ctxcut slice");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Failed to execute ctxcut slice");
 
     // Assert
     output.assert_success();
@@ -166,7 +180,9 @@ fn test_slice_generic_function_with_bounds() {
         "Target generic function must be present"
     );
     assert!(
-        stdout.contains("UserProfileDTO") || stdout.contains("ApiResponse") || stdout.contains("UserRole"),
+        stdout.contains("UserProfileDTO")
+            || stdout.contains("ApiResponse")
+            || stdout.contains("UserRole"),
         "Generic constituent types must be hoisted"
     );
 }
@@ -184,11 +200,19 @@ fn test_slice_multiple_symbols_in_file() {
     let target = format!("{}:addNumbers,formatUserName", file_path);
 
     // Act
-    let output = runner.run(&["slice", &target]).expect("Failed to execute ctxcut slice");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Failed to execute ctxcut slice");
 
     // Assert
     output.assert_success();
     let stdout = &output.stdout;
-    assert!(stdout.contains("addNumbers"), "Must contain addNumbers slice");
-    assert!(stdout.contains("formatUserName"), "Must contain formatUserName slice");
+    assert!(
+        stdout.contains("addNumbers"),
+        "Must contain addNumbers slice"
+    );
+    assert!(
+        stdout.contains("formatUserName"),
+        "Must contain formatUserName slice"
+    );
 }

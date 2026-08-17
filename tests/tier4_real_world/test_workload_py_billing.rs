@@ -68,7 +68,8 @@ fn test_workload_py_billing_execute_charge() {
 
     // 3. Semantic Verification: Unrelated sibling method bodies omitted
     assert!(
-        !slice_markdown.contains("async def issue_refund(self, request: RefundRequest) -> RefundResponse:"),
+        !slice_markdown
+            .contains("async def issue_refund(self, request: RefundRequest) -> RefundResponse:"),
         "Sibling method issue_refund body must NOT be included in slice"
     );
     assert!(

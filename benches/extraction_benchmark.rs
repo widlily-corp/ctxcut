@@ -3,9 +3,7 @@
 //! Measures latency and throughput for locating symbol AST nodes by name (functions,
 //! methods, classes, structs) and extracting exact AST node bodies across languages.
 
-use criterion::{
-    black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput,
-};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use streaming_iterator::StreamingIterator;
 use tree_sitter::{Node, Parser, Query, QueryCursor};
 
@@ -79,7 +77,9 @@ fn bench_ast_extraction(c: &mut Criterion) {
         let (ts_code, ts_symbols) = generate_ts_suite(200);
         let mut parser = Parser::new();
         let lang: tree_sitter::Language = tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into();
-        parser.set_language(&lang).expect("Error loading TypeScript grammar");
+        parser
+            .set_language(&lang)
+            .expect("Error loading TypeScript grammar");
         let tree = parser.parse(&ts_code, None).expect("Parse error");
         let query = Query::new(&lang, "(function_declaration name: (identifier) @name)")
             .expect("Query compilation failed");
@@ -118,7 +118,9 @@ fn bench_ast_extraction(c: &mut Criterion) {
         let (rs_code, rs_symbols) = generate_rust_suite(200);
         let mut parser = Parser::new();
         let lang: tree_sitter::Language = tree_sitter_rust::LANGUAGE.into();
-        parser.set_language(&lang).expect("Error loading Rust grammar");
+        parser
+            .set_language(&lang)
+            .expect("Error loading Rust grammar");
         let tree = parser.parse(&rs_code, None).expect("Parse error");
         let query = Query::new(&lang, "(function_item name: (identifier) @name)")
             .expect("Query compilation failed");

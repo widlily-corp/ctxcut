@@ -31,7 +31,9 @@ fn test_route_express_post_resolution() {
         "Must resolve handleCheckout function"
     );
     assert!(
-        stdout.contains("CheckoutRequestDTO") || stdout.contains("CheckoutResponseDTO") || stdout.contains("items"),
+        stdout.contains("CheckoutRequestDTO")
+            || stdout.contains("CheckoutResponseDTO")
+            || stdout.contains("items"),
         "Must hoist request/response DTOs"
     );
 }
@@ -59,7 +61,9 @@ fn test_route_fastapi_get_parameterized() {
         "Must resolve FastAPI get_user_profile handler"
     );
     assert!(
-        stdout.contains("class UserProfile") || stdout.contains("email") || stdout.contains("full_name"),
+        stdout.contains("class UserProfile")
+            || stdout.contains("email")
+            || stdout.contains("full_name"),
         "Must hoist UserProfile schema"
     );
 }
@@ -109,7 +113,9 @@ fn test_route_axum_post_handler() {
     if output.success {
         let stdout = &output.stdout;
         assert!(
-            stdout.contains("reserve") || stdout.contains("inventory") || stdout.contains("Handler"),
+            stdout.contains("reserve")
+                || stdout.contains("inventory")
+                || stdout.contains("Handler"),
             "Must resolve Axum handler"
         );
     }
@@ -135,7 +141,10 @@ fn test_route_unmatched_route_diagnostics() {
     if !output.success {
         let combined = format!("{}\n{}", output.stdout, output.stderr);
         assert!(
-            combined.contains("not found") || combined.contains("No route") || combined.contains("unmatched") || combined.contains("Unknown"),
+            combined.contains("not found")
+                || combined.contains("No route")
+                || combined.contains("unmatched")
+                || combined.contains("Unknown"),
             "Error output must provide informative diagnostic message"
         );
     } else {

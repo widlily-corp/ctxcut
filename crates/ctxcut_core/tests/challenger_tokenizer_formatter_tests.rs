@@ -8,13 +8,15 @@
 //! 5. JSON serialization & lossless round-trip deserialization
 //! 6. Concurrency, multi-threading, and stress benchmarks
 
-use std::fmt::Write as _;
-use std::time::Instant;
 use ctxcut_core::{
-    tokenizer::{calculate_savings_percentage, count_lines, count_tokens, get_bpe_tokenizer, TokenCounter},
     formatter::{markdown::normalize_language_tag, JsonFormatter, MarkdownFormatter},
+    tokenizer::{
+        calculate_savings_percentage, count_lines, count_tokens, get_bpe_tokenizer, TokenCounter,
+    },
     CallSignatureStub, ExtractedSymbol, ExtractedType, SliceResult, TokenStats,
 };
+use std::fmt::Write as _;
+use std::time::Instant;
 
 #[test]
 fn test_tokenizer_empty_and_minimal_inputs() {
@@ -45,7 +47,10 @@ fn test_tokenizer_non_ascii_utf8_and_unicode_edge_cases() {
     // 1. Emojis
     let emojis = "🚀 🦀 💡 🔥 ✨ 💻 🌍 📦 🛡️ ⚙️ 🎯 🧠";
     let emoji_tokens = count_tokens(emojis);
-    assert!(emoji_tokens >= 12, "Expected at least 12 tokens for emojis, got {emoji_tokens}");
+    assert!(
+        emoji_tokens >= 12,
+        "Expected at least 12 tokens for emojis, got {emoji_tokens}"
+    );
 
     // 2. Cyrillic (Russian)
     let cyrillic = "Функция аутентификации пользователя в системе безопасности";
@@ -93,8 +98,11 @@ fn test_special_prompt_tokens_zero_panic() {
     for st in special_tokens {
         // Must not panic
         let count = count_tokens(st);
-        assert!(count > 0, "Token count for '{st}' should be > 0, got {count}");
-        
+        assert!(
+            count > 0,
+            "Token count for '{st}' should be > 0, got {count}"
+        );
+
         let direct_count = get_bpe_tokenizer().encode_ordinary(st).len();
         assert_eq!(count, direct_count);
     }
@@ -244,8 +252,14 @@ fn test_markdown_formatter_fidelity_and_code_fence_balance() {
     // In full slice with types and stubs, there must be exactly 3 code blocks: 3 opening ```typescript and 3 closing ```
     let open_fence_count = md.matches("```typescript").count();
     let total_fence_count = md.matches("```").count();
-    assert_eq!(open_fence_count, 3, "Expected 3 opening fences ```typescript");
-    assert_eq!(total_fence_count, 6, "Expected 6 fence markers total (3 opening + 3 closing)");
+    assert_eq!(
+        open_fence_count, 3,
+        "Expected 3 opening fences ```typescript"
+    );
+    assert_eq!(
+        total_fence_count, 6,
+        "Expected 6 fence markers total (3 opening + 3 closing)"
+    );
 
     // 3. Verify Doc Comments in Target Implementation
     assert!(md.contains("/**\n * Executes a trading order."));
@@ -281,8 +295,12 @@ fn test_markdown_formatter_none_fallbacks_and_empty_doc_comments() {
     let md = MarkdownFormatter::format(&empty_deps_result);
 
     // Check Fallback *None*
-    assert_eq!(md.matches("*None*").count(), 2, "Both types and calls sections should show *None*");
-    
+    assert_eq!(
+        md.matches("*None*").count(),
+        2,
+        "Both types and calls sections should show *None*"
+    );
+
     // Code fence balance: Only Section 1 has code block (1 open, 1 close)
     let open_fence_count = md.matches("```typescript").count();
     let total_fence_count = md.matches("```").count();
@@ -387,18 +405,21 @@ fn test_json_serialization_and_roundtrip_integrity() {
 
     // 1. Pretty JSON roundtrip
     let pretty_json = JsonFormatter::format_pretty(&result).expect("Pretty JSON failed");
-    let deserialized_pretty: SliceResult = serde_json::from_str(&pretty_json).expect("Deserialization pretty failed");
+    let deserialized_pretty: SliceResult =
+        serde_json::from_str(&pretty_json).expect("Deserialization pretty failed");
     assert_eq!(result, deserialized_pretty);
 
     // 2. Compact JSON roundtrip
     let compact_json = JsonFormatter::format_compact(&result).expect("Compact JSON failed");
-    let deserialized_compact: SliceResult = serde_json::from_str(&compact_json).expect("Deserialization compact failed");
+    let deserialized_compact: SliceResult =
+        serde_json::from_str(&compact_json).expect("Deserialization compact failed");
     assert_eq!(result, deserialized_compact);
 
     // 3. Batch JSON roundtrip
     let batch = vec![result.clone(), result];
     let batch_json = JsonFormatter::format_batch(&batch).expect("Batch JSON failed");
-    let deserialized_batch: Vec<SliceResult> = serde_json::from_str(&batch_json).expect("Deserialization batch failed");
+    let deserialized_batch: Vec<SliceResult> =
+        serde_json::from_str(&batch_json).expect("Deserialization batch failed");
     assert_eq!(deserialized_batch.len(), 2);
     assert_eq!(deserialized_batch[0], deserialized_batch[1]);
 

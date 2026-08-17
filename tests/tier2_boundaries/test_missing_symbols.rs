@@ -23,13 +23,18 @@ fn test_fuzzy_symbol_matching_suggestion() {
     let target = format!("{}:addNumber", file_path);
 
     // Act
-    let output = runner.run(&["slice", &target]).expect("Command execution failed");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command execution failed");
 
     // Assert
     output.assert_failure();
     let stderr_or_stdout = format!("{}\n{}", output.stderr, output.stdout);
     assert!(
-        stderr_or_stdout.contains("Did you mean") || stderr_or_stdout.contains("addNumbers") || stderr_or_stdout.contains("not found") || stderr_or_stdout.contains("SymbolNotFound"),
+        stderr_or_stdout.contains("Did you mean")
+            || stderr_or_stdout.contains("addNumbers")
+            || stderr_or_stdout.contains("not found")
+            || stderr_or_stdout.contains("SymbolNotFound"),
         "Error output must provide helpful diagnostics or suggestions. Output was: {}",
         stderr_or_stdout
     );
@@ -48,11 +53,16 @@ fn test_completely_unknown_symbol_diagnostics() {
     let target = format!("{}:totally_nonexistent_xyz_symbol_12345", file_path);
 
     // Act
-    let output = runner.run(&["slice", &target]).expect("Command execution failed");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command execution failed");
 
     // Assert
     output.assert_failure();
-    assert!(!output.stderr.contains("panic"), "Must not panic on unknown symbol");
+    assert!(
+        !output.stderr.contains("panic"),
+        "Must not panic on unknown symbol"
+    );
 }
 
 /// Test 3: Shadowed local variable resolution.
@@ -83,7 +93,9 @@ export function processUserAccount(account: User): boolean {
     // Act
     let runner = CliRunner::new();
     let target = format!("{}:processUserAccount", file_path.to_str().unwrap());
-    let output = runner.run(&["slice", &target]).expect("Command execution failed");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command execution failed");
 
     // Assert
     output.assert_success();
@@ -105,7 +117,9 @@ fn test_multi_symbol_with_one_missing() {
     let target = format!("{}:addNumbers,nonExistentFunc", file_path);
 
     // Act
-    let output = runner.run(&["slice", &target]).expect("Command execution failed");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command execution failed");
 
     // Assert
     let combined = format!("{}\n{}", output.stdout, output.stderr);
@@ -128,7 +142,9 @@ fn test_case_mismatch_symbol_suggestion() {
     let target = format!("{}:addnumbers", file_path);
 
     // Act
-    let output = runner.run(&["slice", &target]).expect("Command execution failed");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command execution failed");
 
     // Assert
     if !output.success {

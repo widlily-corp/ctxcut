@@ -37,14 +37,25 @@ export function обчислити_податок(платник: Користу
     // Act
     let runner = CliRunner::new();
     let target = format!("{}:обчислити_податок", file_path.to_str().unwrap());
-    let output = runner.run(&["slice", &target]).expect("Command failed on Cyrillic symbols");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command failed on Cyrillic symbols");
 
     // Assert
     output.assert_success();
     let stdout = &output.stdout;
-    assert!(stdout.contains("обчислити_податок"), "Must extract Cyrillic function name");
-    assert!(stdout.contains("Користувач"), "Must hoist Cyrillic interface");
-    assert!(stdout.contains("ставка_податку"), "Must preserve Cyrillic field names");
+    assert!(
+        stdout.contains("обчислити_податок"),
+        "Must extract Cyrillic function name"
+    );
+    assert!(
+        stdout.contains("Користувач"),
+        "Must hoist Cyrillic interface"
+    );
+    assert!(
+        stdout.contains("ставка_податку"),
+        "Must preserve Cyrillic field names"
+    );
 }
 
 /// Test 2: Slicing functions and models with CJK (Chinese / Japanese / Korean) identifiers in Python.
@@ -74,7 +85,9 @@ def 计算折扣金额(订单: 订单数据) -> float:
     // Act
     let runner = CliRunner::new();
     let target = format!("{}:计算折扣金额", file_path.to_str().unwrap());
-    let output = runner.run(&["slice", &target]).expect("Command failed on CJK symbols");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command failed on CJK symbols");
 
     // Assert
     output.assert_success();
@@ -93,7 +106,10 @@ def 计算折扣金额(订单: 订单数据) -> float:
 fn test_paths_with_spaces_and_unicode() {
     // Arrange
     let temp_dir = TempDir::new().unwrap();
-    let nested_dir = temp_dir.path().join("my project 🚀").join("папка з пробілами");
+    let nested_dir = temp_dir
+        .path()
+        .join("my project 🚀")
+        .join("папка з пробілами");
     fs::create_dir_all(&nested_dir).unwrap();
 
     let file_path = nested_dir.join("order service file.ts");
@@ -108,7 +124,9 @@ export function calculateTotal(items: Item[]): number {
     // Act
     let runner = CliRunner::new();
     let target = format!("{}:calculateTotal", file_path.to_str().unwrap());
-    let output = runner.run(&["slice", &target]).expect("Command failed on path with spaces and Unicode");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command failed on path with spaces and Unicode");
 
     // Assert
     output.assert_success();
@@ -144,7 +162,9 @@ func CalcularTotal(f Factura, impuesto float64) float64 {
     // Act
     let runner = CliRunner::new();
     let target = format!("{}:CalcularTotal", file_path.to_str().unwrap());
-    let output = runner.run(&["slice", &target]).expect("Command failed on accented Go code");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command failed on accented Go code");
 
     // Assert
     output.assert_success();
@@ -175,7 +195,9 @@ export function emojiHelper(): string {
     // Act
     let runner = CliRunner::new();
     let target = format!("{}:emojiHelper", file_path.to_str().unwrap());
-    let output = runner.run(&["slice", &target]).expect("Command failed on emoji code");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command failed on emoji code");
 
     // Assert
     output.assert_success();

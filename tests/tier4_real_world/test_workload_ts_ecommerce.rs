@@ -58,7 +58,8 @@ fn test_workload_ts_ecommerce_order_refund() {
         "Target function signature must be present"
     );
     assert!(
-        slice_markdown.contains("const refundTargetAmount = amountCents ?? order.totalAmountCents;"),
+        slice_markdown
+            .contains("const refundTargetAmount = amountCents ?? order.totalAmountCents;"),
         "Target function body statements must be preserved verbatim"
     );
     assert!(

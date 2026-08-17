@@ -1,7 +1,7 @@
 //! Core data models, extracted AST symbols, slicing configuration, and results.
 
-use std::path::Path;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 /// Supported programming languages in `ctxcut`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

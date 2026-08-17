@@ -1,9 +1,9 @@
 //! Integration tests for Rust AST parsing, symbol location, type hoisting, and slicing.
 
-use std::path::Path;
 use ctxcut_core::error::CoreError;
 use ctxcut_core::model::SliceOptions;
 use ctxcut_core::slice::ContextSlicer;
+use std::path::Path;
 
 #[test]
 fn test_slice_rust_standalone_function() {
@@ -18,7 +18,10 @@ fn test_slice_rust_standalone_function() {
     assert_eq!(result.target_symbol.name, "add_numbers");
     assert_eq!(result.target_symbol.kind, "function");
     assert_eq!(result.target_symbol.language, "rust");
-    assert!(result.target_symbol.signature.contains("pub fn add_numbers(a: i64, b: i64) -> i64"));
+    assert!(result
+        .target_symbol
+        .signature
+        .contains("pub fn add_numbers(a: i64, b: i64) -> i64"));
     assert!(result.target_symbol.body.contains("a + b"));
     assert_eq!(
         result.target_symbol.doc_comment.as_deref(),
@@ -56,9 +59,15 @@ fn test_slice_rust_result_and_enum_hoisting() {
         .expect("Should slice divide_safe");
 
     assert_eq!(result.target_symbol.name, "divide_safe");
-    assert!(result.target_symbol.signature.contains("pub fn divide_safe(numerator: f64, denominator: f64) -> Result<f64, MathError>"));
+    assert!(result.target_symbol.signature.contains(
+        "pub fn divide_safe(numerator: f64, denominator: f64) -> Result<f64, MathError>"
+    ));
 
-    let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted_names: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted_names.contains(&"MathError"),
         "Must hoist MathError enum, found: {:?}",
@@ -81,17 +90,30 @@ fn test_slice_rust_generic_where_clause_and_trait_bounds() {
         .expect("Should slice transform generic function");
 
     assert_eq!(result.target_symbol.name, "transform");
-    assert!(result.target_symbol.signature.contains("pub fn transform<T, R>(input: T) -> R"));
+    assert!(result
+        .target_symbol
+        .signature
+        .contains("pub fn transform<T, R>(input: T) -> R"));
 
-    let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted_names: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted_names.contains(&"Transformable"),
         "Must hoist Transformable trait, found: {:?}",
         hoisted_names
     );
     // Generic parameters T, R must NOT be in hoisted types
-    assert!(!hoisted_names.contains(&"T"), "Generic T must be filtered out");
-    assert!(!hoisted_names.contains(&"R"), "Generic R must be filtered out");
+    assert!(
+        !hoisted_names.contains(&"T"),
+        "Generic T must be filtered out"
+    );
+    assert!(
+        !hoisted_names.contains(&"R"),
+        "Generic R must be filtered out"
+    );
 }
 
 #[test]
@@ -107,7 +129,10 @@ fn test_slice_rust_inherent_impl_method() {
 
     assert_eq!(res1.target_symbol.name, "new");
     assert_eq!(res1.target_symbol.kind, "method");
-    assert!(res1.target_symbol.signature.contains("pub fn new(payload: T, trace_id: impl Into<String>) -> Self"));
+    assert!(res1
+        .target_symbol
+        .signature
+        .contains("pub fn new(payload: T, trace_id: impl Into<String>) -> Self"));
 
     // 2. Method map_payload
     let res2 = slicer
@@ -115,7 +140,10 @@ fn test_slice_rust_inherent_impl_method() {
         .expect("Should slice PipelineContainer::map_payload");
 
     assert_eq!(res2.target_symbol.name, "map_payload");
-    assert!(res2.target_symbol.signature.contains("pub fn map_payload<F, U>(self, f: F) -> PipelineContainer<U, M>"));
+    assert!(res2
+        .target_symbol
+        .signature
+        .contains("pub fn map_payload<F, U>(self, f: F) -> PipelineContainer<U, M>"));
 }
 
 #[test]
@@ -134,18 +162,30 @@ fn test_slice_rust_cross_module_resolution() {
 
     assert_eq!(result.target_symbol.name, "reserve_stock");
     assert_eq!(result.target_symbol.kind, "method");
-    assert!(result.target_symbol.signature.contains("pub async fn reserve_stock"));
+    assert!(result
+        .target_symbol
+        .signature
+        .contains("pub async fn reserve_stock"));
 
     // Cross-module models: ReservationRequest, StockReservation, InventoryError, Product
-    let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted_names: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
-        hoisted_names.contains(&"ReservationRequest") || hoisted_names.contains(&"StockReservation") || hoisted_names.contains(&"InventoryError"),
+        hoisted_names.contains(&"ReservationRequest")
+            || hoisted_names.contains(&"StockReservation")
+            || hoisted_names.contains(&"InventoryError"),
         "Must hoist cross-module models from models.rs, found: {:?}",
         hoisted_names
     );
 
     // Call stubs
-    assert!(!result.stripped_calls.is_empty(), "Must strip external calls");
+    assert!(
+        !result.stripped_calls.is_empty(),
+        "Must strip external calls"
+    );
 }
 
 #[test]
@@ -186,7 +226,11 @@ fn test_slice_rust_circular_recursive_enum() {
         .expect("Should slice Expr::eval_constant without infinite recursion");
 
     assert_eq!(result.target_symbol.name, "eval_constant");
-    let hoisted_names: Vec<&str> = result.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted_names: Vec<&str> = result
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted_names.contains(&"Expr"),
         "Must hoist recursive Expr enum, found: {:?}",
@@ -206,7 +250,10 @@ fn test_slice_rust_struct_symbol_query() {
 
     assert_eq!(result.target_symbol.name, "PipelineContainer");
     assert_eq!(result.target_symbol.kind, "struct");
-    assert!(result.target_symbol.body.contains("pub struct PipelineContainer<T, M>"));
+    assert!(result
+        .target_symbol
+        .body
+        .contains("pub struct PipelineContainer<T, M>"));
     assert!(result.target_symbol.body.contains("pub payload: T"));
 }
 
@@ -221,7 +268,11 @@ fn test_slice_rust_symbol_not_found_returns_available() {
         .expect_err("Should error on nonexistent symbol");
 
     match err {
-        CoreError::SymbolNotFound { symbol, available_symbols, .. } => {
+        CoreError::SymbolNotFound {
+            symbol,
+            available_symbols,
+            ..
+        } => {
             assert_eq!(symbol, "nonexistent_fn");
             assert!(available_symbols.contains(&"add_numbers".to_string()));
             assert!(available_symbols.contains(&"divide_safe".to_string()));
@@ -244,8 +295,14 @@ fn test_slice_rust_disabled_options() {
         .slice_symbol(file_path, "PipelineContainer::new", &opts)
         .expect("Should slice PipelineContainer::new");
 
-    assert!(result.hoisted_types.is_empty(), "Hoisted types must be empty when disabled");
-    assert!(result.stripped_calls.is_empty(), "Stripped calls must be empty when disabled");
+    assert!(
+        result.hoisted_types.is_empty(),
+        "Hoisted types must be empty when disabled"
+    );
+    assert!(
+        result.stripped_calls.is_empty(),
+        "Stripped calls must be empty when disabled"
+    );
 }
 
 #[test]

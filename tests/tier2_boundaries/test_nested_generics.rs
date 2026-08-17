@@ -23,14 +23,25 @@ fn test_deeply_nested_types_ts() {
     let target = format!("{}:fetchUserMapping", file_path);
 
     // Act
-    let output = runner.run(&["slice", &target]).expect("Failed to slice nested generic TS function");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Failed to slice nested generic TS function");
 
     // Assert
     output.assert_success();
     let stdout = &output.stdout;
-    assert!(stdout.contains("fetchUserMapping"), "Must extract target function");
-    assert!(stdout.contains("Result") || stdout.contains("DomainError"), "Must hoist Result/DomainError");
-    assert!(stdout.contains("UserDTO") || stdout.contains("UserMetadata"), "Must hoist UserDTO and nested metadata");
+    assert!(
+        stdout.contains("fetchUserMapping"),
+        "Must extract target function"
+    );
+    assert!(
+        stdout.contains("Result") || stdout.contains("DomainError"),
+        "Must hoist Result/DomainError"
+    );
+    assert!(
+        stdout.contains("UserDTO") || stdout.contains("UserMetadata"),
+        "Must hoist UserDTO and nested metadata"
+    );
 }
 
 /// Test 2: Extreme 10-level nested generic type hierarchy in TypeScript.
@@ -68,8 +79,13 @@ export async function processDeeplyNestedPipeline(input: Level1): Promise<Level1
 
     // Act
     let runner = CliRunner::new();
-    let target = format!("{}:processDeeplyNestedPipeline", file_path.to_str().unwrap());
-    let output = runner.run(&["slice", &target]).expect("Command execution failed");
+    let target = format!(
+        "{}:processDeeplyNestedPipeline",
+        file_path.to_str().unwrap()
+    );
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command execution failed");
 
     // Assert
     output.assert_success();
@@ -114,7 +130,9 @@ impl CustomExecutor {
     // Act
     let runner = CliRunner::new();
     let target = format!("{}:dispatch_task", file_path.to_str().unwrap());
-    let output = runner.run(&["slice", &target]).expect("Command execution failed");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command execution failed");
 
     // Assert
     output.assert_success();
@@ -153,7 +171,9 @@ func TransformSlice[T any, R any](items []T, t Transformer[T, R]) []R {
     // Act
     let runner = CliRunner::new();
     let target = format!("{}:TransformSlice", file_path.to_str().unwrap());
-    let output = runner.run(&["slice", &target]).expect("Command execution failed");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command execution failed");
 
     // Assert
     output.assert_success();
@@ -189,7 +209,9 @@ def handle_container(c: Container[str]) -> str:
     // Act
     let runner = CliRunner::new();
     let target = format!("{}:handle_container", file_path.to_str().unwrap());
-    let output = runner.run(&["slice", &target]).expect("Command execution failed");
+    let output = runner
+        .run(&["slice", &target])
+        .expect("Command execution failed");
 
     // Assert
     output.assert_success();

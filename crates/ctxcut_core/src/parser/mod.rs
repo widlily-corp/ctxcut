@@ -1,8 +1,8 @@
 //! Tree-sitter parser manager and AST traversal helper utilities.
 
+use crate::error::{CoreError, Result};
 use std::path::Path;
 use tree_sitter::{Language, Node, Parser, Tree};
-use crate::error::{CoreError, Result};
 
 /// Parser manager and AST parsing helpers.
 pub struct ParserManager;
@@ -74,7 +74,9 @@ impl AstUtils {
     /// Finds the first named child node with the specified kind.
     pub fn find_child_by_kind<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
         let mut cursor = node.walk();
-        let found = node.children(&mut cursor).find(|child| child.kind() == kind);
+        let found = node
+            .children(&mut cursor)
+            .find(|child| child.kind() == kind);
         found
     }
 

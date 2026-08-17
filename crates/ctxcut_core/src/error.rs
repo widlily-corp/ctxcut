@@ -87,7 +87,7 @@ fn format_symbol_not_found(symbol: &str, path: &std::path::Path, available: &[St
 fn find_best_suggestion<'a>(query: &str, candidates: &'a [String]) -> Option<&'a str> {
     let query_lower = query.to_lowercase();
     for candidate in candidates {
-        let cand_name = candidate.split('.').last().unwrap_or(candidate);
+        let cand_name = candidate.split('.').next_back().unwrap_or(candidate);
         let cand_lower = cand_name.to_lowercase();
 
         if cand_lower == query_lower
@@ -109,11 +109,11 @@ fn edit_distance(s1: &str, s2: &str) -> usize {
 
     let mut dp = vec![vec![0; len2 + 1]; len1 + 1];
 
-    for i in 0..=len1 {
-        dp[i][0] = i;
+    for (i, row) in dp.iter_mut().enumerate().take(len1 + 1) {
+        row[0] = i;
     }
-    for j in 0..=len2 {
-        dp[0][j] = j;
+    for (j, cell) in dp[0].iter_mut().enumerate().take(len2 + 1) {
+        *cell = j;
     }
 
     for i in 1..=len1 {

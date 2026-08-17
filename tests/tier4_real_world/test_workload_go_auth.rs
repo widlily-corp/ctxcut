@@ -35,7 +35,10 @@ fn test_workload_go_auth_authenticate_user() {
     let full_jwt = fs::read_to_string(jwt_path).unwrap_or_default();
     let full_repo = fs::read_to_string(repo_path).unwrap_or_default();
 
-    let total_baseline_code = format!("{}\n{}\n{}\n{}", full_service, full_models, full_jwt, full_repo);
+    let total_baseline_code = format!(
+        "{}\n{}\n{}\n{}",
+        full_service, full_models, full_jwt, full_repo
+    );
     let target = format!("{}:AuthenticateUser", service_path);
 
     // Act
@@ -58,13 +61,16 @@ fn test_workload_go_auth_authenticate_user() {
         "Password verification logic in body must be preserved"
     );
     assert!(
-        slice_markdown.contains("accessToken, err := s.jwtHelper.GenerateAccessToken(user, scopes)"),
+        slice_markdown
+            .contains("accessToken, err := s.jwtHelper.GenerateAccessToken(user, scopes)"),
         "JWT generation call in body must be preserved"
     );
 
     // 2. Semantic Verification: Type Hoisting
     assert!(
-        slice_markdown.contains("LoginCredentials") || slice_markdown.contains("AuthResult") || slice_markdown.contains("User"),
+        slice_markdown.contains("LoginCredentials")
+            || slice_markdown.contains("AuthResult")
+            || slice_markdown.contains("User"),
         "Required Go structs must be hoisted"
     );
 

@@ -24,13 +24,17 @@ fn test_stats_single_file_accuracy() {
     let file_path = "tests/fixtures/typescript/realistic_order_service/order_service.ts";
 
     // Act
-    let output = runner.run(&["stats", file_path]).expect("Failed to execute ctxcut stats");
+    let output = runner
+        .run(&["stats", file_path])
+        .expect("Failed to execute ctxcut stats");
 
     // Assert
     output.assert_success();
     let stdout = &output.stdout;
     assert!(
-        stdout.contains("order_service.ts") || stdout.contains("Tokens") || stdout.contains("Savings"),
+        stdout.contains("order_service.ts")
+            || stdout.contains("Tokens")
+            || stdout.contains("Savings"),
         "Must display file stats summary"
     );
     assert!(
@@ -51,13 +55,18 @@ fn test_stats_directory_aggregate_scan() {
     let dir_path = "tests/fixtures/typescript";
 
     // Act
-    let output = runner.run(&["stats", dir_path]).expect("Failed to execute ctxcut stats on directory");
+    let output = runner
+        .run(&["stats", dir_path])
+        .expect("Failed to execute ctxcut stats on directory");
 
     // Assert
     output.assert_success();
     let stdout = &output.stdout;
     assert!(
-        stdout.contains("Total") || stdout.contains("Files") || stdout.contains("Savings") || stdout.contains("Summary"),
+        stdout.contains("Total")
+            || stdout.contains("Files")
+            || stdout.contains("Savings")
+            || stdout.contains("Summary"),
         "Directory scan must report aggregate totals"
     );
 }
@@ -74,13 +83,18 @@ fn test_stats_json_output_mode() {
     let file_path = "tests/fixtures/typescript/simple_function.ts";
 
     // Act
-    let output = runner.run(&["stats", file_path, "--format", "json"]).expect("Failed to run stats --format json");
+    let output = runner
+        .run(&["stats", file_path, "--format", "json"])
+        .expect("Failed to run stats --format json");
 
     // Assert
     output.assert_success();
     let json: Value = output.parse_json().expect("Output must be valid JSON");
     assert!(
-        json.get("total_raw_tokens").is_some() || json.get("raw_tokens").is_some() || json.get("files").is_some() || json.get("total_files").is_some(),
+        json.get("total_raw_tokens").is_some()
+            || json.get("raw_tokens").is_some()
+            || json.get("files").is_some()
+            || json.get("total_files").is_some(),
         "JSON output must contain token metrics keys. Got: {:?}",
         json
     );
@@ -100,12 +114,20 @@ fn test_stats_zero_token_handling() {
 
     // Act
     let runner = CliRunner::new();
-    let output = runner.run(&["stats", one_liner.to_str().unwrap()]).expect("Failed to run stats on one-liner");
+    let output = runner
+        .run(&["stats", one_liner.to_str().unwrap()])
+        .expect("Failed to run stats on one-liner");
 
     // Assert
     output.assert_success();
-    assert!(!output.stdout.contains("NaN"), "Output must not contain NaN");
-    assert!(!output.stdout.contains("inf"), "Output must not contain Infinity");
+    assert!(
+        !output.stdout.contains("NaN"),
+        "Output must not contain NaN"
+    );
+    assert!(
+        !output.stdout.contains("inf"),
+        "Output must not contain Infinity"
+    );
 }
 
 /// Test 5: Exact BPE Tokenizer Parity with OpenAI `cl100k_base`.
@@ -131,7 +153,10 @@ fn test_stats_bpe_tokenizer_parity() {
 
     // Assert
     assert!(count > 0, "BPE count must be positive");
-    assert!(count < 100, "BPE count for small hook should be under 100 tokens");
+    assert!(
+        count < 100,
+        "BPE count for small hook should be under 100 tokens"
+    );
 }
 
 /// Test 6: Verifying reduction bounds for sliced vs full file content.
@@ -143,8 +168,9 @@ fn test_stats_bpe_tokenizer_parity() {
 fn test_stats_reduction_bounds_validation() {
     // Arrange
     let verifier = TokenVerifier::new();
-    let full = fs::read_to_string("tests/fixtures/typescript/realistic_order_service/order_service.ts")
-        .expect("Must read fixture file");
+    let full =
+        fs::read_to_string("tests/fixtures/typescript/realistic_order_service/order_service.ts")
+            .expect("Must read fixture file");
     let minimal_slice = r#"
         export interface RefundResponse {
             refundId: string;
@@ -159,7 +185,16 @@ fn test_stats_reduction_bounds_validation() {
     let metrics = verifier.calculate_metrics(&full, minimal_slice);
 
     // Assert
-    assert!(metrics.reduction_percentage > 70.0, "Expected significant token reduction");
-    assert!(metrics.reduction_percentage <= 100.0, "Reduction cannot exceed 100%");
-    assert!(metrics.full_tokens > metrics.slice_tokens, "Full tokens must exceed slice tokens");
+    assert!(
+        metrics.reduction_percentage > 70.0,
+        "Expected significant token reduction"
+    );
+    assert!(
+        metrics.reduction_percentage <= 100.0,
+        "Reduction cannot exceed 100%"
+    );
+    assert!(
+        metrics.full_tokens > metrics.slice_tokens,
+        "Full tokens must exceed slice tokens"
+    );
 }
