@@ -67,6 +67,50 @@ pub enum CoreError {
     /// Output formatting error.
     #[error("Formatting error: {0}")]
     FormattingError(String),
+
+    /// Patched source code failed syntax validation guard.
+    #[error("Syntax validation error in '{}':\n{}", .path.display(), format_syntax_errors(.errors))]
+    SyntaxValidationError {
+        /// File path where syntax error occurred.
+        path: PathBuf,
+        /// Collected syntax errors.
+        errors: Vec<crate::model::SyntaxErrorDetail>,
+    },
+
+    /// Byte range specified for patch is invalid.
+    #[error("Patch range [{start}..{end}] is out of bounds for '{}' (total bytes: {total_bytes})", .path.display())]
+    PatchRangeError {
+        /// Target file path.
+        path: PathBuf,
+        /// Requested start byte.
+        start: usize,
+        /// Requested end byte.
+        end: usize,
+        /// Total bytes in source file.
+        total_bytes: usize,
+    },
+
+    /// Indentation normalization error during patching.
+    #[error("Indentation error patching '{symbol}' in '{}': {message}", .path.display())]
+    PatchIndentationError {
+        /// Target file path.
+        path: PathBuf,
+        /// Target symbol name.
+        symbol: String,
+        /// Error explanation.
+        message: String,
+    },
+}
+
+fn format_syntax_errors(errors: &[crate::model::SyntaxErrorDetail]) -> String {
+    let mut lines = Vec::new();
+    for err in errors {
+        lines.push(format!(
+            "  -> line {}, col {}: {} (near: '{}')",
+            err.line, err.column, err.kind, err.snippet
+        ));
+    }
+    lines.join("\n")
 }
 
 fn format_symbol_not_found(symbol: &str, path: &std::path::Path, available: &[String]) -> String {

@@ -1,7 +1,7 @@
 //! Core data models, extracted AST symbols, slicing configuration, and results.
 
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Supported programming languages in `ctxcut`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -75,6 +75,8 @@ pub struct SliceOptions {
     pub include_types: bool,
     /// Whether to strip bodies from external call dependencies (default: true).
     pub include_calls: bool,
+    /// Adaptive token budget limit for progressive semantic degradation (optional).
+    pub budget: Option<usize>,
 }
 
 impl Default for SliceOptions {
@@ -83,6 +85,7 @@ impl Default for SliceOptions {
             depth: 1,
             include_types: true,
             include_calls: true,
+            budget: None,
         }
     }
 }
@@ -204,5 +207,114 @@ impl SliceResult {
     /// Formats the slice result as compact JSON.
     pub fn to_json_compact(&self) -> String {
         serde_json::to_string(self).unwrap_or_else(|_| "{}".to_string())
+    }
+}
+
+/// Result of an AST-guided patch operation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PatchResult {
+    /// Target file path.
+    pub file_path: PathBuf,
+    /// Target symbol name matched by query.
+    pub symbol_name: String,
+    /// Original code before patch.
+    pub original_code: String,
+    /// Normalized replacement code spliced into source.
+    pub patched_code: String,
+    /// Byte range `(start_byte, end_byte)` replaced in source.
+    pub byte_range: (usize, usize),
+    /// Unified diff representation of the change.
+    pub diff: String,
+    /// Whether changes were written to disk (`!dry_run`).
+    pub applied: bool,
+}
+
+/// Detailed location and diagnostic for a syntax error found during AST validation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SyntaxErrorDetail {
+    /// 1-based line number.
+    pub line: usize,
+    /// 1-based column number.
+    pub column: usize,
+    /// 0-based byte offset in the source.
+    pub byte_offset: usize,
+    /// Tree-sitter node kind (e.g., `"ERROR"` or `"MISSING ;"`).
+    pub kind: String,
+    /// Snippet of erroneous source code around the error.
+    pub snippet: String,
+    /// Whether the error represents a missing token.
+    pub is_missing: bool,
+}
+
+/// Discovered test fixture or existing reference test pattern.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiscoveredFixture {
+    /// File path where the reference test was found.
+    pub file_path: String,
+    /// Extracted test function signature or snippet.
+    pub snippet: String,
+}
+
+/// Sliced target symbol accompanied by mock scaffolding and unit test harness.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TestContextResult {
+    /// Complete AST context slice of the target symbol and its dependencies.
+    pub slice: SliceResult,
+    /// Detected or requested test runner / framework (e.g. `"cargo"`, `"pytest"`, `"vitest"`, `"jest"`, `"gotest"`).
+    pub test_framework: String,
+    /// Generated mock and spy declarations for all stripped calls.
+    pub mock_scaffolding: String,
+    /// Scaffolding template for writing tests against the target symbol.
+    pub test_template: String,
+    /// Nearby reference test fixtures discovered in the repository.
+    pub reference_fixtures: Vec<DiscoveredFixture>,
+}
+
+impl TestContextResult {
+    /// Formats the test context result as Markdown.
+    pub fn to_markdown(&self) -> String {
+        let mut out = String::new();
+        out.push_str(&format!(
+            "# Test Context: `{}` ({})\n\n",
+            self.slice.target_symbol.name, self.test_framework
+        ));
+        out.push_str("## 1. Target Symbol & Context Slice\n\n");
+        out.push_str(&self.slice.to_markdown());
+        out.push_str("\n\n");
+
+        if !self.mock_scaffolding.trim().is_empty() {
+            out.push_str("## 2. Generated Mock Scaffolding\n\n```");
+            out.push_str(&self.slice.target_symbol.language);
+            out.push('\n');
+            out.push_str(self.mock_scaffolding.trim());
+            out.push_str("\n```\n\n");
+        }
+
+        if !self.test_template.trim().is_empty() {
+            out.push_str("## 3. Unit Test Template\n\n```");
+            out.push_str(&self.slice.target_symbol.language);
+            out.push('\n');
+            out.push_str(self.test_template.trim());
+            out.push_str("\n```\n\n");
+        }
+
+        if !self.reference_fixtures.is_empty() {
+            out.push_str("## 4. Reference Fixtures Discovered\n\n");
+            for fixture in &self.reference_fixtures {
+                out.push_str(&format!(
+                    "### `{}`\n```{}\n{}\n```\n\n",
+                    fixture.file_path,
+                    self.slice.target_symbol.language,
+                    fixture.snippet.trim()
+                ));
+            }
+        }
+
+        out
+    }
+
+    /// Formats the test context result as pretty JSON.
+    pub fn to_json(&self) -> String {
+        serde_json::to_string_pretty(self).unwrap_or_else(|_| "{}".to_string())
     }
 }
