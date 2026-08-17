@@ -27,3 +27,6 @@ mod test_slice_features;
 
 #[path = "tier1_features/test_stats_features.rs"]
 mod test_stats_features;
+
+#[path = "tier1_features/test_m2_multifile.rs"]
+mod test_m2_multifile;

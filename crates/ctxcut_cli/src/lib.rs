@@ -106,6 +106,10 @@ pub enum Commands {
         #[arg(long, default_value = "text")]
         format: String,
 
+        /// Enable fast heuristic token estimation scan without deep AST slicing.
+        #[arg(short = 'f', long)]
+        fast: bool,
+
         /// Display persistent lifetime telemetry history and ROI dashboard.
         #[arg(long)]
         history: bool,
@@ -269,12 +273,13 @@ where
         Some(Commands::Stats {
             path,
             format,
+            fast,
             history,
         }) => {
             if history {
                 run_metrics_command(&format)?;
             } else if let Some(target_path) = path {
-                let report = stats::calculate_stats(&target_path)?;
+                let report = stats::calculate_stats(&target_path, fast)?;
                 if format.eq_ignore_ascii_case("json") {
                     println!("{}", serde_json::to_string_pretty(&report)?);
                 } else {
@@ -371,9 +376,21 @@ pub fn run_cli() -> Result<()> {
     })
 }
 
+fn parse_target(target: &str) -> Option<(&str, &str)> {
+    let search_start = if target.len() >= 2
+        && target.as_bytes()[1] == b':'
+        && target.as_bytes()[0].is_ascii_alphabetic()
+    {
+        2
+    } else {
+        0
+    };
+    let colon_idx = target[search_start..].find(':')? + search_start;
+    Some((&target[..colon_idx], &target[colon_idx + 1..]))
+}
+
 fn handle_slice_command(target: &str, opts: &SliceOptions) -> Result<Vec<SliceResult>> {
-    let (file_part, symbol_part) = target
-        .rsplit_once(':')
+    let (file_part, symbol_part) = parse_target(target)
         .context("Invalid target format. Expected `<file_path>:<symbol_name>` (e.g. `src/orders.ts:payOrder`)")?;
 
     let file_path = Path::new(file_part);

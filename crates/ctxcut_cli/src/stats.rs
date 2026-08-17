@@ -2,16 +2,16 @@
 
 use anyhow::Result;
 use ctxcut_core::{
-    count_lines, count_tokens, ContextSlicer, LanguageRegistry, ParserManager, SliceOptions,
-    SupportedLanguage,
+    calculate_savings_percentage, count_lines, count_tokens, estimate_sliced_tokens, ContextSlicer,
+    LanguageRegistry, ParserManager, ProjectWalker, SliceOptions, SupportedLanguage,
+    TraversalConfig,
 };
-use ignore::WalkBuilder;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
 /// Summary report of token statistics.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StatsReport {
     /// Total number of source files analyzed.
     pub total_files: usize,
@@ -28,7 +28,7 @@ pub struct StatsReport {
 }
 
 /// Statistics for an individual file.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FileStatItem {
     /// Relative or absolute path to the file.
     pub path: String,
@@ -42,67 +42,138 @@ pub struct FileStatItem {
     pub savings_percentage: f64,
 }
 
-/// Calculates token statistics for a single file or an entire directory.
-pub fn calculate_stats(target_path: &Path) -> Result<StatsReport> {
+/// Calculates token statistics for a single file or directory.
+/// When `fast` is true, performs a rapid heuristic scan without full AST symbol parsing.
+pub fn calculate_stats(target_path: &Path, fast: bool) -> Result<StatsReport> {
+    if fast {
+        calculate_fast_stats(target_path)
+    } else {
+        calculate_deep_stats(target_path)
+    }
+}
+
+/// Rapid token estimation scan mode using calibrated heuristic model.
+pub fn calculate_fast_stats(target_path: &Path) -> Result<StatsReport> {
     if target_path.is_file() {
-        let item = analyze_single_file(target_path)?;
+        let item = analyze_single_file_fast(target_path)?;
         let total_raw = item.raw_tokens;
         let total_sliced = item.sliced_tokens;
         let total_lines = item.lines;
         let savings = item.savings_percentage;
 
-        Ok(StatsReport {
+        return Ok(StatsReport {
             total_files: 1,
             total_raw_tokens: total_raw,
             total_sliced_tokens: total_sliced,
             savings_percentage: savings,
             total_lines,
             files: vec![item],
-        })
-    } else {
-        let mut file_items = Vec::new();
-        let mut total_raw = 0;
-        let mut total_sliced = 0;
-        let mut total_lines = 0;
+        });
+    }
 
-        let walker = WalkBuilder::new(target_path)
-            .hidden(true)
-            .parents(true)
-            .git_ignore(true)
-            .build();
+    let config = TraversalConfig::default();
+    let file_paths = ProjectWalker::collect_files(target_path, &config);
 
-        for entry in walker.flatten() {
-            let path = entry.path();
-            if path.is_file() && SupportedLanguage::from_path(path).is_some() {
-                if let Ok(item) = analyze_single_file(path) {
-                    total_raw += item.raw_tokens;
-                    total_sliced += item.sliced_tokens;
-                    total_lines += item.lines;
-                    file_items.push(item);
-                }
+    let mut file_items = Vec::new();
+    let mut total_raw = 0;
+    let mut total_sliced = 0;
+    let mut total_lines = 0;
+
+    for path in file_paths {
+        if SupportedLanguage::from_path(&path).is_some() {
+            if let Ok(item) = analyze_single_file_fast(&path) {
+                total_raw += item.raw_tokens;
+                total_sliced += item.sliced_tokens;
+                total_lines += item.lines;
+                file_items.push(item);
             }
         }
-
-        #[allow(clippy::cast_precision_loss)]
-        let savings_percentage = if total_raw == 0 || total_sliced >= total_raw {
-            0.0
-        } else {
-            let pct = ((total_raw - total_sliced) as f64 / total_raw as f64) * 100.0;
-            (pct * 100.0).round() / 100.0
-        };
-
-        Ok(StatsReport {
-            total_files: file_items.len(),
-            total_raw_tokens: total_raw,
-            total_sliced_tokens: total_sliced,
-            savings_percentage,
-            total_lines,
-            files: file_items,
-        })
     }
+
+    file_items.sort_by_key(|b| std::cmp::Reverse(b.raw_tokens));
+
+    let savings_percentage = calculate_savings_percentage(total_raw, total_sliced);
+
+    Ok(StatsReport {
+        total_files: file_items.len(),
+        total_raw_tokens: total_raw,
+        total_sliced_tokens: total_sliced,
+        savings_percentage,
+        total_lines,
+        files: file_items,
+    })
 }
 
-fn analyze_single_file(file_path: &Path) -> Result<FileStatItem> {
+/// Comprehensive deep scan mode performing full AST parsing and symbol slicing.
+pub fn calculate_deep_stats(target_path: &Path) -> Result<StatsReport> {
+    if target_path.is_file() {
+        let item = analyze_single_file_deep(target_path)?;
+        let total_raw = item.raw_tokens;
+        let total_sliced = item.sliced_tokens;
+        let total_lines = item.lines;
+        let savings = item.savings_percentage;
+
+        return Ok(StatsReport {
+            total_files: 1,
+            total_raw_tokens: total_raw,
+            total_sliced_tokens: total_sliced,
+            savings_percentage: savings,
+            total_lines,
+            files: vec![item],
+        });
+    }
+
+    let config = TraversalConfig::default();
+    let file_paths = ProjectWalker::collect_files(target_path, &config);
+
+    let mut file_items = Vec::new();
+    let mut total_raw = 0;
+    let mut total_sliced = 0;
+    let mut total_lines = 0;
+
+    for path in file_paths {
+        if SupportedLanguage::from_path(&path).is_some() {
+            if let Ok(item) = analyze_single_file_deep(&path) {
+                total_raw += item.raw_tokens;
+                total_sliced += item.sliced_tokens;
+                total_lines += item.lines;
+                file_items.push(item);
+            }
+        }
+    }
+
+    file_items.sort_by_key(|b| std::cmp::Reverse(b.raw_tokens));
+
+    let savings_percentage = calculate_savings_percentage(total_raw, total_sliced);
+
+    Ok(StatsReport {
+        total_files: file_items.len(),
+        total_raw_tokens: total_raw,
+        total_sliced_tokens: total_sliced,
+        savings_percentage,
+        total_lines,
+        files: file_items,
+    })
+}
+
+fn analyze_single_file_fast(file_path: &Path) -> Result<FileStatItem> {
+    let source = fs::read_to_string(file_path)?;
+    let lines = count_lines(&source);
+    let raw_tokens = count_tokens(&source);
+    let lang = SupportedLanguage::from_path(file_path);
+    let sliced_tokens = estimate_sliced_tokens(raw_tokens, lines, lang);
+    let savings_percentage = calculate_savings_percentage(raw_tokens, sliced_tokens);
+
+    Ok(FileStatItem {
+        path: file_path.to_string_lossy().to_string(),
+        lines,
+        raw_tokens,
+        sliced_tokens,
+        savings_percentage,
+    })
+}
+
+fn analyze_single_file_deep(file_path: &Path) -> Result<FileStatItem> {
     let source = fs::read_to_string(file_path)?;
     let lines = count_lines(&source);
     let raw_tokens = count_tokens(&source);
@@ -129,17 +200,12 @@ fn analyze_single_file(file_path: &Path) -> Result<FileStatItem> {
         }
     }
 
+    let lang = SupportedLanguage::from_path(file_path);
     let avg_sliced_tokens = total_slice_tokens
         .checked_div(symbol_count)
-        .unwrap_or_else(|| (raw_tokens / 5).max(1).min(raw_tokens));
+        .unwrap_or_else(|| estimate_sliced_tokens(raw_tokens, lines, lang));
 
-    #[allow(clippy::cast_precision_loss)]
-    let savings_percentage = if raw_tokens == 0 || avg_sliced_tokens >= raw_tokens {
-        0.0
-    } else {
-        let pct = ((raw_tokens - avg_sliced_tokens) as f64 / raw_tokens as f64) * 100.0;
-        (pct * 100.0).round() / 100.0
-    };
+    let savings_percentage = calculate_savings_percentage(raw_tokens, avg_sliced_tokens);
 
     Ok(FileStatItem {
         path: file_path.to_string_lossy().to_string(),
@@ -151,6 +217,7 @@ fn analyze_single_file(file_path: &Path) -> Result<FileStatItem> {
 }
 
 /// Formats a `StatsReport` into human-readable terminal table output.
+#[must_use]
 pub fn format_stats_text(report: &StatsReport) -> String {
     let mut out = String::new();
     out.push_str("\n📊 ctxcut Token Optimization & Context Statistics\n");

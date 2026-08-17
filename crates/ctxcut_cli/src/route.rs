@@ -1,8 +1,9 @@
 //! Web framework route handler resolver.
 
 use anyhow::{bail, Result};
-use ctxcut_core::{ContextSlicer, SliceOptions, SliceResult, SupportedLanguage};
-use ignore::WalkBuilder;
+use ctxcut_core::{
+    ContextSlicer, ProjectWalker, SliceOptions, SliceResult, SupportedLanguage, TraversalConfig,
+};
 use std::fs;
 use std::path::Path;
 
@@ -17,17 +18,12 @@ pub fn resolve_route_slice(
     let method_lower = method.to_lowercase();
     let target_path_clean = route_path.trim_matches('/');
 
-    let walker = WalkBuilder::new(search_root)
-        .hidden(true)
-        .parents(true)
-        .git_ignore(true)
-        .build();
-
+    let config = TraversalConfig::default();
+    let files = ProjectWalker::collect_files(search_root, &config);
     let slicer = ContextSlicer::new();
 
-    for entry in walker.flatten() {
-        let path = entry.path();
-        if !path.is_file() || SupportedLanguage::from_path(path).is_none() {
+    for path in &files {
+        if SupportedLanguage::from_path(path).is_none() {
             continue;
         }
 

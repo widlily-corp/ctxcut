@@ -198,3 +198,37 @@ fn test_stats_reduction_bounds_validation() {
         "Full tokens must exceed slice tokens"
     );
 }
+
+/// Test 7: CLI `--fast` flag execution on repository directory.
+#[test]
+fn test_stats_fast_flag_execution() {
+    let runner = CliRunner::new();
+    let dir_path = "tests/fixtures/typescript";
+
+    let output = runner
+        .run(&["stats", dir_path, "--fast"])
+        .expect("Failed to execute ctxcut stats --fast");
+
+    output.assert_success();
+    assert!(output
+        .stdout
+        .contains("ctxcut Token Optimization & Context Statistics"));
+    assert!(output.stdout.contains("Total Files Analyzed:"));
+}
+
+/// Test 8: CLI `-f` short flag and `--format json`.
+#[test]
+fn test_stats_fast_short_flag_json() {
+    let runner = CliRunner::new();
+    let dir_path = "tests/fixtures/typescript";
+
+    let output = runner
+        .run(&["stats", dir_path, "-f", "--format", "json"])
+        .expect("Failed to execute ctxcut stats -f --format json");
+
+    output.assert_success();
+    let json: Value = output.parse_json().expect("Output must be valid JSON");
+    assert!(json.get("total_files").is_some());
+    assert!(json.get("total_raw_tokens").is_some());
+    assert!(json.get("savings_percentage").is_some());
+}
