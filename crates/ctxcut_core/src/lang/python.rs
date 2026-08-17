@@ -207,6 +207,10 @@ impl LanguageAdapter for PythonAdapter {
                 continue;
             }
 
+            if opts.depth == 0 {
+                continue;
+            }
+
             // 2. Search via imports from current file and any known imported modules
             let mut found_type = None;
             for mod_path in &known_modules.clone() {

@@ -172,6 +172,10 @@ impl LanguageAdapter for RustAdapter {
                 continue;
             }
 
+            if opts.depth == 0 {
+                continue;
+            }
+
             // B. Check sibling .rs files in the same directory/crate
             if let Ok(entries) = fs::read_dir(dir) {
                 let mut found = false;

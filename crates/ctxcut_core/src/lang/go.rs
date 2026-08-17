@@ -155,6 +155,10 @@ impl LanguageAdapter for GoAdapter {
                 continue;
             }
 
+            if opts.depth == 0 {
+                continue;
+            }
+
             // 2. Check sibling .go files in the same package/directory
             if let Ok(entries) = fs::read_dir(dir) {
                 let mut found = false;

@@ -1,15 +1,15 @@
-//! Type reference extraction and transitive type hoisting for TypeScript and TSX.
+//! Type reference extraction and transitive type hoisting across TypeScript, Python, Go, and Rust.
 
 use crate::error::Result;
-use crate::model::{ExtractedType, SliceOptions};
+use crate::model::{ExtractedType, SliceOptions, SupportedLanguage};
 use crate::parser::{AstUtils, ParserManager};
 use crate::resolver::imports::ImportResolver;
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tree_sitter::Node;
 
-/// Type hoister resolving interfaces, type aliases, enums, and DTOs.
+/// Type hoister resolving interfaces, type aliases, enums, structs, and DTOs.
 pub struct TypeHoister;
 
 impl TypeHoister {
@@ -43,10 +43,7 @@ impl TypeHoister {
         }
 
         // Cache for loaded and parsed external files
-        let mut file_cache: std::collections::HashMap<
-            std::path::PathBuf,
-            (String, tree_sitter::Tree),
-        > = std::collections::HashMap::new();
+        let mut file_cache: HashMap<PathBuf, (String, tree_sitter::Tree)> = HashMap::new();
 
         // 3. Process queue up to opts.depth
         while let Some((type_name, depth)) = queue.pop_front() {
@@ -77,6 +74,11 @@ impl TypeHoister {
                     }
                 }
                 hoisted.push(extracted);
+                continue;
+            }
+
+            // If depth == 0, skip foreign resolution
+            if opts.depth == 0 {
                 continue;
             }
 
@@ -120,6 +122,157 @@ impl TypeHoister {
 
         Ok(hoisted)
     }
+
+    /// Hoists and extracts definitions for the specified types from `target_file`.
+    pub fn resolve_foreign_types(
+        target_file: &Path,
+        type_names: &[&str],
+    ) -> Result<Vec<ExtractedType>> {
+        resolve_foreign_types(target_file, type_names)
+    }
+}
+
+/// Resolves type definitions from a foreign file or package directory across TS, Python, Go, and Rust.
+pub fn resolve_foreign_types(
+    target_file: &Path,
+    type_names: &[&str],
+) -> Result<Vec<ExtractedType>> {
+    if type_names.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut results = Vec::new();
+    let mut found_names = HashSet::new();
+
+    // 1. Directory case (e.g. Go package directory)
+    if target_file.is_dir() {
+        if let Ok(entries) = fs::read_dir(target_file) {
+            for entry in entries.flatten() {
+                let p = entry.path();
+                if p.is_file() {
+                    let lang = SupportedLanguage::from_path(&p);
+                    if let Some(l) = lang {
+                        if let Ok(types) = extract_types_from_single_file(&p, l, type_names) {
+                            for t in types {
+                                if found_names.insert(t.name.clone()) {
+                                    results.push(t);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return Ok(results);
+    }
+
+    // 2. Single file case
+    let lang = SupportedLanguage::from_path(target_file).unwrap_or(SupportedLanguage::TypeScript);
+    if let Ok(types) = extract_types_from_single_file(target_file, lang, type_names) {
+        for t in types {
+            if found_names.insert(t.name.clone()) {
+                results.push(t);
+            }
+        }
+    }
+
+    // 3. If any types are still missing, check sibling files (for Go, Rust, or Python)
+    let missing: Vec<&str> = type_names
+        .iter()
+        .copied()
+        .filter(|n| !found_names.contains(*n))
+        .collect();
+
+    if !missing.is_empty() {
+        if let Some(parent_dir) = target_file.parent() {
+            if let Ok(entries) = fs::read_dir(parent_dir) {
+                for entry in entries.flatten() {
+                    let p = entry.path();
+                    if p.is_file() && p != target_file {
+                        let sibling_lang = SupportedLanguage::from_path(&p);
+                        if sibling_lang == Some(lang) {
+                            if let Ok(sibling_types) =
+                                extract_types_from_single_file(&p, lang, &missing)
+                            {
+                                for t in sibling_types {
+                                    if found_names.insert(t.name.clone()) {
+                                        results.push(t);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(results)
+}
+
+fn extract_types_from_single_file(
+    file_path: &Path,
+    lang: SupportedLanguage,
+    type_names: &[&str],
+) -> Result<Vec<ExtractedType>> {
+    let source = match fs::read_to_string(file_path) {
+        Ok(s) => s,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    let ts_lang: tree_sitter::Language = match lang {
+        SupportedLanguage::TypeScript => {
+            let ext = file_path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("")
+                .to_lowercase();
+            if ext == "tsx" {
+                tree_sitter_typescript::LANGUAGE_TSX.into()
+            } else {
+                tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()
+            }
+        }
+        SupportedLanguage::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
+        SupportedLanguage::Python => tree_sitter_python::LANGUAGE.into(),
+        SupportedLanguage::Go => tree_sitter_go::LANGUAGE.into(),
+        SupportedLanguage::Rust => tree_sitter_rust::LANGUAGE.into(),
+    };
+
+    let tree = match ParserManager::parse_source(&source, &ts_lang, file_path) {
+        Ok(t) => t,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    let root = tree.root_node();
+    let mut extracted = Vec::new();
+
+    for &name in type_names {
+        match lang {
+            SupportedLanguage::TypeScript | SupportedLanguage::JavaScript => {
+                if let Some(t) = find_type_in_file(root, &source, name, file_path) {
+                    extracted.push(t);
+                }
+            }
+            SupportedLanguage::Python => {
+                if let Some(t) = find_python_type_in_file(root, &source, name, file_path) {
+                    extracted.push(t);
+                }
+            }
+            SupportedLanguage::Go => {
+                if let Some(t) = find_go_type_in_file(root, &source, name, file_path) {
+                    extracted.push(t);
+                }
+            }
+            SupportedLanguage::Rust => {
+                if let Some(t) = find_rust_type_in_file(root, &source, name, file_path) {
+                    extracted.push(t);
+                }
+            }
+        }
+    }
+
+    Ok(extracted)
 }
 
 fn collect_scoped_generics(node: Node<'_>, source: &str) -> HashSet<String> {
@@ -226,11 +379,176 @@ fn find_type_in_file(
     None
 }
 
+fn find_python_type_in_file(
+    root: Node<'_>,
+    source: &str,
+    target_name: &str,
+    file_path: &Path,
+) -> Option<ExtractedType> {
+    let mut cursor = root.walk();
+    for child in root.children(&mut cursor) {
+        let decl = if child.kind() == "decorated_definition" {
+            child.child_by_field_name("definition").unwrap_or(child)
+        } else {
+            child
+        };
+
+        match decl.kind() {
+            "class_definition" => {
+                if let Some(name_node) = decl.child_by_field_name("name") {
+                    if AstUtils::node_text(name_node, source) == target_name {
+                        return Some(ExtractedType {
+                            name: target_name.to_string(),
+                            kind: "class".to_string(),
+                            file_path: file_path.to_string_lossy().to_string(),
+                            definition: AstUtils::node_text(child, source).trim().to_string(),
+                        });
+                    }
+                }
+            }
+            "type_alias_statement" => {
+                let full_text = decl
+                    .child_by_field_name("name")
+                    .or_else(|| decl.named_child(0))
+                    .map(|n| AstUtils::node_text(n, source))
+                    .unwrap_or("");
+                let base_name = full_text.split('[').next().unwrap_or(full_text).trim();
+                if base_name == target_name {
+                    return Some(ExtractedType {
+                        name: target_name.to_string(),
+                        kind: "type_alias".to_string(),
+                        file_path: file_path.to_string_lossy().to_string(),
+                        definition: AstUtils::node_text(child, source).trim().to_string(),
+                    });
+                }
+            }
+            "expression_statement" => {
+                if let Some(assignment) = decl.named_child(0) {
+                    if assignment.kind() == "assignment" {
+                        if let Some(left) = assignment.child_by_field_name("left") {
+                            if AstUtils::node_text(left, source) == target_name {
+                                return Some(ExtractedType {
+                                    name: target_name.to_string(),
+                                    kind: "type_alias".to_string(),
+                                    file_path: file_path.to_string_lossy().to_string(),
+                                    definition: AstUtils::node_text(child, source)
+                                        .trim()
+                                        .to_string(),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn find_go_type_in_file(
+    root: Node<'_>,
+    source: &str,
+    target_name: &str,
+    file_path: &Path,
+) -> Option<ExtractedType> {
+    let mut cursor = root.walk();
+    for child in root.children(&mut cursor) {
+        if child.kind() == "type_declaration" {
+            for spec in AstUtils::find_children_by_kind(child, "type_spec") {
+                if let Some(name_node) = spec.child_by_field_name("name") {
+                    if AstUtils::node_text(name_node, source) == target_name {
+                        let kind = if let Some(type_node) = spec.child_by_field_name("type") {
+                            match type_node.kind() {
+                                "struct_type" => "struct",
+                                "interface_type" => "interface",
+                                _ => "type_alias",
+                            }
+                        } else {
+                            "type_alias"
+                        };
+                        return Some(ExtractedType {
+                            name: target_name.to_string(),
+                            kind: kind.to_string(),
+                            file_path: file_path.to_string_lossy().to_string(),
+                            definition: AstUtils::node_text(child, source).trim().to_string(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn find_rust_type_in_file(
+    root: Node<'_>,
+    source: &str,
+    target_name: &str,
+    file_path: &Path,
+) -> Option<ExtractedType> {
+    let mut cursor = root.walk();
+    for child in root.children(&mut cursor) {
+        match child.kind() {
+            "struct_item" => {
+                if let Some(name_node) = child.child_by_field_name("name") {
+                    if AstUtils::node_text(name_node, source) == target_name {
+                        return Some(ExtractedType {
+                            name: target_name.to_string(),
+                            kind: "struct".to_string(),
+                            file_path: file_path.to_string_lossy().to_string(),
+                            definition: AstUtils::node_text(child, source).trim().to_string(),
+                        });
+                    }
+                }
+            }
+            "enum_item" => {
+                if let Some(name_node) = child.child_by_field_name("name") {
+                    if AstUtils::node_text(name_node, source) == target_name {
+                        return Some(ExtractedType {
+                            name: target_name.to_string(),
+                            kind: "enum".to_string(),
+                            file_path: file_path.to_string_lossy().to_string(),
+                            definition: AstUtils::node_text(child, source).trim().to_string(),
+                        });
+                    }
+                }
+            }
+            "trait_item" => {
+                if let Some(name_node) = child.child_by_field_name("name") {
+                    if AstUtils::node_text(name_node, source) == target_name {
+                        return Some(ExtractedType {
+                            name: target_name.to_string(),
+                            kind: "trait".to_string(),
+                            file_path: file_path.to_string_lossy().to_string(),
+                            definition: AstUtils::node_text(child, source).trim().to_string(),
+                        });
+                    }
+                }
+            }
+            "type_item" => {
+                if let Some(name_node) = child.child_by_field_name("name") {
+                    if AstUtils::node_text(name_node, source) == target_name {
+                        return Some(ExtractedType {
+                            name: target_name.to_string(),
+                            kind: "type_alias".to_string(),
+                            file_path: file_path.to_string_lossy().to_string(),
+                            definition: AstUtils::node_text(child, source).trim().to_string(),
+                        });
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 fn resolve_type_from_module(
     type_name: &str,
     target_file: &Path,
     tree_sitter_lang: &tree_sitter::Language,
-    cache: &mut std::collections::HashMap<std::path::PathBuf, (String, tree_sitter::Tree)>,
+    cache: &mut HashMap<PathBuf, (String, tree_sitter::Tree)>,
 ) -> Option<ExtractedType> {
     let (source, tree) = get_or_load_file(target_file, tree_sitter_lang, cache)?;
     let root = tree.root_node();
@@ -272,7 +590,7 @@ fn resolve_type_from_module(
 fn get_or_load_file<'a>(
     path: &Path,
     tree_sitter_lang: &tree_sitter::Language,
-    cache: &'a mut std::collections::HashMap<std::path::PathBuf, (String, tree_sitter::Tree)>,
+    cache: &'a mut HashMap<PathBuf, (String, tree_sitter::Tree)>,
 ) -> Option<(&'a str, &'a tree_sitter::Tree)> {
     if !cache.contains_key(path) {
         let content = fs::read_to_string(path).ok()?;
@@ -381,5 +699,80 @@ fn is_builtin_or_primitive(name: &str) -> bool {
             | "Element"
             | "ReactElement"
             | "ReactNode"
+            // Python primitives
+            | "int"
+            | "float"
+            | "str"
+            | "bool"
+            | "bytes"
+            | "list"
+            | "dict"
+            | "set"
+            | "tuple"
+            | "Optional"
+            | "Union"
+            | "Any"
+            | "Sequence"
+            | "Iterable"
+            | "Mapping"
+            | "Callable"
+            | "None"
+            | "self"
+            | "cls"
+            // Go primitives
+            | "int8"
+            | "int16"
+            | "int32"
+            | "int64"
+            | "uint"
+            | "uint8"
+            | "uint16"
+            | "uint32"
+            | "uint64"
+            | "uintptr"
+            | "byte"
+            | "rune"
+            | "float32"
+            | "float64"
+            | "complex64"
+            | "complex128"
+            | "error"
+            | "comparable"
+            // Rust primitives
+            | "i8"
+            | "i16"
+            | "i32"
+            | "i64"
+            | "i128"
+            | "isize"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "u64"
+            | "u128"
+            | "usize"
+            | "f32"
+            | "f64"
+            | "char"
+            | "Vec"
+            | "Box"
+            | "Arc"
+            | "Rc"
+            | "Path"
+            | "PathBuf"
+            | "Self"
+            | "Send"
+            | "Sync"
+            | "Clone"
+            | "Copy"
+            | "Debug"
+            | "Display"
+            | "Default"
+            | "AsRef"
+            | "From"
+            | "Into"
+            | "Fn"
+            | "FnMut"
+            | "FnOnce"
     )
 }

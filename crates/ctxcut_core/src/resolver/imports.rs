@@ -1,7 +1,9 @@
-//! Import and module resolver for TypeScript and JavaScript ASTs.
+//! Import and module resolver supporting TypeScript, JavaScript, Python, Go, and Rust ASTs.
 
+use crate::model::SupportedLanguage;
 use crate::parser::AstUtils;
 use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 use tree_sitter::Node;
 
@@ -12,11 +14,11 @@ pub struct ImportMapping {
     pub local_name: String,
     /// Original exported name in the foreign module.
     pub imported_name: String,
-    /// Raw module specifier (e.g. `./types`, `../utils/crypto`).
+    /// Raw module specifier (e.g. `./types`, `../utils/crypto`, `app.models`, `crate::models`).
     pub specifier: String,
 }
 
-/// Resolves module imports and finds candidate target files on disk.
+/// Resolves module imports and finds candidate target files on disk across supported languages.
 pub struct ImportResolver;
 
 impl ImportResolver {
@@ -49,7 +51,7 @@ impl ImportResolver {
                             map.insert(
                                 name.clone(),
                                 ImportMapping {
-                                    local_name: name.clone(),
+                                    local_name: name,
                                     imported_name: "default".to_string(),
                                     specifier: specifier.to_string(),
                                 },
@@ -97,7 +99,7 @@ impl ImportResolver {
                         map.insert(
                             ns_name.clone(),
                             ImportMapping {
-                                local_name: ns_name.clone(),
+                                local_name: ns_name,
                                 imported_name: "*".to_string(),
                                 specifier: specifier.to_string(),
                             },
@@ -157,7 +159,7 @@ impl ImportResolver {
                                                         map.insert(
                                                             name.clone(),
                                                             ImportMapping {
-                                                                local_name: name.clone(),
+                                                                local_name: name,
                                                                 imported_name: "default"
                                                                     .to_string(),
                                                                 specifier: specifier.to_string(),
@@ -179,49 +181,21 @@ impl ImportResolver {
         map
     }
 
-    /// Resolves a module specifier to an existing file path on disk.
+    /// Resolves a module specifier to an existing file or directory path on disk across any supported language.
     pub fn resolve_module_path(from_file: &Path, specifier: &str) -> Option<PathBuf> {
-        if !specifier.starts_with('.')
-            && !specifier.starts_with('/')
-            && !specifier.starts_with('\\')
-        {
-            return None;
-        }
-
-        let parent_dir = from_file.parent().unwrap_or_else(|| Path::new("."));
-        let joined = parent_dir.join(specifier);
-        let base_path = normalize_path(&joined);
-
-        // 1. Direct path exists
-        if base_path.is_file() {
-            return Some(base_path);
-        }
-
-        // 2. Candidate file extensions
-        let extensions = ["ts", "tsx", "d.ts", "js", "jsx", "mjs", "cjs"];
-        for ext in &extensions {
-            let candidate = base_path.with_extension(ext);
-            if candidate.is_file() {
-                return Some(candidate);
+        let lang = SupportedLanguage::from_path(from_file);
+        match lang {
+            Some(SupportedLanguage::TypeScript | SupportedLanguage::JavaScript) => {
+                resolve_ts_js_specifier(from_file, specifier)
             }
-            let candidate_str = format!("{}.{}", base_path.display(), ext);
-            let candidate_path = PathBuf::from(candidate_str);
-            if candidate_path.is_file() {
-                return Some(candidate_path);
-            }
+            Some(SupportedLanguage::Python) => resolve_python_specifier(from_file, specifier),
+            Some(SupportedLanguage::Go) => resolve_go_specifier(from_file, specifier),
+            Some(SupportedLanguage::Rust) => resolve_rust_specifier(from_file, specifier),
+            None => resolve_ts_js_specifier(from_file, specifier)
+                .or_else(|| resolve_python_specifier(from_file, specifier))
+                .or_else(|| resolve_go_specifier(from_file, specifier))
+                .or_else(|| resolve_rust_specifier(from_file, specifier)),
         }
-
-        // 3. Directory index resolution
-        if base_path.is_dir() {
-            for ext in &extensions {
-                let candidate = base_path.join(format!("index.{ext}"));
-                if candidate.is_file() {
-                    return Some(candidate);
-                }
-            }
-        }
-
-        None
     }
 
     /// Extracts barrel re-exports from a file (e.g. `export * from './foo'`, `export { Bar } from './bar'`).
@@ -286,7 +260,417 @@ impl ImportResolver {
     }
 }
 
-fn normalize_path(path: &Path) -> PathBuf {
+/// Resolves TypeScript and JavaScript module specifiers to target file paths on disk.
+pub fn resolve_ts_js_specifier(from_file: &Path, specifier: &str) -> Option<PathBuf> {
+    let parent_dir = from_file.parent().unwrap_or_else(|| Path::new("."));
+
+    let raw_target = if specifier.starts_with("@/") || specifier.starts_with("~/") {
+        let root = find_project_root(from_file)?;
+        let remainder = &specifier[2..];
+        let src_candidate = root.join("src").join(remainder);
+        if src_candidate.exists() {
+            src_candidate
+        } else {
+            root.join(remainder)
+        }
+    } else if specifier.starts_with('.')
+        || specifier.starts_with('/')
+        || specifier.starts_with('\\')
+    {
+        parent_dir.join(specifier)
+    } else {
+        return None;
+    };
+
+    let base_path = normalize_path(&raw_target);
+
+    // 1. Direct path exists as file
+    if base_path.is_file() {
+        return Some(base_path);
+    }
+
+    // 2. Candidate file extensions
+    let extensions = ["ts", "tsx", "d.ts", "js", "jsx", "mjs", "cjs"];
+
+    // Handle ESM .js -> .ts/.tsx mapping
+    let check_base = if let Some(stem) = base_path.to_str() {
+        if stem.ends_with(".js") {
+            PathBuf::from(stem.trim_end_matches(".js"))
+        } else {
+            base_path.clone()
+        }
+    } else {
+        base_path.clone()
+    };
+
+    for ext in &extensions {
+        let candidate = check_base.with_extension(ext);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+        let candidate_str = format!("{}.{}", check_base.display(), ext);
+        let candidate_path = PathBuf::from(candidate_str);
+        if candidate_path.is_file() {
+            return Some(candidate_path);
+        }
+    }
+
+    // 3. Directory index resolution
+    let target_dir = if base_path.is_dir() {
+        Some(&base_path)
+    } else if check_base.is_dir() {
+        Some(&check_base)
+    } else {
+        None
+    };
+
+    if let Some(dir) = target_dir {
+        for ext in &extensions {
+            let candidate = dir.join(format!("index.{ext}"));
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        }
+    }
+
+    None
+}
+
+/// Resolves Python module specifiers (relative dots and absolute module names) to target files on disk.
+pub fn resolve_python_specifier(from_file: &Path, specifier: &str) -> Option<PathBuf> {
+    let current_dir = from_file.parent().unwrap_or_else(|| Path::new("."));
+    let trimmed = specifier.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let dots = trimmed.chars().take_while(|c| *c == '.').count();
+    let mod_name = trimmed[dots..].trim();
+
+    if dots > 0 {
+        // Relative import: level 1 = ., level 2 = .., etc.
+        let mut base = current_dir;
+        for _ in 1..dots {
+            base = base.parent()?;
+        }
+
+        if mod_name.is_empty() {
+            return check_python_candidate(base);
+        }
+
+        let parts: Vec<&str> = mod_name.split('.').filter(|s| !s.is_empty()).collect();
+        let mut p = base.to_path_buf();
+        for part in parts {
+            p.push(part);
+        }
+        check_python_candidate(&p)
+    } else {
+        // Absolute import
+        let parts: Vec<&str> = trimmed.split('.').filter(|s| !s.is_empty()).collect();
+        if parts.is_empty() {
+            return None;
+        }
+
+        // 1. Relative to current directory
+        let mut rel = current_dir.to_path_buf();
+        for part in &parts {
+            rel.push(part);
+        }
+        if let Some(cand) = check_python_candidate(&rel) {
+            return Some(cand);
+        }
+
+        // 2. Search ancestor directories as sys.path roots
+        let mut curr = current_dir;
+        while let Some(parent) = curr.parent() {
+            let mut p = parent.to_path_buf();
+            for part in &parts {
+                p.push(part);
+            }
+            if let Some(cand) = check_python_candidate(&p) {
+                return Some(cand);
+            }
+
+            for sub in &["src", "lib", "app", "backend"] {
+                let sub_dir = parent.join(sub);
+                if sub_dir.is_dir() {
+                    let mut sp = sub_dir;
+                    for part in &parts {
+                        sp.push(part);
+                    }
+                    if let Some(cand) = check_python_candidate(&sp) {
+                        return Some(cand);
+                    }
+                }
+            }
+
+            curr = parent;
+        }
+
+        None
+    }
+}
+
+/// Checks candidate Python file variants (.py, .pyi, __init__.py, __init__.pyi).
+fn check_python_candidate(path: &Path) -> Option<PathBuf> {
+    if path.is_file() {
+        return Some(path.to_path_buf());
+    }
+    let py = path.with_extension("py");
+    if py.is_file() {
+        return Some(py);
+    }
+    let pyi = path.with_extension("pyi");
+    if pyi.is_file() {
+        return Some(pyi);
+    }
+    let init_py = path.join("__init__.py");
+    if init_py.is_file() {
+        return Some(init_py);
+    }
+    let init_pyi = path.join("__init__.pyi");
+    if init_pyi.is_file() {
+        return Some(init_pyi);
+    }
+    None
+}
+
+/// Resolves Go module and package specifiers to directories or files on disk.
+pub fn resolve_go_specifier(from_file: &Path, specifier: &str) -> Option<PathBuf> {
+    let current_dir = from_file.parent().unwrap_or_else(|| Path::new("."));
+    let trimmed = specifier.trim_matches(['"', '\'']);
+
+    // Direct single file in same directory
+    if trimmed.ends_with(".go") {
+        let direct = current_dir.join(trimmed);
+        if direct.is_file() {
+            return Some(direct);
+        }
+    }
+
+    // 1. Relative subpackage
+    if trimmed.starts_with("./") || trimmed.starts_with("../") {
+        let target = normalize_path(&current_dir.join(trimmed));
+        if target.is_dir() && has_go_files(&target) {
+            return Some(target);
+        }
+        if target.is_file() {
+            return Some(target);
+        }
+    }
+
+    // 2. Module-rooted path using go.mod
+    if let Some((go_mod_dir, module_name)) = find_go_module(from_file) {
+        if trimmed == module_name {
+            return Some(go_mod_dir);
+        }
+        if let Some(rel) = trimmed.strip_prefix(&module_name) {
+            let rel_clean = rel.trim_start_matches(['/', '\\']);
+            let target = go_mod_dir.join(rel_clean);
+            if target.is_dir() && has_go_files(&target) {
+                return Some(target);
+            }
+        }
+    }
+
+    // 3. Fallback: Search ancestor directories for matching package folder
+    let segments: Vec<&str> = trimmed.split('/').collect();
+    if let Some(last_seg) = segments.last() {
+        let mut curr = current_dir;
+        while let Some(parent) = curr.parent() {
+            let cand = parent.join(last_seg);
+            if cand.is_dir() && has_go_files(&cand) {
+                return Some(cand);
+            }
+            curr = parent;
+        }
+    }
+
+    // Sibling directory check if trimmed matches directory name
+    let sibling_cand = current_dir.join(trimmed);
+    if sibling_cand.is_dir() && has_go_files(&sibling_cand) {
+        return Some(sibling_cand);
+    }
+
+    None
+}
+
+/// Checks if a directory contains any `.go` source files.
+pub fn has_go_files(dir: &Path) -> bool {
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_file() && p.extension().and_then(|e| e.to_str()) == Some("go") {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Finds the nearest `go.mod` and extracts its module name.
+fn find_go_module(start_path: &Path) -> Option<(PathBuf, String)> {
+    let mut curr = if start_path.is_dir() {
+        start_path
+    } else {
+        start_path.parent()?
+    };
+
+    loop {
+        let go_mod = curr.join("go.mod");
+        if go_mod.is_file() {
+            if let Ok(content) = fs::read_to_string(&go_mod) {
+                for line in content.lines() {
+                    let trimmed = line.trim();
+                    if let Some(mod_name) = trimmed.strip_prefix("module ") {
+                        return Some((curr.to_path_buf(), mod_name.trim().to_string()));
+                    }
+                }
+            }
+            return Some((curr.to_path_buf(), String::new()));
+        }
+        curr = curr.parent()?;
+    }
+}
+
+/// Resolves Rust module declarations (`mod foo;`) and `use crate::...` paths to target files.
+pub fn resolve_rust_specifier(from_file: &Path, specifier: &str) -> Option<PathBuf> {
+    let current_dir = from_file.parent().unwrap_or_else(|| Path::new("."));
+    let file_stem = from_file.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+    let clean_spec = specifier
+        .trim()
+        .trim_start_matches("pub ")
+        .trim_start_matches("use ")
+        .trim_end_matches(';')
+        .trim();
+
+    // 1. Direct mod declaration (e.g. `mod models;` or `models`)
+    if !clean_spec.contains("::") {
+        let mod_name = clean_spec;
+
+        // A. Direct sibling foo.rs
+        let sibling_rs = current_dir.join(format!("{mod_name}.rs"));
+        if sibling_rs.is_file() {
+            return Some(sibling_rs);
+        }
+
+        // B. Directory foo/mod.rs
+        let dir_mod_rs = current_dir.join(mod_name).join("mod.rs");
+        if dir_mod_rs.is_file() {
+            return Some(dir_mod_rs);
+        }
+
+        // C. Nested module under file_stem/foo.rs (Rust 2018 edition)
+        if file_stem != "lib" && file_stem != "main" && file_stem != "mod" {
+            let nested_rs = current_dir.join(file_stem).join(format!("{mod_name}.rs"));
+            if nested_rs.is_file() {
+                return Some(nested_rs);
+            }
+            let nested_mod_rs = current_dir.join(file_stem).join(mod_name).join("mod.rs");
+            if nested_mod_rs.is_file() {
+                return Some(nested_mod_rs);
+            }
+        }
+    }
+
+    // 2. Crate-relative path `use crate::models::user;`
+    if let Some(crate_path) = clean_spec.strip_prefix("crate::") {
+        let crate_root = find_rust_crate_root(from_file)?;
+        let segments: Vec<&str> = crate_path.split("::").collect();
+        let mut curr_dir = crate_root;
+
+        for (i, seg) in segments.iter().enumerate() {
+            let is_last = i == segments.len() - 1;
+            let file_cand = curr_dir.join(format!("{seg}.rs"));
+            let mod_cand = curr_dir.join(seg).join("mod.rs");
+
+            if file_cand.is_file() {
+                if is_last {
+                    return Some(file_cand);
+                }
+                curr_dir = curr_dir.join(seg);
+            } else if mod_cand.is_file() {
+                if is_last {
+                    return Some(mod_cand);
+                }
+                curr_dir = curr_dir.join(seg);
+            } else if curr_dir.join(seg).is_dir() {
+                curr_dir = curr_dir.join(seg);
+            } else if is_last {
+                let parent_file = curr_dir.with_extension("rs");
+                if parent_file.is_file() {
+                    return Some(parent_file);
+                }
+                let parent_mod = curr_dir.join("mod.rs");
+                if parent_mod.is_file() {
+                    return Some(parent_mod);
+                }
+            }
+        }
+    }
+
+    // 3. Super-relative path `use super::foo;`
+    if let Some(super_path) = clean_spec.strip_prefix("super::") {
+        if let Some(parent_dir) = current_dir.parent() {
+            let segs: Vec<&str> = super_path.split("::").collect();
+            if let Some(first) = segs.first() {
+                let cand_file = parent_dir.join(format!("{first}.rs"));
+                if cand_file.is_file() {
+                    return Some(cand_file);
+                }
+                let cand_mod = parent_dir.join(first).join("mod.rs");
+                if cand_mod.is_file() {
+                    return Some(cand_mod);
+                }
+            }
+        }
+    }
+
+    // 4. Sibling file fallback
+    let sibling_file = current_dir.join(format!("{clean_spec}.rs"));
+    if sibling_file.is_file() {
+        return Some(sibling_file);
+    }
+
+    None
+}
+
+/// Finds the root source directory for a Rust crate (e.g. `src/` or directory containing `lib.rs` / `main.rs`).
+fn find_rust_crate_root(from_file: &Path) -> Option<PathBuf> {
+    let mut curr = from_file.parent()?;
+    while let Some(parent) = curr.parent() {
+        if curr.join("Cargo.toml").is_file() {
+            let src = curr.join("src");
+            if src.is_dir() {
+                return Some(src);
+            }
+            return Some(curr.to_path_buf());
+        }
+        if curr.join("lib.rs").is_file() || curr.join("main.rs").is_file() {
+            return Some(curr.to_path_buf());
+        }
+        curr = parent;
+    }
+    None
+}
+
+/// Finds the project root directory (containing `package.json`, `tsconfig.json`, `Cargo.toml`, or `.git`).
+fn find_project_root(from_file: &Path) -> Option<PathBuf> {
+    let mut curr = from_file.parent()?;
+    loop {
+        if curr.join("package.json").is_file()
+            || curr.join("tsconfig.json").is_file()
+            || curr.join("Cargo.toml").is_file()
+            || curr.join(".git").is_dir()
+        {
+            return Some(curr.to_path_buf());
+        }
+        curr = curr.parent()?;
+    }
+}
+
+/// Normalizes a path by removing redundant `.` and `..` segments.
+pub fn normalize_path(path: &Path) -> PathBuf {
     let mut components = Vec::new();
     for comp in path.components() {
         match comp {
