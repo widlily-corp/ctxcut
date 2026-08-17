@@ -74,6 +74,17 @@ impl ContextSlicer {
             stats: TokenStats::calculate(0, 0, 0, 0),
         };
 
+        // 4.5. Framework-Aware Semantic Enhancement
+        let framework_registry = crate::framework::FrameworkRegistry::default();
+        let _ = framework_registry.enhance_slice(target_node, &source, file_path, &mut result)?;
+
+        if !opts.include_types {
+            result.hoisted_types.clear();
+        }
+        if !opts.include_calls {
+            result.stripped_calls.clear();
+        }
+
         // 5. Generate Markdown and calculate exact BPE token reduction stats
         let rendered_markdown = MarkdownFormatter::format(&result);
         let stats = compute_stats(&source, &rendered_markdown);
