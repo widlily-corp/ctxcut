@@ -13,19 +13,40 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
-use std::time::Instant;
+use std::sync::mpsc::RecvTimeoutError;
+use std::time::{Duration, Instant};
+
+/// Default execution timeout deadline for MCP tool calls (10,000 milliseconds = 10 seconds).
+pub const DEFAULT_TOOL_TIMEOUT_MS: u64 = 10_000;
 
 /// Configuration options for the MCP server.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpServerOptions {
     /// Optional destination path for structured JSONL logging.
     pub log_file: Option<PathBuf>,
+    /// Tool execution timeout in milliseconds (default: 10,000ms).
+    pub tool_timeout_ms: Option<u64>,
+}
+
+impl Default for McpServerOptions {
+    fn default() -> Self {
+        Self {
+            log_file: None,
+            tool_timeout_ms: Some(DEFAULT_TOOL_TIMEOUT_MS),
+        }
+    }
 }
 
 /// Runs the Model Context Protocol (MCP) server over STDIO with the provided options.
 pub fn run_mcp_server(options: McpServerOptions) -> Result<()> {
-    let logger = McpFileLogger::new(options.log_file);
+    let McpServerOptions {
+        log_file,
+        tool_timeout_ms,
+    } = options;
+    let logger = McpFileLogger::new(log_file);
     logger.log_start();
+
+    let server_timeout_ms = tool_timeout_ms.unwrap_or(DEFAULT_TOOL_TIMEOUT_MS);
 
     let stdin = io::stdin();
     let mut stdout = io::stdout();
@@ -67,7 +88,7 @@ pub fn run_mcp_server(options: McpServerOptions) -> Result<()> {
         }
 
         let (response, tokens_saved, error_opt) =
-            handle_mcp_request(method, &request, &logger, id.as_ref());
+            handle_mcp_request(method, &request, &logger, id.as_ref(), server_timeout_ms);
 
         let duration = start_time.elapsed();
         let duration_ms_u128 = duration.as_millis();
@@ -114,6 +135,7 @@ fn handle_mcp_request(
     req: &Value,
     logger: &McpFileLogger,
     id: Option<&Value>,
+    server_timeout_ms: u64,
 ) -> (Value, Option<usize>, Option<String>) {
     match method {
         "initialize" => {
@@ -139,7 +161,7 @@ fn handle_mcp_request(
             (build_tools_list_response(), None, None)
         }
 
-        "tools/call" => handle_tools_call(req, logger, id),
+        "tools/call" => handle_tools_call(req, logger, id, server_timeout_ms),
 
         _ => {
             let err_msg = format!("Method not found: `{method}`");
@@ -205,6 +227,10 @@ fn build_tools_list_response() -> Value {
                         "path": {
                             "type": "string",
                             "description": "File or directory path to analyze"
+                        },
+                        "fast": {
+                            "type": "boolean",
+                            "description": "Enable shallow fast estimation scan mode without deep AST slicing (default: true for directories, false for single files)"
                         }
                     },
                     "required": ["path"]
@@ -218,6 +244,7 @@ fn handle_tools_call(
     req: &Value,
     logger: &McpFileLogger,
     id: Option<&Value>,
+    server_timeout_ms: u64,
 ) -> (Value, Option<usize>, Option<String>) {
     let params = req.get("params").unwrap_or(&Value::Null);
     let tool_name = params.get("name").and_then(Value::as_str).unwrap_or("");
@@ -225,8 +252,19 @@ fn handle_tools_call(
 
     logger.log_request("tools/call", id, Some(tool_name), Some(args));
 
+    let effective_timeout_ms = args
+        .get("timeout_ms")
+        .and_then(Value::as_u64)
+        .unwrap_or_else(|| {
+            std::env::var("CTXCUT_MCP_TIMEOUT_MS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(server_timeout_ms)
+        });
+
     let start_tool = Instant::now();
-    let (response, tool_metrics, error_opt, tokens_saved) = execute_tool_call(tool_name, args);
+    let (response, tool_metrics, error_opt, tokens_saved) =
+        execute_tool_with_timeout(tool_name, args, effective_timeout_ms);
     let duration_ms = start_tool.elapsed().as_secs_f64() * 1000.0;
 
     let status = if error_opt.is_some() || response.get("isError") == Some(&json!(true)) {
@@ -246,6 +284,87 @@ fn handle_tools_call(
     });
 
     (response, tokens_saved, error_opt)
+}
+
+/// Executes an MCP tool call inside a thread boundary guarded with a timeout and panic boundary.
+pub fn execute_tool_with_timeout(
+    name: &str,
+    args: &Value,
+    timeout_ms: u64,
+) -> (Value, Option<Value>, Option<String>, Option<usize>) {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let name_owned = name.to_string();
+    let args_owned = args.clone();
+
+    let spawn_res = std::thread::Builder::new()
+        .name(format!("mcp-worker-{name}"))
+        .spawn(move || {
+            let panic_res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                execute_tool_call(&name_owned, &args_owned)
+            }));
+            let _ = tx.send(panic_res);
+        });
+
+    if let Err(e) = spawn_res {
+        let err_msg = format!("Failed to spawn worker thread: {e}");
+        let response = json!({
+            "isError": true,
+            "content": [{ "type": "text", "text": err_msg }]
+        });
+        return (response, None, Some(err_msg), None);
+    }
+
+    match rx.recv_timeout(Duration::from_millis(timeout_ms)) {
+        Ok(Ok(tool_result)) => tool_result,
+        Ok(Err(_panic_payload)) => {
+            let err_msg =
+                format!("Internal error: unexpected panic during tool `{name}` execution");
+            let response = json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err_msg }]
+            });
+            (response, None, Some(err_msg), None)
+        }
+        Err(RecvTimeoutError::Timeout) => {
+            let suggestion = match name {
+                "analyze_token_stats" => {
+                    "Pass `\"fast\": true` for rapid repository-wide estimation or specify a narrower subdirectory."
+                }
+                "get_diff_slice" => {
+                    "Specify a narrower path or review staged changes only with `\"staged\": true`."
+                }
+                _ => "Try narrowing the query target or checking repository size.",
+            };
+            let timeout_msg = format!(
+                "⏳ Timeout: Tool `{name}` execution timed out after {timeout_ms}ms.\nSuggestion: {suggestion}"
+            );
+            let response = json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": timeout_msg }],
+                "timeout": {
+                    "tool": name,
+                    "timeout_ms": timeout_ms,
+                    "suggestion": suggestion
+                }
+            });
+            (
+                response,
+                None,
+                Some(format!(
+                    "Tool `{name}` execution timed out after {timeout_ms}ms"
+                )),
+                None,
+            )
+        }
+        Err(RecvTimeoutError::Disconnected) => {
+            let err_msg = format!("Worker thread disconnected unexpectedly during tool `{name}`");
+            let response = json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err_msg }]
+            });
+            (response, None, Some(err_msg), None)
+        }
+    }
 }
 
 fn execute_tool_call(
@@ -351,7 +470,9 @@ fn execute_diff_slice(args: &Value) -> (Value, Option<Value>, Option<String>, Op
             let total_sliced_lines: usize = slices.iter().map(|s| s.stats.sliced_lines).sum();
 
             let savings_pct = if total_raw > 0 {
-                (total_saved as f64 / total_raw as f64) * 100.0
+                #[allow(clippy::cast_precision_loss)]
+                let pct = (total_saved as f64 / total_raw as f64) * 100.0;
+                pct
             } else {
                 0.0
             };
@@ -403,7 +524,13 @@ fn execute_stats_slice(args: &Value) -> (Value, Option<Value>, Option<String>, O
         );
     };
 
-    match ctxcut_cli::stats::calculate_stats(Path::new(path_str)) {
+    let target_path = Path::new(path_str);
+    let fast = args
+        .get("fast")
+        .and_then(Value::as_bool)
+        .unwrap_or_else(|| target_path.is_dir());
+
+    match ctxcut_cli::stats::calculate_stats(target_path, fast) {
         Ok(report) => {
             let saved = report
                 .total_raw_tokens
