@@ -55,8 +55,8 @@ ctxcut/
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| 1 | Smart Traversal and Timeout Guard (R1) | Ignore rules, binary detection, fast stats, MCP timeout safety | none | IN_PROGRESS |
-| 2 | Multi-File Dependency Slicing (R2) | Cross-file imports, type hoisting, signature stripping, test fixes | M1 | PLANNED |
+| 1 | Smart Traversal and Timeout Guard (R1) | Ignore rules, binary detection, fast stats, MCP timeout safety | none | DONE |
+| 2 | Multi-File Dependency Slicing (R2) | Cross-file imports, type hoisting, signature stripping, test fixes | M1 | IN_PROGRESS |
 | 3 | Framework-Aware Intelligence (R3) | Django, FastAPI, React/Next.js, Express/NestJS/Spring extractors | M2 | PLANNED |
 | 4 | Adaptive Token Budgeting (R4) | Budget constraints, 5-level progressive semantic compression | M2 | PLANNED |
 | 5 | Bidirectional AST Patcher (R5) | Surgical AST patching, indentation aligner, syntax validator | M1 | PLANNED |

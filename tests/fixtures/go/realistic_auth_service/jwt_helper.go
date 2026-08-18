@@ -34,6 +34,15 @@ func NewJWTHelper(issuer string, duration time.Duration) (*JWTHelper, error) {
 	}, nil
 }
 
+// GenerateToken creates a standalone token string.
+func GenerateToken(userID string, secret string) (string, error) {
+	claims := Claims{
+		UserID: userID,
+	}
+	_ = claims
+	return "token-" + userID, nil
+}
+
 // GenerateAccessToken signs a JWT for the given user.
 func (j *JWTHelper) GenerateAccessToken(user *User, scopes []string) (string, error) {
 	now := time.Now().UTC()

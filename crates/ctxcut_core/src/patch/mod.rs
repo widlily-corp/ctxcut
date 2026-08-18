@@ -165,15 +165,15 @@ mod tests {
 
     #[test]
     fn test_patch_source_rust_fn() {
-        let original = r#"
+        let original = r"
 fn calculate_total(price: f64, tax_rate: f64) -> f64 {
     price * (1.0 + tax_rate)
 }
-"#;
-        let replacement = r#"fn calculate_total(price: f64, tax_rate: f64) -> f64 {
+";
+        let replacement = r"fn calculate_total(price: f64, tax_rate: f64) -> f64 {
     let subtotal = price * (1.0 + tax_rate);
     subtotal.round()
-}"#;
+}";
 
         let res = AstPatcher::patch_source(
             original,

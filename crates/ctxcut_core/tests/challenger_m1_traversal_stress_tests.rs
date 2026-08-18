@@ -244,21 +244,21 @@ fn test_default_file_blacklist_comprehensive() {
 
     for file_name in &legitimate_files {
         assert!(
-            names.contains(&file_name.to_string()),
+            names.iter().any(|n| n == *file_name),
             "Legitimate file {file_name} must be collected"
         );
     }
 
     for file_name in &blacklisted_files {
         assert!(
-            !names.contains(&file_name.to_string()),
+            !names.iter().any(|n| n == *file_name),
             "Blacklisted file {file_name} must NOT be collected"
         );
     }
 
     for file_name in &case_variants {
         assert!(
-            !names.contains(&file_name.to_string()),
+            !names.iter().any(|n| n == *file_name),
             "Case variant {file_name} must NOT be collected"
         );
     }
@@ -274,7 +274,7 @@ fn test_binary_detection_boundary_conditions() {
     let bin_start = root.join("null_start.dat");
     let mut data_start = vec![0u8; 100];
     let test_msg = b"hello world test content here";
-    data_start[1..1 + test_msg.len()].copy_from_slice(test_msg);
+    data_start[1..=test_msg.len()].copy_from_slice(test_msg);
     fs::write(&bin_start, &data_start).unwrap();
     assert!(is_binary_file(&bin_start));
 
@@ -462,7 +462,7 @@ fn test_fast_stats_performance_and_mathematical_invariants() {
         let file_path = sub_dir.join(format!("file_{i}.{ext}"));
         let code = match lang {
             SupportedLanguage::Rust => format!(
-                r#"
+                r"
 pub struct ServiceRecord{i} {{
     pub id: u64,
     pub title: String,
@@ -488,7 +488,7 @@ impl ServiceRecord{i} {{
         !self.title.is_empty() && self.active
     }}
 }}
-"#
+"
             ),
             SupportedLanguage::TypeScript => format!(
                 r#"
@@ -523,7 +523,7 @@ export class UserManager{i} {{
 "#
             ),
             SupportedLanguage::JavaScript => format!(
-                r#"
+                r"
 class InventoryWorker{i} {{
   constructor(config) {{
     this.config = config;
@@ -545,7 +545,7 @@ class InventoryWorker{i} {{
 }}
 
 module.exports = {{ InventoryWorker{i} }};
-"#
+"
             ),
             SupportedLanguage::Python => format!(
                 r#"

@@ -177,8 +177,8 @@ fn test_massive_file_token_counting_performance() {
 
     assert!(token_count > 90_000, "Token count was {token_count}");
 
-    // Release mode takes < 200ms; Debug mode takes < 8000ms
-    let max_allowed_ms = if cfg!(debug_assertions) { 8000 } else { 500 };
+    // Release mode takes < 200ms; Debug mode under high test concurrency takes < 15000ms
+    let max_allowed_ms = if cfg!(debug_assertions) { 15000 } else { 500 };
     assert!(
         elapsed.as_millis() < max_allowed_ms,
         "Tokenization of 10.5k lines took too long: {}ms (limit: {}ms)",

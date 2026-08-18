@@ -40,8 +40,16 @@ impl AstNodeLocator {
         let byte_range = (target_node.start_byte(), target_node.end_byte());
         let base_indentation = detect_node_base_indentation(source, byte_range.0).to_string();
 
+        let symbol_name = if symbol_query.starts_with('*') {
+            symbol_query.trim_start_matches('*').to_string()
+        } else if symbol_query.contains('.') {
+            symbol_query.to_string()
+        } else {
+            extracted_sym.name
+        };
+
         Ok(LocatedNode {
-            symbol_name: extracted_sym.name,
+            symbol_name,
             kind: extracted_sym.kind,
             node: target_node,
             byte_range,

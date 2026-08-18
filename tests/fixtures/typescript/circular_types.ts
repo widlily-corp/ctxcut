@@ -79,3 +79,28 @@ export function traverseTreeDepthFirst<T>(node: TreeNode<T>, visitor: (item: T) 
         traverseTreeDepthFirst(child, visitor);
     }
 }
+
+export interface User {
+    id: string;
+    name: string;
+    posts: Post[];
+}
+
+export interface Post {
+    id: string;
+    title: string;
+    author: User;
+    comments: Comment[];
+}
+
+export interface Comment {
+    id: string;
+    text: string;
+    author: User;
+    post: Post;
+}
+
+export function formatUser(user: User): string {
+    return `${user.name} (${user.posts.length} posts)`;
+}
+

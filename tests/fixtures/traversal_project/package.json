@@ -1,0 +1,16 @@
+{
+  "name": "traversal-test-project",
+  "version": "1.0.0",
+  "description": "Fixture project for traversal, ignore rules, and lockfile filtering",
+  "main": "dist/bundle.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "dependencies": {
+    "dummy_pkg": "^1.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

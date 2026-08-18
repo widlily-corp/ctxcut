@@ -259,7 +259,7 @@ mod tests {
     fn test_test_context_generator_end_to_end() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("service.ts");
-        let source = r#"
+        let source = r"
 export interface UserDTO {
     id: string;
     email: string;
@@ -273,7 +273,7 @@ export async function registerUser(dto: UserDTO): Promise<{ success: boolean }> 
     sendWelcomeEmail(dto.email);
     return { success: true };
 }
-"#;
+";
         fs::write(&file_path, source).unwrap();
 
         let opts = SliceOptions::default();

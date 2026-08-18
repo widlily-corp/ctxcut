@@ -675,9 +675,15 @@ pub fn normalize_path(path: &Path) -> PathBuf {
     for comp in path.components() {
         match comp {
             std::path::Component::CurDir => {}
-            std::path::Component::ParentDir => {
-                components.pop();
-            }
+            std::path::Component::ParentDir => match components.last() {
+                Some(std::path::Component::Normal(_)) => {
+                    components.pop();
+                }
+                Some(std::path::Component::ParentDir) | None => {
+                    components.push(comp);
+                }
+                _ => {}
+            },
             c => components.push(c),
         }
     }

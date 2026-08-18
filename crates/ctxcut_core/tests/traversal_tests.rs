@@ -159,7 +159,7 @@ fn test_fast_stats_report_aggregation() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
 
-    let ts_source = r#"
+    let ts_source = r"
 export interface User {
   id: string;
   name: string;
@@ -183,7 +183,7 @@ export class UserService {
     return this.users.delete(id);
   }
 }
-"#;
+";
 
     let py_source = r#"
 class PaymentProcessor:

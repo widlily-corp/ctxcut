@@ -529,7 +529,7 @@ export function OrderDashboard(props: DashboardProps) {
 
 #[test]
 fn test_express_route_and_middleware_extraction() {
-    let source = r#"
+    let source = r"
 import { Router, Request, Response, NextFunction } from 'express';
 
 export interface CheckoutRequestDTO {
@@ -570,7 +570,7 @@ router.post(
         return res.status(201).json(order);
     }
 );
-"#;
+";
 
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("checkout.route.ts");
@@ -644,7 +644,7 @@ router.post(
 
 #[test]
 fn test_nestjs_controller_and_decorators() {
-    let source = r#"
+    let source = r"
 import { Controller, Get, Post, Body, Param, Query, UseGuards, UseInterceptors, HttpCode, HttpStatus } from '@nestjs/common';
 
 export class CreateUserDto {
@@ -680,7 +680,7 @@ export class UsersController {
         return this.usersService.create(createUserDto);
     }
 }
-"#;
+";
 
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("users.controller.ts");

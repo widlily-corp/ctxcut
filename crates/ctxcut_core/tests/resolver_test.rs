@@ -8,7 +8,7 @@ use std::path::Path;
 fn test_resolve_import_ts_relative_and_extension() {
     let locator = DefaultForeignSymbolLocator::new();
     let current_file =
-        Path::new("tests/fixtures/typescript/realistic_order_service/order_service.ts");
+        Path::new("../../tests/fixtures/typescript/realistic_order_service/order_service.ts");
 
     // Relative specifier without extension
     let resolved = locator.resolve_import_path(current_file, "./models");
@@ -31,7 +31,7 @@ fn test_resolve_import_ts_relative_and_extension() {
 #[test]
 fn test_resolve_import_ts_directory_index() {
     let locator = DefaultForeignSymbolLocator::new();
-    let current_file = Path::new("tests/fixtures/typescript/barrel_imports/service.ts");
+    let current_file = Path::new("../../tests/fixtures/typescript/barrel_imports/service.ts");
 
     let resolved = locator.resolve_import_path(current_file, "./index");
     assert!(resolved.is_some(), "Expected ./index to resolve");
@@ -40,7 +40,7 @@ fn test_resolve_import_ts_directory_index() {
 
 #[test]
 fn test_resolve_import_ts_barrel_reexport_hop() {
-    let current_file = Path::new("tests/fixtures/typescript/barrel_imports/index.ts");
+    let current_file = Path::new("../../tests/fixtures/typescript/barrel_imports/index.ts");
     let resolved = ImportResolver::resolve_module_path(current_file, "./sub");
     assert!(resolved.is_some(), "Expected ./sub to resolve to index.ts");
     let path = resolved.unwrap();
@@ -51,7 +51,7 @@ fn test_resolve_import_ts_barrel_reexport_hop() {
 fn test_resolve_import_py_relative_levels() {
     let locator = DefaultForeignSymbolLocator::new();
     let current_file =
-        Path::new("tests/fixtures/python/realistic_payment_service/payment_service.py");
+        Path::new("../../tests/fixtures/python/realistic_payment_service/payment_service.py");
 
     // Dot relative: .schemas
     let resolved = locator.resolve_import_path(current_file, ".schemas");
@@ -72,7 +72,7 @@ fn test_resolve_import_py_relative_levels() {
 fn test_resolve_import_py_init_package() {
     let locator = DefaultForeignSymbolLocator::new();
     let current_file =
-        Path::new("tests/fixtures/python/realistic_payment_service/payment_service.py");
+        Path::new("../../tests/fixtures/python/realistic_payment_service/payment_service.py");
 
     let resolved = locator.resolve_import_path(current_file, ".");
     assert!(resolved.is_some(), "Expected package root to resolve");
@@ -81,7 +81,7 @@ fn test_resolve_import_py_init_package() {
 #[test]
 fn test_resolve_import_go_same_package() {
     let locator = DefaultForeignSymbolLocator::new();
-    let current_file = Path::new("tests/fixtures/go/realistic_auth_service/service.go");
+    let current_file = Path::new("../../tests/fixtures/go/realistic_auth_service/service.go");
 
     let resolved = locator.resolve_import_path(current_file, "models.go");
     assert!(resolved.is_some(), "Expected models.go to resolve");
@@ -91,7 +91,8 @@ fn test_resolve_import_go_same_package() {
 #[test]
 fn test_resolve_import_rust_mod_hierarchy() {
     let locator = DefaultForeignSymbolLocator::new();
-    let current_file = Path::new("tests/fixtures/rust/realistic_inventory_service/inventory.rs");
+    let current_file =
+        Path::new("../../tests/fixtures/rust/realistic_inventory_service/inventory.rs");
 
     let resolved = locator.resolve_import_path(current_file, "models");
     assert!(
@@ -104,7 +105,8 @@ fn test_resolve_import_rust_mod_hierarchy() {
 #[test]
 fn test_foreign_signature_extraction_ts() {
     let locator = DefaultForeignSymbolLocator::new();
-    let target_file = Path::new("tests/fixtures/typescript/realistic_order_service/gateways.ts");
+    let target_file =
+        Path::new("../../tests/fixtures/typescript/realistic_order_service/gateways.ts");
 
     let stub = locator
         .locate_foreign_signature(target_file, "StripeGateway.chargeCard")
@@ -123,7 +125,7 @@ fn test_foreign_signature_extraction_ts() {
 #[test]
 fn test_foreign_signature_extraction_py() {
     let locator = DefaultForeignSymbolLocator::new();
-    let target_file = Path::new("tests/fixtures/python/realistic_payment_service/clients.py");
+    let target_file = Path::new("../../tests/fixtures/python/realistic_payment_service/clients.py");
 
     let stub = locator
         .locate_foreign_signature(target_file, "BankingGatewayClient.authorize_charge")
@@ -141,7 +143,7 @@ fn test_foreign_signature_extraction_py() {
 #[test]
 fn test_foreign_signature_extraction_go() {
     let locator = DefaultForeignSymbolLocator::new();
-    let target_file = Path::new("tests/fixtures/go/realistic_auth_service/jwt_helper.go");
+    let target_file = Path::new("../../tests/fixtures/go/realistic_auth_service/jwt_helper.go");
 
     let stub = locator
         .locate_foreign_signature(target_file, "GenerateToken")
@@ -156,7 +158,8 @@ fn test_foreign_signature_extraction_go() {
 #[test]
 fn test_foreign_signature_extraction_rust() {
     let locator = DefaultForeignSymbolLocator::new();
-    let target_file = Path::new("tests/fixtures/rust/realistic_inventory_service/external.rs");
+    let target_file =
+        Path::new("../../tests/fixtures/rust/realistic_inventory_service/external.rs");
 
     let stub = locator
         .locate_foreign_signature(target_file, "RedisLockManager::acquire_lock")
@@ -173,7 +176,8 @@ fn test_foreign_signature_extraction_rust() {
 #[test]
 fn test_foreign_type_hoisting_ts() {
     let locator = DefaultForeignSymbolLocator::new();
-    let target_file = Path::new("tests/fixtures/typescript/realistic_order_service/models.ts");
+    let target_file =
+        Path::new("../../tests/fixtures/typescript/realistic_order_service/models.ts");
 
     let types = locator
         .hoist_foreign_types(
@@ -196,7 +200,7 @@ fn test_foreign_type_hoisting_ts() {
 #[test]
 fn test_foreign_type_hoisting_py() {
     let locator = DefaultForeignSymbolLocator::new();
-    let target_file = Path::new("tests/fixtures/python/realistic_payment_service/schemas.py");
+    let target_file = Path::new("../../tests/fixtures/python/realistic_payment_service/schemas.py");
 
     let types = locator
         .hoist_foreign_types(target_file, &["ChargeRequest", "ChargeResult", "Currency"])
@@ -212,7 +216,7 @@ fn test_foreign_type_hoisting_py() {
 #[test]
 fn test_foreign_type_hoisting_go() {
     let locator = DefaultForeignSymbolLocator::new();
-    let target_file = Path::new("tests/fixtures/go/realistic_auth_service/models.go");
+    let target_file = Path::new("../../tests/fixtures/go/realistic_auth_service/models.go");
 
     let types = locator
         .hoist_foreign_types(target_file, &["User", "Role", "Session"])
@@ -228,7 +232,7 @@ fn test_foreign_type_hoisting_go() {
 #[test]
 fn test_foreign_type_hoisting_rust() {
     let locator = DefaultForeignSymbolLocator::new();
-    let target_file = Path::new("tests/fixtures/rust/realistic_inventory_service/models.rs");
+    let target_file = Path::new("../../tests/fixtures/rust/realistic_inventory_service/models.rs");
 
     let types = locator
         .hoist_foreign_types(
@@ -248,7 +252,7 @@ fn test_foreign_type_hoisting_rust() {
 fn test_resolver_depth_0_isolation() {
     let slicer = ctxcut_core::ContextSlicer::new();
     let target_file =
-        Path::new("tests/fixtures/typescript/realistic_order_service/order_service.ts");
+        Path::new("../../tests/fixtures/typescript/realistic_order_service/order_service.ts");
     let opts = SliceOptions {
         depth: 0,
         include_types: true,
@@ -275,7 +279,7 @@ fn test_resolver_depth_0_isolation() {
 #[test]
 fn test_resolver_circular_import_safety() {
     let slicer = ctxcut_core::ContextSlicer::new();
-    let target_file = Path::new("tests/fixtures/typescript/circular_types.ts");
+    let target_file = Path::new("../../tests/fixtures/typescript/circular_types.ts");
     let opts = SliceOptions {
         depth: 2,
         include_types: true,
@@ -294,7 +298,7 @@ fn test_resolver_circular_import_safety() {
 #[test]
 fn test_resolver_missing_file_resilience() {
     let locator = DefaultForeignSymbolLocator::new();
-    let current_file = Path::new("tests/fixtures/typescript/non_existent.ts");
+    let current_file = Path::new("../../tests/fixtures/typescript/non_existent.ts");
 
     let resolved = locator.resolve_import_path(current_file, "./missing_module");
     assert!(
@@ -302,7 +306,7 @@ fn test_resolver_missing_file_resilience() {
         "Non-existent module should return None gracefully"
     );
 
-    let target_file = Path::new("tests/fixtures/typescript/non_existent.ts");
+    let target_file = Path::new("../../tests/fixtures/typescript/non_existent.ts");
     let stub = locator
         .locate_foreign_signature(target_file, "missing_func")
         .expect("Non-existent file should return Ok(None)");
@@ -317,7 +321,8 @@ fn test_resolver_missing_file_resilience() {
 #[test]
 fn test_default_foreign_symbol_locator_caching() {
     let locator = DefaultForeignSymbolLocator::new();
-    let target_file = Path::new("tests/fixtures/typescript/realistic_order_service/models.ts");
+    let target_file =
+        Path::new("../../tests/fixtures/typescript/realistic_order_service/models.ts");
 
     let types1 = locator
         .hoist_foreign_types(target_file, &["Customer"])

@@ -24,10 +24,10 @@ pub fn format_currency(val: f64) -> String {
 }
 "#;
 
-    let replacement = r#"pub fn calculate_tax(amount: f64, rate: f64) -> f64 {
+    let replacement = r"pub fn calculate_tax(amount: f64, rate: f64) -> f64 {
     let raw = amount * rate;
     (raw * 100.0).round() / 100.0
-}"#;
+}";
 
     let res = AstPatcher::patch_source(
         original,
@@ -57,7 +57,7 @@ pub fn format_currency(val: f64) -> String {
 
 #[test]
 fn test_rust_patch_impl_method() {
-    let original = r#"pub struct Account {
+    let original = r"pub struct Account {
     balance: f64,
 }
 
@@ -74,7 +74,7 @@ impl Account {
         self.balance
     }
 }
-"#;
+";
 
     let replacement = r#"pub fn deposit(&mut self, amount: f64) {
     assert!(amount > 0.0, "Deposit must be positive");
@@ -105,17 +105,17 @@ impl Account {
 
 #[test]
 fn test_rust_patch_struct() {
-    let original = r#"pub struct Config {
+    let original = r"pub struct Config {
     pub host: String,
     pub port: u16,
 }
-"#;
+";
 
-    let replacement = r#"pub struct Config {
+    let replacement = r"pub struct Config {
     pub host: String,
     pub port: u16,
     pub timeout_ms: u64,
-}"#;
+}";
 
     let res = AstPatcher::patch_source(
         original,
@@ -136,12 +136,12 @@ fn test_rust_patch_struct() {
 
 #[test]
 fn test_python_patch_free_function() {
-    let original = r#"def add(a: int, b: int) -> int:
+    let original = r"def add(a: int, b: int) -> int:
     return a + b
 
 def multiply(a: int, b: int) -> int:
     return a * b
-"#;
+";
 
     let replacement = r#"def add(a: int, b: int) -> int:
     print(f"Adding {a} and {b}")
@@ -194,7 +194,7 @@ async def get_user(user_id: int):
 
 #[test]
 fn test_python_patch_class_method_with_4_space_indentation() {
-    let original = r#"class UserService:
+    let original = r"class UserService:
     def __init__(self, db):
         self.db = db
 
@@ -203,7 +203,7 @@ fn test_python_patch_class_method_with_4_space_indentation() {
 
     def delete_user(self, user_id: str):
         self.db.delete(user_id)
-"#;
+";
 
     // Unindented replacement input should automatically align to 4 spaces inside class
     let replacement = r#"def get_profile(self, user_id: str):
@@ -242,7 +242,7 @@ fn test_python_patch_class_method_with_4_space_indentation() {
 
 #[test]
 fn test_ts_patch_exported_function() {
-    let original = r#"import { User } from './types';
+    let original = r"import { User } from './types';
 
 export async function authenticate(token: string): Promise<User> {
   const payload = verifyToken(token);
@@ -252,15 +252,15 @@ export async function authenticate(token: string): Promise<User> {
 export function logout(): void {
   clearSession();
 }
-"#;
+";
 
-    let replacement = r#"export async function authenticate(token: string): Promise<User> {
+    let replacement = r"export async function authenticate(token: string): Promise<User> {
   if (!token) {
     throw new Error('Token is required');
   }
   const payload = await verifyTokenAsync(token);
   return findUserById(payload.sub);
-}"#;
+}";
 
     let res = AstPatcher::patch_source(
         original,
@@ -287,17 +287,17 @@ export function logout(): void {
 
 #[test]
 fn test_ts_patch_exported_arrow_function() {
-    let original = r#"export const calculateDiscount = (price: number, discount: number): number => {
+    let original = r"export const calculateDiscount = (price: number, discount: number): number => {
   return price * (1 - discount);
 };
-"#;
+";
 
-    let replacement = r#"export const calculateDiscount = (price: number, discount: number): number => {
+    let replacement = r"export const calculateDiscount = (price: number, discount: number): number => {
   if (discount < 0 || discount > 1) {
     throw new RangeError('Invalid discount percentage');
   }
   return price * (1 - discount);
-};"#;
+};";
 
     let res = AstPatcher::patch_source(
         original,
@@ -314,7 +314,7 @@ fn test_ts_patch_exported_arrow_function() {
 
 #[test]
 fn test_ts_patch_class_method() {
-    let original = r#"export class PaymentController {
+    let original = r"export class PaymentController {
   private gateway: PaymentGateway;
 
   constructor(gateway: PaymentGateway) {
@@ -325,14 +325,14 @@ fn test_ts_patch_class_method() {
     return this.gateway.charge(amount);
   }
 }
-"#;
+";
 
-    let replacement = r#"async processPayment(amount: number): Promise<boolean> {
-    if (amount <= 0) {
-      return false;
-    }
-    return this.gateway.charge(amount);
-  }"#;
+    let replacement = r"async processPayment(amount: number): Promise<boolean> {
+  if (amount <= 0) {
+    return false;
+  }
+  return this.gateway.charge(amount);
+}";
 
     let res = AstPatcher::patch_source(
         original,
@@ -384,7 +384,7 @@ func Greet(name string) string {
 
 #[test]
 fn test_go_patch_method_with_pointer_receiver() {
-    let original = r#"package server
+    let original = r"package server
 
 type Server struct {
 	addr string
@@ -395,7 +395,7 @@ func (s *Server) Start() error {
 	s.running = true
 	return nil
 }
-"#;
+";
 
     let replacement = r#"func (s *Server) Start() error {
 	if s.running {
@@ -426,7 +426,7 @@ func (s *Server) Start() error {
 
 #[test]
 fn test_error_symbol_not_found_with_fuzzy_suggestions() {
-    let source = r#"
+    let source = r"
 pub fn calculate_total(a: i32, b: i32) -> i32 {
     a + b
 }
@@ -434,7 +434,7 @@ pub fn calculate_total(a: i32, b: i32) -> i32 {
 pub fn calculate_tax(a: f64) -> f64 {
     a * 0.1
 }
-"#;
+";
 
     let err = AstPatcher::patch_source(
         source,
@@ -463,15 +463,15 @@ pub fn calculate_tax(a: f64) -> f64 {
 
 #[test]
 fn test_error_syntax_validation_rejection_rust() {
-    let source = r#"pub fn process() -> i32 {
+    let source = r"pub fn process() -> i32 {
     100
 }
-"#;
+";
 
     // Malformed Rust replacement (unclosed brace and broken expression)
-    let malformed = r#"pub fn process() -> i32 {
+    let malformed = r"pub fn process() -> i32 {
     let x = 
-"#;
+";
 
     let err = AstPatcher::patch_source(
         source,
@@ -495,13 +495,13 @@ fn test_error_syntax_validation_rejection_rust() {
 
 #[test]
 fn test_error_syntax_validation_rejection_python() {
-    let source = r#"def compute(x: int) -> int:
+    let source = r"def compute(x: int) -> int:
     return x * 2
-"#;
+";
 
     // Malformed Python (missing colon and broken syntax)
-    let malformed = r#"def compute(x: int)
-    return x * 2"#;
+    let malformed = r"def compute(x: int)
+    return x * 2";
 
     let err = AstPatcher::patch_source(
         source,

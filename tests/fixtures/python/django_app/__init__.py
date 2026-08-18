@@ -1,0 +1,3 @@
+"""
+Django application fixture package.
+"""

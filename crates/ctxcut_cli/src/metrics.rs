@@ -256,7 +256,7 @@ mod tests {
         assert_eq!(format_number(0), "0");
         assert_eq!(format_number(999), "999");
         assert_eq!(format_number(1000), "1,000");
-        assert_eq!(format_number(1234567), "1,234,567");
+        assert_eq!(format_number(1_234_567), "1,234,567");
     }
 
     #[test]
