@@ -17,7 +17,10 @@ use anyhow::{bail, Context, Result};
 use arboard::Clipboard;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
-use ctxcut_core::{ContextSlicer, MarkdownFormatter, SliceOptions, SliceResult, TelemetryLogger};
+use ctxcut_core::{
+    AstPatcher, ContextSlicer, MarkdownFormatter, SliceOptions, SliceResult, TelemetryLogger,
+    TestContextGenerator,
+};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -53,6 +56,10 @@ pub enum Commands {
         /// Target symbol query in format `path/to/file.ts:symbolName` or `path/to/file.ts:sym1,sym2`.
         target: String,
 
+        /// Adaptive token budget limit (progressive semantic degradation).
+        #[arg(long)]
+        budget: Option<usize>,
+
         /// Copy output directly to system clipboard.
         #[arg(long)]
         clip: bool,
@@ -83,6 +90,55 @@ pub enum Commands {
         /// Inspect staged changes only (`git diff --staged`).
         #[arg(long)]
         staged: bool,
+
+        /// Adaptive token budget limit.
+        #[arg(long)]
+        budget: Option<usize>,
+
+        /// Copy output directly to system clipboard.
+        #[arg(long)]
+        clip: bool,
+
+        /// Output file path to save extracted Markdown.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Output format (markdown or json).
+        #[arg(long, default_value = "markdown")]
+        format: String,
+    },
+
+    /// Surgically patch a function, method, or class in source code using AST boundary alignment.
+    Patch {
+        /// Target symbol query in format `path/to/file.ts:symbolName`.
+        target: String,
+
+        /// Replacement code string.
+        #[arg(short, long)]
+        code: Option<String>,
+
+        /// Path to file containing replacement code.
+        #[arg(short, long)]
+        file: Option<PathBuf>,
+
+        /// Preview unified diff without writing changes to disk.
+        #[arg(long)]
+        dry_run: bool,
+    },
+
+    /// Generate isolated unit test context with mock scaffolding and AAA test templates.
+    #[command(name = "test-context")]
+    TestContext {
+        /// Target symbol query in format `path/to/file.ts:symbolName`.
+        target: String,
+
+        /// Test framework to scaffold for (e.g. vitest, jest, pytest, cargo, gotest).
+        #[arg(long)]
+        framework: Option<String>,
+
+        /// Adaptive token budget limit.
+        #[arg(long)]
+        budget: Option<usize>,
 
         /// Copy output directly to system clipboard.
         #[arg(long)]
@@ -129,6 +185,10 @@ pub enum Commands {
 
         /// Route URL path (e.g. `/api/v1/checkout`).
         path: String,
+
+        /// Adaptive token budget limit.
+        #[arg(long)]
+        budget: Option<usize>,
 
         /// Copy output directly to system clipboard.
         #[arg(long)]
@@ -232,6 +292,7 @@ where
 
         Some(Commands::Slice {
             target,
+            budget,
             clip,
             output,
             format,
@@ -243,6 +304,7 @@ where
                 depth,
                 include_types: !no_types,
                 include_calls: !no_calls,
+                budget,
             };
 
             let results = handle_slice_command(&target, &opts)?;
@@ -251,11 +313,15 @@ where
 
         Some(Commands::Diff {
             staged,
+            budget,
             clip,
             output,
             format,
         }) => {
-            let opts = SliceOptions::default();
+            let opts = SliceOptions {
+                budget,
+                ..Default::default()
+            };
             let results = run_diff_slicer(staged, &opts)?;
 
             for slice in &results {
@@ -266,6 +332,92 @@ where
                 println!("No modified symbols detected in git diff.");
             } else {
                 handle_output(&results, &format, clip, output.as_deref())?;
+            }
+            Ok(())
+        }
+
+        Some(Commands::Patch {
+            target,
+            code,
+            file,
+            dry_run,
+        }) => {
+            let (file_part, symbol_part) = parse_target(&target)
+                .context("Invalid target format. Expected `<file_path>:<symbol_name>` (e.g. `src/calc.rs:add`)")?;
+            let file_path = Path::new(file_part);
+
+            let replacement = if let Some(c) = code {
+                c
+            } else if let Some(f) = file {
+                fs::read_to_string(&f)
+                    .with_context(|| format!("Failed to read patch file `{}`", f.display()))?
+            } else {
+                bail!("Missing replacement code. Provide `--code <CODE>` or `--file <PATH>`");
+            };
+
+            let patch_result =
+                AstPatcher::patch_symbol(file_path, symbol_part, &replacement, dry_run)?;
+            if dry_run {
+                println!("{}", patch_result.diff);
+                println!(
+                    "{}",
+                    "Dry run complete. No changes written to disk.".yellow()
+                );
+            } else {
+                println!("{}", patch_result.diff);
+                println!(
+                    "{} Successfully patched `{}` in `{}`",
+                    "✔".green(),
+                    symbol_part,
+                    file_path.display()
+                );
+            }
+            Ok(())
+        }
+
+        Some(Commands::TestContext {
+            target,
+            framework,
+            budget,
+            clip,
+            output,
+            format,
+        }) => {
+            let (file_part, symbol_part) = parse_target(&target)
+                .context("Invalid target format. Expected `<file_path>:<symbol_name>` (e.g. `src/orders.ts:payOrder`)")?;
+            let file_path = Path::new(file_part);
+            let opts = SliceOptions {
+                budget,
+                ..Default::default()
+            };
+
+            let test_ctx = TestContextGenerator::generate(
+                file_path,
+                symbol_part,
+                framework.as_deref(),
+                &opts,
+            )?;
+            let rendered = if format.eq_ignore_ascii_case("json") {
+                test_ctx.to_json()
+            } else {
+                test_ctx.to_markdown()
+            };
+
+            if let Some(out_file) = output.as_deref() {
+                fs::write(out_file, &rendered)?;
+                println!(
+                    "{} Test context saved to `{}`",
+                    "✔".green(),
+                    out_file.display()
+                );
+            }
+            if clip {
+                if let Ok(mut clipboard) = Clipboard::new() {
+                    let _ = clipboard.set_text(&rendered);
+                }
+            }
+            if output.is_none() {
+                println!("{rendered}");
             }
             Ok(())
         }
@@ -299,11 +451,15 @@ where
         Some(Commands::Route {
             method,
             path: route_path,
+            budget,
             clip,
             output,
             format,
         }) => {
-            let opts = SliceOptions::default();
+            let opts = SliceOptions {
+                budget,
+                ..Default::default()
+            };
             let current_dir = std::env::current_dir()?;
             let result = route::resolve_route_slice(&current_dir, &method, &route_path, &opts)?;
             TelemetryLogger::record_slice(&result, "cli_route", None);
