@@ -1,306 +1,146 @@
-# Project: ctxcut
-
-> Lightning-fast Rust CLI and Model Context Protocol (MCP) server for AST-based dependency slicing across TypeScript/JavaScript, Python, Go, and Rust. Zero token bloat.
-
----
+# Project: ctxcut Architectural & Functional Upgrade
 
 ## Architecture
-
-`ctxcut` is structured as a high-performance modular Rust workspace consisting of three specialized crates and a root CLI/MCP binary entry point:
-
-```
-ctxcut/
-├── Cargo.toml                  # Workspace root manifest
-├── crates/
-│   ├── ctxcut_core/            # Pure AST engine, dependency graph traversal, slicing, markdown formatter, BPE tokenizer
-│   │   ├── Cargo.toml
-│   │   └── src/
-│   │       ├── lib.rs          # Public library API (ContextSlicer, SliceOptions, SliceResult)
-│   │       ├── error.rs        # CoreError enum (thiserror)
-│   │       ├── model.rs        # Data structures (SymbolLocation, ExtractedSymbol, ExtractedType, CallSignatureStub)
-│   │       ├── lang/           # Language trait & grammar adapters
-│   │       │   ├── mod.rs      # LanguageAdapter trait
-│   │       │   ├── typescript.rs # TS/JS tree-sitter adapter
-│   │       │   ├── python.rs   # Python tree-sitter adapter
-│   │       │   ├── go.rs       # Go tree-sitter adapter
-│   │       │   └── rust_lang.rs# Rust tree-sitter adapter
-│   │       ├── parser/         # Tree-sitter wrapper & query runner
-│   │       ├── resolver/       # Symbol locator, import resolution, type hoisting, signature stripping
-│   │       ├── slice/          # ContextSlicer orchestration pipeline
-│   │       ├── formatter/      # Prompt-optimized Markdown & JSON output generators
-│   │       └── tokenizer/      # BPE token counter & estimation metrics (tiktoken-rs)
-│   │
-│   ├── ctxcut_cli/             # CLI frontend (clap derive, arboard clipboard, colored terminal UI, git diff, route resolver)
-│   │   ├── Cargo.toml
-│   │   └── src/
-│   │       ├── lib.rs          # Public CLI interface (run_cli)
-│   │       ├── args.rs         # Clap derive CLI arguments
-│   │       ├── clip.rs         # Arboard clipboard wrapper with headless fallback
-│   │       ├── ui.rs           # Terminal formatting & tables
-│   │       ├── git/            # Git diff parsing & AST symbol intersection
-│   │       ├── routes/         # Web framework route resolvers (Express, FastAPI, Actix, Gin, Axum)
-│   │       └── commands/       # Subcommand handlers (slice, diff, stats, route)
-│   │
-│   └── ctxcut_mcp/             # Model Context Protocol (MCP) stdio JSON-RPC server
-│       ├── Cargo.toml
-│       └── src/
-│           ├── lib.rs          # Public MCP runner (run_mcp_server)
-│           ├── protocol.rs     # JSON-RPC 2.0 types
-│           ├── schema.rs       # MCP Tool schemas & capabilities
-│           ├── server.rs       # STDIO read/write event loop
-│           └── tools/          # Tool executors (get_symbol_slice, get_diff_slice, analyze_token_stats)
-│
-├── src/
-│   └── main.rs                 # Root binary: passes CLI/MCP invocation to crates
-├── tests/                      # 4-Tier E2E integration test suite & fixtures
-└── benches/                    # Criterion performance benchmark suite
-```
-
----
+The `ctxcut` project is organized as a high-performance Rust workspace (edition 2021) comprising:
+- `crates/ctxcut_core`: Core AST parsing engine (tree-sitter 0.24 for TS/JS/Python/Go/Rust), language adapters, import resolvers, type hoisters, signature strippers, framework analyzers, budget compressor, AST patcher, test context generator, smart traversal walker, and BPE tokenizer (tiktoken-rs cl100k_base).
+- `crates/ctxcut_cli`: Command-line frontend (clap 4.5) providing `slice`, `patch`, `test-context`, `diff`, `stats` (--fast), `metrics`, `route`, `setup-mcp`, and `init` commands.
+- `crates/ctxcut_mcp`: Model Context Protocol (MCP) JSON-RPC 2.0 stdio server exposing 6 core tools with timeout safety guards and structured diagnostic logging.
+- `tests/`: 5-Tier test suite covering functional features (Tier 1), boundary & error conditions (Tier 2), cross-module combinations (Tier 3), real-world multi-framework workloads (Tier 4), and adversarial/mutation scenarios (Tier 5).
 
 ## Feature Inventory
+Every requirement from ORIGINAL_REQUEST.md is enumerated below with assigned milestones:
 
 | # | Feature | Description | Milestone | Source |
-|---|---------|-------------|-----------|--------|
-| 1 | Workspace Setup & Cargo Configuration | Multi-crate workspace manifest, dependency inheritance, strict clippy policies | M1 | Survey |
-| 2 | Tree-Sitter AST Core & TS/JS Grammar | AST parsing engine for TypeScript/JavaScript (.ts, .tsx, .js, .jsx) | M1 | R1, §3.1 |
-| 3 | Symbol Locator (TS/JS) | Locate target function, method, class, or type by name or range | M1 | R1, §2.1 |
-| 4 | Type Hoister (TS/JS) | Extract and inline referenced interfaces, type aliases, enums, DTOs | M1 | R2, §2.1 |
-| 5 | Signature Stripper (TS/JS) | Strip 100% of bodies from called external functions, retaining signatures | M1 | R2, §2.1 |
-| 6 | Markdown & JSON Formatter | Render prompt-optimized Markdown slices with metrics and JSON output | M1 | R2, §2.1 |
-| 7 | BPE Token Counter | Calculate exact OpenAI BPE token savings percentage using tiktoken-rs | M1 | R2, §2.1 |
-| 8 | Python AST Grammar & Slicing | Python tree-sitter adapter: def, async def, class, Pydantic, PEP 695 type aliases | M2 | R1, R2 |
-| 9 | Go AST Grammar & Slicing | Go tree-sitter adapter: func, receiver methods, struct, interface, package resolution | M2 | R1, R2 |
-| 10 | Rust AST Grammar & Slicing | Rust tree-sitter adapter: fn, async fn, impl methods, trait definitions, struct/enum | M2 | R1, R2 |
-| 11 | CLI Framework (`ctxcut_cli`) | Clap derive CLI with colorful formatting and global error handling | M3 | R3, §3.2 |
-| 12 | `ctxcut slice` Command | Extract slice for single or comma-separated symbols with `-o` and `--clip` | M3 | R3, §3.2 |
-| 13 | Clipboard Integration (`arboard`) | Direct copy to OS clipboard with graceful headless CI fallback | M3 | R3, §3.2 |
-| 14 | `ctxcut diff` Command | Parse git diff / staged changes, intersect with AST, batch slice touched functions | M3 | R3, §3.2 |
-| 15 | `ctxcut stats` Command | Scan repo using ignore walker, calculate total tokens and savings report | M3 | R3, §3.2 |
-| 16 | `ctxcut route` Command | Multi-framework route handler resolver (Express, FastAPI, Actix, Gin, Axum) | M3 | R3, §3.2 |
-| 17 | Root Binary (`main.rs`) | Unified entry point routing subcommands to `ctxcut_cli` or `ctxcut_mcp` | M3 | Architecture |
-| 18 | MCP STDIO Server (`ctxcut_mcp`)| Model Context Protocol JSON-RPC 2.0 server over STDIO | M4 | R4, §3.3 |
-| 19 | MCP Tool: `get_symbol_slice` | MCP tool extracting AST context slice by file path and symbol name | M4 | R4, §3.3 |
-| 20 | MCP Tool: `get_diff_slice` | MCP tool extracting AST slices for git diff changes | M4 | R4, §3.3 |
-| 21 | MCP Tool: `analyze_token_stats`| MCP tool reporting token savings metrics across repository path | M4 | R4, §3.3 |
-| 22 | E2E Test Suite (Tiers 1-4) | Comprehensive test suite with fixtures, boundary tests, and workloads | M5 / Test Track | R5, §6.1 |
-| 23 | Golden Snapshot Suite | `insta` golden snapshot testing for normalized Markdown output | M5 / Test Track | R5, §6.1 |
-| 24 | Adversarial Hardening (Tier 5) | White-box adversarial testing, edge-case coverage | M6 | Project Pattern |
-| 25 | Criterion Benchmarks | Benchmarking suite verifying sub-10ms parse and slicing SLA | M6 | R5, §6.1 |
-| 26 | Zero-Lint Quality Verification | Verification of 0 warnings on `cargo clippy --all-targets -- -D warnings` | M6 | Acceptance Criteria |
-
----
+|---|---|---|---|---|
+| 1 | .gitignore & .ctxcutignore Support | Honor .gitignore and .ctxcutignore rules during project traversal | M1 | R1 |
+| 2 | Built-in Vendor/Build Blacklist | Automatically ignore node_modules, .git, target, dist, .pytest_cache, .venv, etc. | M1 | R1 |
+| 3 | Fast Token Estimation Scan Mode | Shallow repository token estimation scan (`--fast`) without full AST builds | M1 | R1 |
+| 4 | MCP Execution Timeout Safety | Guard MCP tool invocations with deadlines, returning structured partial results/errors | M1 | R1 |
+| 5 | Cross-File Import Resolution | Resolve local project file imports across TS/JS, Python, Go, and Rust | M2 | R2 |
+| 6 | Multi-File Signature Extraction | Extract verbatim stripped signatures and interfaces from imported neighbor files | M2 | R2 |
+| 7 | Cross-File Type Hoisting (--depth 1) | Hoist types and data contracts across imported module boundaries | M2 | R2 |
+| 8 | FastAPI & Pydantic Extractor | Extract route parameters, Pydantic schemas, and Depends dependencies | M3 | R3 |
+| 9 | Django & DRF Extractor | Capture serializers, models, permission classes, and viewset schemas | M3 | R3 |
+| 10 | React & Next.js Extractor | Extract Component Props interfaces and referenced custom hooks | M3 | R3 |
+| 11 | JSX Branch Collapser | Collapse deep secondary JSX rendering branches to compact stubs | M3 | R3 |
+| 12 | Express/NestJS/Spring DTOs | Capture route DTOs, controllers, and middleware chains | M3 | R3 |
+| 13 | Adaptive Token Budgeting Flag | Support `--budget <N>` parameter in CLI and MCP slicing tools | M4 | R4 |
+| 14 | Progressive Semantic Degradation | Deterministic 5-level compression fallback to fit strict token constraints | M4 | R4 |
+| 15 | AST Node Locator & Byte Range | Exact AST node boundary identification preserving surrounding indentation & whitespace | M5 | R5 |
+| 16 | Surgical AST Code Replacement | In-memory replacement splicing with indentation normalization | M5 | R5 |
+| 17 | AST Syntax Validation Guard | Tree-sitter validation ensuring no syntax regressions or AST errors before writing | M5 | R5 |
+| 18 | CLI & MCP `patch` Tooling | CLI `ctxcut patch` and MCP `patch_symbol` with dry-run diff capabilities | M5 | R5 |
+| 19 | Isolated Test Context Generator | Assemble target symbol, parameter/return types, and mock signatures | M6 | R6 |
+| 20 | Test Mock & Spy Scaffolding | Generate mock/spy declarations tailored to jest/vitest/pytest/cargo/gotest | M6 | R6 |
+| 21 | Reference Fixture Finder | Automatically discover and incorporate nearby project test patterns | M6 | R6 |
+| 22 | CLI & MCP `test-context` Tooling | CLI `ctxcut test-context` and MCP `get_test_context` tools | M6 | R6 |
+| 23 | CLI Subcommands & Flags Update | Update clap CLI with all new subcommands (`patch`, `test-context`) and flags (`--budget`, `--fast`, `--depth`) | M7 | AC |
+| 24 | Complete 6-Pillar MCP Tools Suite | Expose `get_symbol_slice`, `get_diff_slice`, `analyze_token_stats`, `patch_symbol`, `get_test_context`, `get_route_slice` | M7 | AC |
+| 25 | Strict Zero-Clippy Compliance | Resolve all clippy warnings (`cargo clippy --all-targets --all-features -- -D warnings`) | M7 | AC |
+| 26 | E2E Multi-Framework Integration Suite | Pass 100% E2E tests across Django, FastAPI, React/Next.js, and TypeScript backends | Final | AC |
 
 ## Milestones
 
 | # | Name | Scope | Dependencies | Status |
-|---|------|-------|-------------|--------|
-| M1 | Workspace Foundation & Core AST Engine (TS/JS) | Workspace root setup, `ctxcut_core` foundation, TS/JS tree-sitter parser, symbol locator, type hoister, signature stripper, markdown formatter, BPE token counter, core unit tests | none | DONE |
-| M2 | Multi-Language AST Support (Python, Go, Rust) | Language adapters for Python, Go, and Rust in `ctxcut_core`, grammar queries, language-specific hoisting & stripping rules, unit tests | M1 | IN_PROGRESS |
-| M3 | CLI, Clipboard, Git Diff & Route Resolver | `crates/ctxcut_cli` (clap derive, `slice`, `diff`, `stats`, `route`), `arboard` clipboard, multi-framework route heuristics, `src/main.rs` | M2 | PLANNED |
-| M4 | Model Context Protocol (MCP) STDIO Server | `crates/ctxcut_mcp` (JSON-RPC 2.0 stdio server, tool schemas & handlers for `get_symbol_slice`, `get_diff_slice`, `analyze_token_stats`), `ctxcut mcp` | M3 | PLANNED |
-| M5 | Final Milestone Phase 1: E2E Test Suite Pass | Integrate test suite (Tiers 1-4), fix all edge cases, pass 100% of integration tests and golden snapshots | M4, TEST_READY | PLANNED |
-| M6 | Final Milestone Phase 2: Adversarial Hardening, Benchmarks & Zero-Lint Polish | Tier 5 white-box adversarial testing, Criterion benchmark suite (<10ms SLA), `cargo clippy --all-targets -- -D warnings` validation | M5 | PLANNED |
-
----
+|---|---|---|---|---|
+| M1 | Smart Traversal, Ignore Rules & Timeout Guard | `ctxcut_core::traversal`, `ctxcut_cli::stats` fast scan, MCP timeout safety | none | DONE |
+| M2 | Multi-File Dependency Slicing (--depth 1) | `ctxcut_core::resolver` cross-file import locator & signature stripper | none | PLANNED |
+| M3 | Framework-Aware Semantic Intelligence | `ctxcut_core::framework` for Django, FastAPI, React/Next.js, Express/NestJS/Spring | none | PLANNED |
+| M4 | Adaptive Token Budgeting | `ctxcut_core::slice::budget` progressive 5-tier semantic degradation engine | M2, M3 | PLANNED |
+| M5 | Bidirectional AST Patcher | `ctxcut_core::patch` node locator, indentation aligner, syntax validator | none | PLANNED |
+| M6 | Isolated Test Context Generator | `ctxcut_core::test_context` mock generator & test fixture finder | M2, M3 | PLANNED |
+| M7 | CLI & MCP Server Integration & Clippy Clean | `ctxcut_cli`, `ctxcut_mcp` tool registrations, schemas, error formats, clippy | M1-M6 | PLANNED |
+| Final | E2E Multi-Framework Verification & Adversarial Hardening | Pass 100% E2E test suite (Tiers 1-4) & Tier 5 adversarial coverage hardening | M7 | PLANNED |
 
 ## Interface Contracts
 
-### `ctxcut_core` ↔ `ctxcut_cli` & `ctxcut_mcp`
-
+### Traversal & Fast Scan (`ctxcut_core::traversal`)
 ```rust
-// Public API of ctxcut_core
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SupportedLanguage {
-    TypeScript,
-    JavaScript,
-    Python,
-    Go,
-    Rust,
+pub struct TraversalConfig {
+    pub respect_gitignore: bool,
+    pub respect_ctxcutignore: bool,
+    pub max_file_size_bytes: u64,
 }
 
-#[derive(Debug, Clone)]
-pub struct SliceOptions {
-    pub depth: usize,              // Type hoisting traversal depth (default 1)
-    pub include_types: bool,       // Include type hoisting (default true)
-    pub include_calls: bool,       // Include signature stripping (default true)
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct ExtractedSymbol {
-    pub name: String,
-    pub kind: String,              // "function", "method", "class", "type"
-    pub file_path: String,
-    pub start_line: usize,
-    pub end_line: usize,
-    pub doc_comment: Option<String>,
-    pub signature: String,
-    pub body: String,
-    pub language: String,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct ExtractedType {
-    pub name: String,
-    pub kind: String,              // "interface", "type_alias", "enum", "struct"
-    pub file_path: String,
-    pub definition: String,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct CallSignatureStub {
-    pub name: String,
-    pub receiver: Option<String>,
-    pub file_path: Option<String>,
-    pub signature: String,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct TokenStats {
-    pub raw_file_tokens: usize,
-    pub sliced_tokens: usize,
-    pub savings_percentage: f64,
-    pub raw_lines: usize,
-    pub sliced_lines: usize,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct SliceResult {
-    pub target_symbol: ExtractedSymbol,
-    pub hoisted_types: Vec<ExtractedType>,
-    pub stripped_calls: Vec<CallSignatureStub>,
-    pub stats: TokenStats,
-}
-
-impl SliceResult {
-    pub fn to_markdown(&self) -> String;
-    pub fn to_json(&self) -> String;
-}
-
-pub struct ContextSlicer;
-
-impl ContextSlicer {
-    pub fn new() -> Self;
-    pub fn detect_language(path: &std::path::Path) -> Result<SupportedLanguage, CoreError>;
-    pub fn slice_symbol(
-        &self,
-        file_path: &std::path::Path,
-        symbol_name: &str,
-        opts: &SliceOptions,
-    ) -> Result<SliceResult, CoreError>;
-    pub fn slice_symbols(
-        &self,
-        file_path: &std::path::Path,
-        symbol_names: &[&str],
-        opts: &SliceOptions,
-    ) -> Result<Vec<SliceResult>, CoreError>;
+pub struct ProjectWalker;
+impl ProjectWalker {
+    pub fn walk(root: &Path, config: &TraversalConfig) -> impl Iterator<Item = PathBuf>;
+    pub fn estimate_fast_stats(root: &Path, timeout_secs: Option<u64>) -> Result<FastStatsReport>;
 }
 ```
 
-### `ctxcut_cli` ↔ Root Binary (`main.rs`)
-
+### Cross-File Import Resolver (`ctxcut_core::resolver`)
 ```rust
-// Public API of ctxcut_cli
-pub fn run_cli() -> Result<(), anyhow::Error>;
+pub trait ForeignSymbolLocator: Send + Sync {
+    fn resolve_import_path(&self, current_file: &Path, import_spec: &str) -> Option<PathBuf>;
+    fn locate_foreign_signature(&self, target_file: &Path, symbol_name: &str) -> Result<Option<CallSignatureStub>>;
+}
 ```
 
-### `ctxcut_mcp` ↔ Root Binary (`main.rs`)
-
+### Framework Semantic Analyzer (`ctxcut_core::framework`)
 ```rust
-// Public API of ctxcut_mcp
-pub fn run_mcp_server() -> Result<(), anyhow::Error>;
+pub trait FrameworkAnalyzer: Send + Sync {
+    fn matches_framework(&self, path: &Path, source: &str) -> bool;
+    fn enhance_slice(&self, target_node: Node, source: &str, path: &Path, slice: &mut SliceResult) -> Result<()>;
+    fn collapse_jsx_branches(&self, source: &str, node: Node) -> Option<String>;
+}
 ```
 
----
+### Adaptive Budgeting (`ctxcut_core::slice::budget`)
+```rust
+pub struct BudgetCompressor;
+impl BudgetCompressor {
+    pub fn compress_slice(slice: &mut SliceResult, budget_tokens: usize) -> Result<DegradationReport>;
+}
+```
+
+### Bidirectional AST Patcher (`ctxcut_core::patch`)
+```rust
+pub struct AstPatcher;
+impl AstPatcher {
+    pub fn patch_symbol(file_path: &Path, symbol_query: &str, replacement_code: &str, dry_run: bool) -> Result<PatchResult>;
+}
+```
+
+### Isolated Test Context (`ctxcut_core::test_context`)
+```rust
+pub struct TestContextGenerator;
+impl TestContextGenerator {
+    pub fn generate(file_path: &Path, symbol_query: &str, framework: Option<&str>, opts: &SliceOptions) -> Result<TestContextResult>;
+}
+```
 
 ## Code Layout
-
 ```
-ctxcut/
-├── Cargo.toml
-├── Cargo.lock
-├── clippy.toml
-├── rustfmt.toml
-├── src/
-│   └── main.rs
-├── crates/
-│   ├── ctxcut_core/
-│   │   ├── Cargo.toml
-│   │   └── src/
-│   │       ├── lib.rs
-│   │       ├── error.rs
-│   │       ├── model.rs
-│   │       ├── lang/
-│   │       │   ├── mod.rs
-│   │       │   ├── typescript.rs
-│   │       │   ├── python.rs
-│   │       │   ├── go.rs
-│   │       │   └── rust_lang.rs
-│   │       ├── parser/
-│   │       │   └── mod.rs
-│   │       ├── resolver/
-│   │       │   ├── mod.rs
-│   │       │   ├── symbol.rs
-│   │       │   ├── imports.rs
-│   │       │   ├── types.rs
-│   │       │   └── calls.rs
-│   │       ├── slice/
-│   │       │   └── mod.rs
-│   │       ├── formatter/
-│   │       │   └── mod.rs
-│   │       └── tokenizer/
-│   │           └── mod.rs
-│   ├── ctxcut_cli/
-│   │   ├── Cargo.toml
-│   │   └── src/
-│   │       ├── lib.rs
-│   │       ├── args.rs
-│   │       ├── clip.rs
-│   │       ├── ui.rs
-│   │       ├── git/
-│   │       │   ├── mod.rs
-│   │       │   └── diff.rs
-│   │       ├── routes/
-│   │       │   ├── mod.rs
-│   │       │   ├── express.rs
-│   │       │   ├── fastapi.rs
-│   │       │   ├── actix.rs
-│   │       │   ├── gin.rs
-│   │       │   └── axum.rs
-│   │       └── commands/
-│   │           ├── mod.rs
-│   │           ├── slice.rs
-│   │           ├── diff.rs
-│   │           ├── stats.rs
-│   │           └── route.rs
-│   └── ctxcut_mcp/
-│       ├── Cargo.toml
-│       └── src/
-│           ├── lib.rs
-│           ├── protocol.rs
-│           ├── schema.rs
-│           ├── server.rs
-│           └── tools/
-│               ├── mod.rs
-│               ├── get_symbol_slice.rs
-│               ├── get_diff_slice.rs
-│               └── analyze_token_stats.rs
-├── tests/
-│   ├── common/
-│   ├── fixtures/
-│   │   ├── typescript/
-│   │   ├── python/
-│   │   ├── go/
-│   │   └── rust/
-│   ├── tier1_features/
-│   ├── tier2_boundaries/
-│   ├── tier3_cross_feature/
-│   ├── tier4_real_world/
-│   └── snapshots/
-└── benches/
-    ├── parse_benchmark.rs
-    ├── extraction_benchmark.rs
-    ├── hoisting_benchmark.rs
-    └── e2e_slice_benchmark.rs
+crates/ctxcut_core/src/
+├── lib.rs
+├── model.rs                    # Extended SliceOptions, PatchResult, TestContextResult
+├── error.rs                    # CoreError variants for patch/traversal/framework
+├── parser/mod.rs
+├── lang/                       # TS/JS, Python, Go, Rust adapters
+├── resolver/                   # Cross-file imports, type hoister, signature stripper
+├── traversal/mod.rs            # [M1] TraversalConfig, ProjectWalker, fast scanner
+├── framework/                  # [M3] Django, FastAPI, React/Next, Express/Nest/Spring
+│   ├── mod.rs
+│   ├── django_fastapi.rs
+│   ├── react_next.rs
+│   └── express_nest_spring.rs
+├── slice/
+│   ├── mod.rs                  # ContextSlicer
+│   └── budget.rs               # [M4] Progressive budget degradation
+├── patch/mod.rs                # [M5] AstPatcher & indentation normalizer
+└── test_context/               # [M6] TestContextGenerator & mock scaffolder
+    ├── mod.rs
+    └── fixture_finder.rs
+
+crates/ctxcut_cli/src/
+├── lib.rs                      # Cli struct & subcommand router
+├── stats.rs                    # Fast & deep stats calculation
+├── commands/                   # Subcommand handlers (slice, patch, test_context, diff, stats)
+└── route.rs
+
+crates/ctxcut_mcp/src/
+├── lib.rs                      # JSON-RPC server with timeout safety wrapper
+├── tools/                      # 6 MCP tools implementations
+└── logger.rs                   # Clean STDIO logger
 ```

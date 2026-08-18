@@ -1,46 +1,80 @@
-# E2E Test Infra: ctxcut
+# E2E Test Infra: ctxcut Upgrade
 
 ## Test Philosophy
-- Opaque-box, requirement-driven. No dependency on internal module internals.
-- Methodology: Category-Partition + Boundary Value Analysis + Pairwise + Real-World Workload Testing.
-- Target: 100% test pass rate, 0 warnings on `cargo clippy --all-targets -- -D warnings`, verified >80-90% token reduction across TypeScript, Python, Go, and Rust.
+- Opaque-box, requirement-driven verification derived strictly from ORIGINAL_REQUEST.md.
+- Methodology: Category-Partition + Boundary Value Analysis + Pairwise Combinations + Real-World Workload Testing.
+- Zero reliance on internal implementation details; tests verify observable CLI and MCP contracts across fixtures.
 
 ## Feature Inventory
-| # | Feature | Source (requirement) | Tier 1 | Tier 2 | Tier 3 | Tier 4 |
-|---|---------|---------------------|:------:|:------:|:------:|:------:|
-| 1 | Target Symbol AST Extraction | ORIGINAL_REQUEST §R1, R2 | 5 | 5 | ✓ | ✓ |
-| 2 | Type Hoisting & Inlining | ORIGINAL_REQUEST §R2 | 5 | 5 | ✓ | ✓ |
-| 3 | Signature-Only Body Stripping | ORIGINAL_REQUEST §R2 | 5 | 5 | ✓ | ✓ |
-| 4 | Multi-Language Support (TS, Py, Go, Rust) | ORIGINAL_REQUEST §R1 | 5 | 5 | ✓ | ✓ |
-| 5 | CLI Slicing (`slice`) & Output/Clip | ORIGINAL_REQUEST §R3 | 5 | 5 | ✓ | ✓ |
-| 6 | Git Diff Contextualizer (`diff`) | ORIGINAL_REQUEST §R3 | 5 | 5 | ✓ | ✓ |
-| 7 | Repository Token Stats (`stats`) | ORIGINAL_REQUEST §R3 | 5 | 5 | ✓ | ✓ |
-| 8 | Web Framework Route Resolver (`route`) | ORIGINAL_REQUEST §R3 | 5 | 5 | ✓ | ✓ |
-| 9 | Model Context Protocol (MCP) STDIO | ORIGINAL_REQUEST §R4 | 5 | 5 | ✓ | ✓ |
+| # | Feature | Source (Requirement) | Tier 1 (Features) | Tier 2 (Boundaries) | Tier 3 (Cross-Module) | Tier 4 (Workloads) |
+|---|---|---|:---:|:---:|:---:|:---:|
+| 1 | .gitignore & .ctxcutignore ignore rules | ORIGINAL_REQUEST §R1 | 5 | 5 | ✓ | ✓ |
+| 2 | Fast Token Estimation scan mode (--fast) | ORIGINAL_REQUEST §R1 | 5 | 5 | ✓ | ✓ |
+| 3 | MCP Execution Timeout Safety Guard | ORIGINAL_REQUEST §R1 | 5 | 5 | ✓ | ✓ |
+| 4 | Multi-file import resolution & signatures | ORIGINAL_REQUEST §R2 | 5 | 5 | ✓ | ✓ |
+| 5 | Cross-file type hoisting (--depth 1) | ORIGINAL_REQUEST §R2 | 5 | 5 | ✓ | ✓ |
+| 6 | Django / DRF serializers & models extractor | ORIGINAL_REQUEST §R3 | 5 | 5 | ✓ | ✓ |
+| 7 | FastAPI & Pydantic schemas extractor | ORIGINAL_REQUEST §R3 | 5 | 5 | ✓ | ✓ |
+| 8 | React Props & custom hooks extractor | ORIGINAL_REQUEST §R3 | 5 | 5 | ✓ | ✓ |
+| 9 | JSX secondary branch collapser | ORIGINAL_REQUEST §R3 | 5 | 5 | ✓ | ✓ |
+| 10 | Express/NestJS/Spring DTOs extractor | ORIGINAL_REQUEST §R3 | 5 | 5 | ✓ | ✓ |
+| 11 | Adaptive token budgeting (--budget <N>) | ORIGINAL_REQUEST §R4 | 5 | 5 | ✓ | ✓ |
+| 12 | Progressive 5-level semantic degradation | ORIGINAL_REQUEST §R4 | 5 | 5 | ✓ | ✓ |
+| 13 | AST node locator & byte range precision | ORIGINAL_REQUEST §R5 | 5 | 5 | ✓ | ✓ |
+| 14 | Surgical code replacement & indentation | ORIGINAL_REQUEST §R5 | 5 | 5 | ✓ | ✓ |
+| 15 | AST syntax validation guard on patch | ORIGINAL_REQUEST §R5 | 5 | 5 | ✓ | ✓ |
+| 16 | CLI & MCP AST patch command/tool | ORIGINAL_REQUEST §R5 | 5 | 5 | ✓ | ✓ |
+| 17 | Isolated test context bundle generator | ORIGINAL_REQUEST §R6 | 5 | 5 | ✓ | ✓ |
+| 18 | Mock/spy stubs generation across frameworks | ORIGINAL_REQUEST §R6 | 5 | 5 | ✓ | ✓ |
+| 19 | Project test fixture reference discovery | ORIGINAL_REQUEST §R6 | 5 | 5 | ✓ | ✓ |
+| 20 | CLI & MCP test-context command/tool | ORIGINAL_REQUEST §R6 | 5 | 5 | ✓ | ✓ |
+| 21 | Complete 6-Pillar MCP Tools Suite | ORIGINAL_REQUEST §AC | 5 | 5 | ✓ | ✓ |
+| 22 | Strict Zero-Clippy Warning Compliance | ORIGINAL_REQUEST §AC | 5 | 5 | ✓ | ✓ |
 
 ## Test Architecture
-- Test runner: `cargo test --workspace --all-targets`
-- Golden Snapshot harness: `insta` (`tests/snapshots/`) with normalized `\n` line endings and Unix `/` paths.
-- Token Verifier: `tiktoken-rs` (cl100k_base) measuring exact baseline vs sliced tokens.
-- Directory layout:
-  - `tests/common/`: Test helpers, git sandbox fixture generator, token verifier, clipboard mock.
-  - `tests/fixtures/`: Realistic multi-file source fixtures for TypeScript, Python, Go, and Rust.
-  - `tests/tier1_features/`: Feature coverage tests (>=5 tests per feature).
-  - `tests/tier2_boundaries/`: Adversarial & boundary tests (empty files, syntax error recovery, deep generics, circular types, fuzzy symbol matching, large 10k LOC files).
-  - `tests/tier3_cross_feature/`: Cross-feature combinations (multi-symbol + clipboard, git diff + route handler, full MCP sessions).
-  - `tests/tier4_real_world/`: Real-world microservice workloads proving >80-90% token reduction.
+- **Test Runner**: Standard `cargo test --all` and individual tier targets (`cargo test --test tier1`, `tier2`, `tier3`, `tier4`, `tier5`).
+- **Harnesses**:
+  - `tests/common/runner.rs`: `CliRunner` for CLI subcommands, `McpClient` for JSON-RPC STDIO communications.
+  - `tests/common/git_sandbox.rs`: `GitSandbox` for temporary git repositories and ignore-rule testing.
+  - `tests/common/token_verifier.rs`: `TokenVerifier` for BPE token limit validation.
+- **Fixture Project Layout**:
+  ```
+  tests/fixtures/
+  ├── traversal/
+  │   ├── with_gitignore/
+  │   ├── with_ctxcutignore/
+  │   ├── vendor_dirs/ (node_modules, target, .venv)
+  │   └── binary_files/
+  ├── multi_file/
+  │   ├── typescript_service/
+  │   ├── python_package/
+  │   └── rust_crate/
+  ├── frameworks/
+  │   ├── django_app/ (models.py, serializers.py, views.py)
+  │   ├── fastapi_app/ (main.py, schemas.py, routers.py, deps.py)
+  │   ├── react_next_app/ (UserProfile.tsx, useAuth.ts, layout.tsx)
+  │   └── ts_backend_app/ (user.controller.ts, create-user.dto.ts)
+  ├── patching/
+  │   ├── ts_functions/
+  │   ├── py_classes/
+  │   └── invalid_syntax_cases/
+  └── test_context/
+      ├── jest_project/
+      └── pytest_project/
+  ```
 
 ## Real-World Application Scenarios (Tier 4)
-| # | Scenario | Language / Framework | Features Exercised | Target Reduction |
-|---|----------|----------------------|--------------------|------------------|
-| 1 | Order Refund & Stripe Webhook | TypeScript / Next.js + Prisma | F1, F2, F3, F4, F5 | 89.2% (2450 -> 265 tokens) |
-| 2 | Payment Processing & Billing | Python / FastAPI + SQLAlchemy | F1, F2, F3, F4, F8 | 89.4% (1980 -> 210 tokens) |
-| 3 | User Session & JWT Authentication | Go / Gin + GORM | F1, F2, F3, F4, F8 | 88.8% (2150 -> 240 tokens) |
-| 4 | Inventory Reservation & ERP Sync | Rust / Axum + SQLx | F1, F2, F3, F4, F8 | 89.0% (2820 -> 310 tokens) |
+| # | Scenario | Features Exercised | Framework / Stack | Complexity |
+|---|---|---|---|---|
+| 1 | E-Commerce Checkout API Endpoint | FastAPI, Pydantic v2 schemas, multi-file service dependencies, token budget 250 | Python / FastAPI | High |
+| 2 | DRF ModelViewSet Order Management | Django models, ModelSerializer, permission classes, multi-file imports | Python / Django REST | High |
+| 3 | Next.js 14 Dashboard UI Component | Next.js Server/Client component, TypeScript Props, custom hooks, JSX branch collapsing | TypeScript / React / Next.js | High |
+| 4 | NestJS Payment Gateway Controller | NestJS controller decorators, DTO validation, guard middleware, mock test-context | TypeScript / NestJS | High |
+| 5 | Monorepo Repo-Wide Scan & AST Patch | Smart traversal across 500+ files, fast token stats, surgical AST patching of core function | Multi-language Workspace | High |
 
 ## Coverage Thresholds
-- Tier 1: ≥5 per feature (Total ≥ 45 feature tests)
-- Tier 2: ≥5 boundary / fault-injection cases per language & subsystem (Total ≥ 12 boundary tests)
-- Tier 3: Pairwise combinations (multi-symbol + clip, diff + route, mcp session)
-- Tier 4: ≥4 realistic microservice workloads
-- Total minimum: ≥ 65 comprehensive test cases across workspace
+- Tier 1 (Feature Coverage): $\ge 5$ test cases per feature (Total $\ge 110$ tests)
+- Tier 2 (Boundary & Corner Cases): $\ge 5$ test cases per feature category ($\ge 50$ tests)
+- Tier 3 (Cross-Feature Combinations): Pairwise combinations of all 6 pillars ($\ge 25$ tests)
+- Tier 4 (Real-World Application Scenarios): 5 comprehensive multi-framework end-to-end integration scenarios
+- Tier 5 (Adversarial Coverage Hardening): Mutation, edge case, and syntax corruption stress tests
