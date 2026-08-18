@@ -1,14 +1,18 @@
 //! `ctxcut_mcp` — Model Context Protocol (MCP) STDIO JSON-RPC 2.0 server.
 //!
-//! Exposes AST context slicing tools (`get_symbol_slice`, `get_diff_slice`, `analyze_token_stats`)
-//! to AI coding agents over clean STDIO framing with structured JSONL file logging and observability.
+//! Exposes 6 AST context tools (`get_symbol_slice`, `get_diff_slice`, `analyze_token_stats`,
+//! `patch_symbol`, `get_test_context`, `get_route_slice`) to AI coding agents
+//! over clean STDIO framing with structured JSONL file logging, timeout safety, and observability.
 
 pub mod logger;
 
 pub use logger::{format_rfc3339, McpFileLogger, ToolLogRecord};
 
 use anyhow::Result;
-use ctxcut_core::{ContextSlicer, MarkdownFormatter, SliceOptions, TelemetryLogger};
+use ctxcut_core::{
+    AstPatcher, ContextSlicer, MarkdownFormatter, SliceOptions, TelemetryLogger,
+    TestContextGenerator,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
@@ -185,7 +189,7 @@ fn build_tools_list_response() -> Value {
         "tools": [
             {
                 "name": "get_symbol_slice",
-                "description": "Extracts AST-accurate slice of a function/class with hoisted types and signature-only stubs",
+                "description": "Extracts AST-accurate slice of a function/class with hoisted types, stripped signatures, and optional token budgeting",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -196,6 +200,22 @@ fn build_tools_list_response() -> Value {
                         "symbol": {
                             "type": "string",
                             "description": "Target symbol name (e.g. `calculateTax` or `OrderService.refund`)"
+                        },
+                        "budget": {
+                            "type": "integer",
+                            "description": "Optional token budget limit for progressive semantic degradation"
+                        },
+                        "depth": {
+                            "type": "integer",
+                            "description": "Type hoisting recursion depth (default: 1)"
+                        },
+                        "no_types": {
+                            "type": "boolean",
+                            "description": "Disable type hoisting (default: false)"
+                        },
+                        "no_calls": {
+                            "type": "boolean",
+                            "description": "Disable signature stripping for external calls (default: false)"
                         }
                     },
                     "required": ["path", "symbol"]
@@ -214,6 +234,10 @@ fn build_tools_list_response() -> Value {
                         "staged": {
                             "type": "boolean",
                             "description": "Whether to inspect staged changes only (default: false)"
+                        },
+                        "budget": {
+                            "type": "integer",
+                            "description": "Optional token budget limit per slice"
                         }
                     }
                 }
@@ -234,6 +258,84 @@ fn build_tools_list_response() -> Value {
                         }
                     },
                     "required": ["path"]
+                }
+            },
+            {
+                "name": "patch_symbol",
+                "description": "Surgically replaces a function, method, or class in source code using AST node alignment with syntax validation",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Source file path"
+                        },
+                        "symbol": {
+                            "type": "string",
+                            "description": "Target symbol name to replace"
+                        },
+                        "code": {
+                            "type": "string",
+                            "description": "Replacement code"
+                        },
+                        "dry_run": {
+                            "type": "boolean",
+                            "description": "Preview unified diff without writing changes to disk (default: false)"
+                        }
+                    },
+                    "required": ["path", "symbol", "code"]
+                }
+            },
+            {
+                "name": "get_test_context",
+                "description": "Generates isolated unit test context with mock scaffolding, AAA test templates, and nearby reference fixtures",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Source file path"
+                        },
+                        "symbol": {
+                            "type": "string",
+                            "description": "Target symbol name to generate test context for"
+                        },
+                        "framework": {
+                            "type": "string",
+                            "description": "Test runner / framework (e.g. vitest, jest, pytest, cargo, gotest)"
+                        },
+                        "budget": {
+                            "type": "integer",
+                            "description": "Optional token budget limit"
+                        }
+                    },
+                    "required": ["path", "symbol"]
+                }
+            },
+            {
+                "name": "get_route_slice",
+                "description": "Resolves web framework route handler, controllers, DTOs, and middleware chains (Express, FastAPI, Gin, Axum)",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "method": {
+                            "type": "string",
+                            "description": "HTTP Method (GET, POST, PUT, DELETE, etc.)"
+                        },
+                        "path": {
+                            "type": "string",
+                            "description": "Route URL path (e.g. `/api/v1/checkout`)"
+                        },
+                        "root_dir": {
+                            "type": "string",
+                            "description": "Root workspace directory to search within (defaults to current directory)"
+                        },
+                        "budget": {
+                            "type": "integer",
+                            "description": "Optional token budget limit"
+                        }
+                    },
+                    "required": ["method", "path"]
                 }
             }
         ]
@@ -375,6 +477,9 @@ fn execute_tool_call(
         "get_symbol_slice" => execute_symbol_slice(args),
         "get_diff_slice" => execute_diff_slice(args),
         "analyze_token_stats" => execute_stats_slice(args),
+        "patch_symbol" => execute_patch_symbol(args),
+        "get_test_context" => execute_get_test_context(args),
+        "get_route_slice" => execute_get_route_slice(args),
         _ => {
             let err = format!("Unknown tool: `{name}`");
             let response = json!({
@@ -412,9 +517,29 @@ fn execute_symbol_slice(args: &Value) -> (Value, Option<Value>, Option<String>, 
         );
     };
 
+    let budget = args
+        .get("budget")
+        .and_then(Value::as_u64)
+        .map(|b| b as usize);
+    let depth = args.get("depth").and_then(Value::as_u64).unwrap_or(1) as usize;
+    let no_types = args
+        .get("no_types")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let no_calls = args
+        .get("no_calls")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+
+    let opts = SliceOptions {
+        depth,
+        include_types: !no_types,
+        include_calls: !no_calls,
+        budget,
+    };
+
     let start_time = Instant::now();
     let slicer = ContextSlicer::new();
-    let opts = SliceOptions::default();
     match slicer.slice_symbol(Path::new(file_path_str), symbol, &opts) {
         Ok(slice) => {
             #[allow(clippy::cast_possible_truncation)]
@@ -452,7 +577,15 @@ fn execute_diff_slice(args: &Value) -> (Value, Option<Value>, Option<String>, Op
     let staged = args.get("staged").and_then(Value::as_bool).unwrap_or(false);
     let path_opt = args.get("path").and_then(Value::as_str);
     let repo_path = path_opt.map(Path::new);
-    let opts = SliceOptions::default();
+    let budget = args
+        .get("budget")
+        .and_then(Value::as_u64)
+        .map(|b| b as usize);
+
+    let opts = SliceOptions {
+        budget,
+        ..Default::default()
+    };
 
     let start_time = Instant::now();
     match ctxcut_cli::run_diff_slicer_in(repo_path, staged, &opts) {
@@ -551,6 +684,189 @@ fn execute_stats_slice(args: &Value) -> (Value, Option<Value>, Option<String>, O
         }
         Err(e) => {
             let err = format!("Stats calculation error: {e}");
+            let response = json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            });
+            (response, None, Some(err), None)
+        }
+    }
+}
+
+fn execute_patch_symbol(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
+    let Some(path_str) = args.get("path").and_then(Value::as_str) else {
+        let err = "Missing required parameter 'path'".to_string();
+        return (
+            json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            }),
+            None,
+            Some(err),
+            None,
+        );
+    };
+    let Some(symbol) = args.get("symbol").and_then(Value::as_str) else {
+        let err = "Missing required parameter 'symbol'".to_string();
+        return (
+            json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            }),
+            None,
+            Some(err),
+            None,
+        );
+    };
+    let Some(code) = args.get("code").and_then(Value::as_str) else {
+        let err = "Missing required parameter 'code'".to_string();
+        return (
+            json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            }),
+            None,
+            Some(err),
+            None,
+        );
+    };
+
+    let dry_run = args
+        .get("dry_run")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+
+    match AstPatcher::patch_symbol(Path::new(path_str), symbol, code, dry_run) {
+        Ok(patch_res) => {
+            let response = json!({
+                "content": [{ "type": "text", "text": patch_res.diff }],
+                "patch": patch_res
+            });
+            (response, None, None, None)
+        }
+        Err(e) => {
+            let err = format!("Patch error: {e}");
+            let response = json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            });
+            (response, None, Some(err), None)
+        }
+    }
+}
+
+fn execute_get_test_context(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
+    let Some(path_str) = args.get("path").and_then(Value::as_str) else {
+        let err = "Missing required parameter 'path'".to_string();
+        return (
+            json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            }),
+            None,
+            Some(err),
+            None,
+        );
+    };
+    let Some(symbol) = args.get("symbol").and_then(Value::as_str) else {
+        let err = "Missing required parameter 'symbol'".to_string();
+        return (
+            json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            }),
+            None,
+            Some(err),
+            None,
+        );
+    };
+
+    let framework = args.get("framework").and_then(Value::as_str);
+    let budget = args
+        .get("budget")
+        .and_then(Value::as_u64)
+        .map(|b| b as usize);
+
+    let opts = SliceOptions {
+        budget,
+        ..Default::default()
+    };
+
+    match TestContextGenerator::generate(Path::new(path_str), symbol, framework, &opts) {
+        Ok(test_ctx) => {
+            let response = json!({
+                "content": [{ "type": "text", "text": test_ctx.to_markdown() }],
+                "test_context": test_ctx
+            });
+            (response, None, None, None)
+        }
+        Err(e) => {
+            let err = format!("Test context error: {e}");
+            let response = json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            });
+            (response, None, Some(err), None)
+        }
+    }
+}
+
+fn execute_get_route_slice(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
+    let Some(method) = args.get("method").and_then(Value::as_str) else {
+        let err = "Missing required parameter 'method'".to_string();
+        return (
+            json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            }),
+            None,
+            Some(err),
+            None,
+        );
+    };
+    let Some(route_path) = args
+        .get("path")
+        .or_else(|| args.get("route_path"))
+        .and_then(Value::as_str)
+    else {
+        let err = "Missing required parameter 'path'".to_string();
+        return (
+            json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            }),
+            None,
+            Some(err),
+            None,
+        );
+    };
+
+    let root_dir = args
+        .get("root_dir")
+        .and_then(Value::as_str)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+
+    let budget = args
+        .get("budget")
+        .and_then(Value::as_u64)
+        .map(|b| b as usize);
+
+    let opts = SliceOptions {
+        budget,
+        ..Default::default()
+    };
+
+    match ctxcut_cli::route::resolve_route_slice(&root_dir, method, route_path, &opts) {
+        Ok(slice) => {
+            let response = json!({
+                "content": [{ "type": "text", "text": MarkdownFormatter::format(&slice) }],
+                "slice": slice
+            });
+            (response, None, None, None)
+        }
+        Err(e) => {
+            let err = format!("Route resolution error: {e}");
             let response = json!({
                 "isError": true,
                 "content": [{ "type": "text", "text": err }]
