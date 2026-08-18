@@ -33,6 +33,7 @@ fn test_adversarial_complex_generics() {
         depth: 3,
         include_types: true,
         include_calls: true,
+        budget: None,
     };
 
     let start = Instant::now();
@@ -195,6 +196,7 @@ fn test_adversarial_mutual_recursion_and_circular_types() {
             depth,
             include_types: true,
             include_calls: true,
+            budget: None,
         };
 
         let start = Instant::now();
@@ -242,6 +244,7 @@ fn test_adversarial_multi_hop_barrel_reexports() {
         depth: 3,
         include_types: true,
         include_calls: true,
+        budget: None,
     };
 
     let start = Instant::now();
@@ -421,6 +424,7 @@ fn test_adversarial_tsx_components_and_generic_arrows() {
         depth: 2,
         include_types: true,
         include_calls: true,
+        budget: None,
     };
 
     let start = Instant::now();

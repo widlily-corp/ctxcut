@@ -169,6 +169,7 @@ impl FrameworkAnalyzer for ExpressAnalyzer {
             depth: 2,
             include_types: true,
             include_calls: true,
+            budget: None,
         };
 
         for dto_name in &dto_type_names {
@@ -367,6 +368,7 @@ impl FrameworkAnalyzer for NestJsAnalyzer {
             depth: 2,
             include_types: true,
             include_calls: true,
+            budget: None,
         };
 
         for dto in &dto_names {

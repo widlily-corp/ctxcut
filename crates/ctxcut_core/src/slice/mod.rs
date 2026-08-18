@@ -1,5 +1,7 @@
 //! Context slicing orchestrator module.
 
+pub mod budget;
+
 use crate::error::{CoreError, Result};
 use crate::formatter::MarkdownFormatter;
 use crate::lang::LanguageRegistry;
@@ -8,6 +10,8 @@ use crate::parser::ParserManager;
 use crate::tokenizer::compute_stats;
 use std::fs;
 use std::path::Path;
+
+pub use budget::{BudgetCompressor, DegradationReport};
 
 /// Context slicer engine coordinating parsing, symbol location, type hoisting,
 /// signature stripping, formatting, and token reduction metrics.
@@ -85,12 +89,37 @@ impl ContextSlicer {
             result.stripped_calls.clear();
         }
 
-        // 5. Generate Markdown and calculate exact BPE token reduction stats
-        let rendered_markdown = MarkdownFormatter::format(&result);
-        let stats = compute_stats(&source, &rendered_markdown);
-        result.stats = stats;
+        // 5. Adaptive token budgeting if specified
+        if let Some(budget_tokens) = opts.budget {
+            let _ = BudgetCompressor::compress_slice(&mut result, budget_tokens)?;
+            let final_md = MarkdownFormatter::format(&result);
+            result.stats = compute_stats(&source, &final_md);
+        } else {
+            let rendered_markdown = MarkdownFormatter::format(&result);
+            let stats = compute_stats(&source, &rendered_markdown);
+            result.stats = stats;
+        }
 
         Ok(result)
+    }
+
+    /// Slices a symbol with an adaptive token budget, compressing semantic details if necessary.
+    pub fn slice_symbol_with_budget(
+        &self,
+        file_path: &Path,
+        symbol_query: &str,
+        opts: &SliceOptions,
+        budget_tokens: usize,
+    ) -> Result<(SliceResult, DegradationReport)> {
+        let mut result = self.slice_symbol(file_path, symbol_query, opts)?;
+        let report = BudgetCompressor::compress_slice(&mut result, budget_tokens)?;
+        let source = fs::read_to_string(file_path).map_err(|source| CoreError::Io {
+            path: file_path.to_path_buf(),
+            source,
+        })?;
+        let final_md = MarkdownFormatter::format(&result);
+        result.stats = compute_stats(&source, &final_md);
+        Ok((result, report))
     }
 
     /// Slices multiple symbols from a source file.

@@ -26,7 +26,10 @@ serde_json = { workspace = true }
 smallvec = { workspace = true }
 rustc-hash = { workspace = true }
 ignore = { workspace = true }
+similar = { workspace = true }
+tempfile = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
 tempfile = { workspace = true }
+

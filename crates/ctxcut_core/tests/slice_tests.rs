@@ -51,6 +51,7 @@ fn test_slice_typescript_auth_service() {
         depth: 2,
         include_types: true,
         include_calls: true,
+        budget: None,
     };
 
     let result = slicer
@@ -153,6 +154,7 @@ fn test_slice_typescript_class_methods() {
         depth: 2,
         include_types: true,
         include_calls: true,
+        budget: None,
     };
 
     let result = slicer
@@ -228,6 +230,7 @@ fn test_slice_tsx_component() {
         depth: 2,
         include_types: true,
         include_calls: true,
+        budget: None,
     };
 
     let result = slicer
@@ -264,6 +267,7 @@ fn test_barrel_reexports_traversal() {
         depth: 1,
         include_types: true,
         include_calls: true,
+        budget: None,
     };
 
     let result = slicer
@@ -302,6 +306,7 @@ fn test_circular_types_cycle_protection() {
         depth: 3,
         include_types: true,
         include_calls: true,
+        budget: None,
     };
 
     let result = slicer
@@ -392,6 +397,7 @@ fn test_slice_options_disabled_flags() {
         depth: 1,
         include_types: false,
         include_calls: false,
+        budget: None,
     };
 
     let result = slicer

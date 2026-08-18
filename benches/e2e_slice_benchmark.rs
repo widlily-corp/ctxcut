@@ -98,6 +98,7 @@ fn bench_e2e_slice_pipeline(c: &mut Criterion) {
         depth: 1,
         include_types: true,
         include_calls: true,
+        budget: None,
     };
 
     let fixtures = ensure_benchmark_fixtures();

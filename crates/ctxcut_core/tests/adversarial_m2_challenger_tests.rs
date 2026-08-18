@@ -117,6 +117,7 @@ class PaymentProcessor:
         depth: 2,
         include_types: true,
         include_calls: true,
+        budget: None,
     };
 
     let result = slicer
@@ -193,6 +194,7 @@ def complex_compute[T: (int, float), *Ts, **P](
         depth: 2,
         include_types: true,
         include_calls: true,
+        budget: None,
     };
 
     let result = slicer
@@ -308,6 +310,7 @@ type Repository interface {
         depth: 3,
         include_types: true,
         include_calls: true,
+        budget: None,
     };
 
     let result = slicer
@@ -464,6 +467,7 @@ where
         depth: 2,
         include_types: true,
         include_calls: true,
+        budget: None,
     };
 
     let result = slicer
@@ -560,6 +564,7 @@ impl QueryService {
         depth: 2,
         include_types: true,
         include_calls: true,
+        budget: None,
     };
 
     let result = slicer
@@ -676,6 +681,7 @@ pub fn traverse_cycle(start: &StructA) -> &StructC {
         depth: 5, // High depth to stress cycle protection
         include_types: true,
         include_calls: true,
+        budget: None,
     };
 
     // Verify Python 3-way cycle
@@ -845,6 +851,7 @@ def process_account(acc: UserAccount) -> bool:
         depth: 3,
         include_types: true,
         include_calls: true,
+        budget: None,
     };
 
     let res = slicer
@@ -911,6 +918,7 @@ impl SessionService {
         depth: 3,
         include_types: true,
         include_calls: true,
+        budget: None,
     };
 
     let res = slicer

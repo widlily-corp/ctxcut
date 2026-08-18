@@ -253,6 +253,7 @@ fn test_resolver_depth_0_isolation() {
         depth: 0,
         include_types: true,
         include_calls: true,
+        budget: None,
     };
 
     let result = slicer
@@ -279,6 +280,7 @@ fn test_resolver_circular_import_safety() {
         depth: 2,
         include_types: true,
         include_calls: true,
+        budget: None,
     };
 
     // Circular types: User -> Post -> Comment -> User
