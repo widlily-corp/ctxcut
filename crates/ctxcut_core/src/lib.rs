@@ -10,6 +10,7 @@ pub mod formatter;
 pub mod framework;
 pub mod lang;
 pub mod model;
+pub mod overview;
 pub mod parser;
 pub mod patch;
 pub mod resolver;
@@ -29,9 +30,11 @@ pub use lang::{
     GoAdapter, LanguageAdapter, LanguageRegistry, PythonAdapter, RustAdapter, TypeScriptAdapter,
 };
 pub use model::{
-    CallSignatureStub, DiscoveredFixture, ExtractedSymbol, ExtractedType, PatchResult,
-    SliceOptions, SliceResult, SupportedLanguage, SyntaxErrorDetail, TestContextResult, TokenStats,
+    BatchSliceResult, CallSignatureStub, DiscoveredFixture, ExtractedSymbol, ExtractedType,
+    FileOverviewItem, OverviewOptions, PatchResult, SliceOptions, SliceResult, SupportedLanguage,
+    SymbolOverviewItem, SyntaxErrorDetail, TestContextResult, TokenStats, WorkspaceOverviewReport,
 };
+pub use overview::{format_overview_markdown, WorkspaceOverviewGenerator};
 pub use parser::{AstUtils, ParserManager};
 pub use patch::AstPatcher;
 pub use resolver::{

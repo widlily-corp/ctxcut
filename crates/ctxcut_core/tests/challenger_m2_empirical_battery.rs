@@ -9,8 +9,6 @@
 //! 7. Exact depth bounds enforcement (depth 0, 1, 2).
 
 use ctxcut_core::model::SliceOptions;
-use ctxcut_core::resolver::imports::ImportResolver;
-use ctxcut_core::resolver::types::TypeHoister;
 use ctxcut_core::slice::ContextSlicer;
 use std::fs;
 use tempfile::tempdir;

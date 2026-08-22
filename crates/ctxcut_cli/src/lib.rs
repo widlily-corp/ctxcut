@@ -85,6 +85,40 @@ pub enum Commands {
         no_calls: bool,
     },
 
+    /// High-level workspace symbol indexing and architectural outline without parsing entire file bodies.
+    Overview {
+        /// Workspace root directory path (defaults to current directory).
+        path: Option<PathBuf>,
+
+        /// Maximum directory traversal depth limit.
+        #[arg(long)]
+        depth: Option<usize>,
+
+        /// Adaptive token budget limit for compressed repository overview.
+        #[arg(long)]
+        budget: Option<usize>,
+
+        /// Output format (markdown or json).
+        #[arg(long, default_value = "markdown")]
+        format: String,
+
+        /// Include framework web route endpoints in overview.
+        #[arg(long, default_value = "true")]
+        include_routes: bool,
+
+        /// Optional target framework filter (e.g. express, fastapi, actix).
+        #[arg(long)]
+        framework: Option<String>,
+
+        /// Copy output directly to system clipboard.
+        #[arg(long)]
+        clip: bool,
+
+        /// Output file path to save extracted overview Markdown.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+
     /// Extract slices for all functions modified in Git diff or staged changes.
     Diff {
         /// Inspect staged changes only (`git diff --staged`).
@@ -307,8 +341,52 @@ where
                 budget,
             };
 
-            let results = handle_slice_command(&target, &opts)?;
-            handle_output(&results, &format, clip, output.as_deref())
+            handle_slice_and_output(&target, &opts, &format, clip, output.as_deref())
+        }
+
+        Some(Commands::Overview {
+            path,
+            depth,
+            budget,
+            format,
+            include_routes,
+            framework,
+            clip,
+            output,
+        }) => {
+            let target_root = path.unwrap_or_else(|| PathBuf::from("."));
+            let opts = ctxcut_core::OverviewOptions {
+                budget,
+                max_depth: depth,
+                include_routes,
+                framework,
+            };
+            let report = ctxcut_core::WorkspaceOverviewGenerator::generate(&target_root, &opts)?;
+            let rendered = if format.eq_ignore_ascii_case("json") {
+                report.to_json()
+            } else {
+                report.to_markdown()
+            };
+
+            if let Some(out_file) = output.as_deref() {
+                fs::write(out_file, &rendered)
+                    .with_context(|| format!("Failed to write overview to `{}`", out_file.display()))?;
+                println!(
+                    "{} Workspace overview saved to `{}`",
+                    "✔".green(),
+                    out_file.display()
+                );
+            }
+            if clip {
+                if let Ok(mut clipboard) = Clipboard::new() {
+                    let _ = clipboard.set_text(&rendered);
+                    eprintln!("{} Workspace overview copied to clipboard!", "✔".green());
+                }
+            }
+            if output.is_none() {
+                println!("{rendered}");
+            }
+            Ok(())
         }
 
         Some(Commands::Diff {
@@ -545,9 +623,15 @@ fn parse_target(target: &str) -> Option<(&str, &str)> {
     Some((&target[..colon_idx], &target[colon_idx + 1..]))
 }
 
-fn handle_slice_command(target: &str, opts: &SliceOptions) -> Result<Vec<SliceResult>> {
+fn handle_slice_and_output(
+    target: &str,
+    opts: &SliceOptions,
+    format: &str,
+    clip: bool,
+    output_path: Option<&Path>,
+) -> Result<()> {
     let (file_part, symbol_part) = parse_target(target)
-        .context("Invalid target format. Expected `<file_path>:<symbol_name>` (e.g. `src/orders.ts:payOrder`)")?;
+        .context("Invalid target format. Expected `<file_path>:<symbol_name>` (e.g. `src/orders.ts:payOrder` or `src/calc.ts:add,multiply`)")?;
 
     let file_path = Path::new(file_part);
     if !file_path.exists() {
@@ -564,11 +648,56 @@ fn handle_slice_command(target: &str, opts: &SliceOptions) -> Result<Vec<SliceRe
     }
 
     let slicer = ContextSlicer::new();
-    let results = slicer.slice_symbols(file_path, &symbols, opts)?;
-    for slice in &results {
-        TelemetryLogger::record_slice(slice, "cli_slice", None);
+    let rendered = if symbols.len() > 1 {
+        let batch = slicer.slice_batch(file_path, &symbols, opts)?;
+        for sym in &batch.target_symbols {
+            let single_slice = SliceResult {
+                target_symbol: sym.clone(),
+                hoisted_types: Vec::new(),
+                stripped_calls: Vec::new(),
+                stats: batch.stats.clone(),
+            };
+            TelemetryLogger::record_slice(&single_slice, "cli_slice", None);
+        }
+
+        if format.eq_ignore_ascii_case("json") {
+            batch.to_json()
+        } else {
+            batch.to_markdown()
+        }
+    } else {
+        let single = slicer.slice_symbol(file_path, symbols[0], opts)?;
+        TelemetryLogger::record_slice(&single, "cli_slice", None);
+        if format.eq_ignore_ascii_case("json") {
+            single.to_json()
+        } else {
+            single.to_markdown()
+        }
+    };
+
+    if let Some(out_file) = output_path {
+        fs::write(out_file, &rendered)
+            .with_context(|| format!("Failed to write output to `{}`", out_file.display()))?;
+        println!(
+            "{} Sliced context saved to `{}`",
+            "✔".green(),
+            out_file.display()
+        );
     }
-    Ok(results)
+
+    if clip {
+        if let Ok(mut clipboard) = Clipboard::new() {
+            if clipboard.set_text(&rendered).is_ok() {
+                eprintln!("{} Context slice copied to clipboard!", "✔".green());
+            }
+        }
+    }
+
+    if output_path.is_none() {
+        println!("{rendered}");
+    }
+
+    Ok(())
 }
 
 fn handle_output(

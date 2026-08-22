@@ -121,10 +121,11 @@ pub fn render_dashboard(summary: &TelemetrySummary, metrics_path: &Path) -> Stri
         );
 
         for lang in &summary.by_language {
-            let l_name = if lang.language.len() > 14 {
-                &lang.language[..14]
+            let l_char_count = lang.language.chars().count();
+            let l_name: String = if l_char_count > 14 {
+                lang.language.chars().take(14).collect()
             } else {
-                &lang.language
+                lang.language.clone()
             };
             let l_reqs = format_number(lang.requests);
             let l_raw = format_number(lang.raw_tokens);
@@ -189,15 +190,17 @@ pub fn render_dashboard(summary: &TelemetrySummary, metrics_path: &Path) -> Stri
 
         for ev in summary.recent_events.iter().take(5) {
             // Timestamp short display: "YYYY-MM-DD HH:MM"
-            let time_short = if ev.timestamp.len() >= 16 {
-                ev.timestamp[..16].replace('T', " ")
+            let time_short = if ev.timestamp.chars().count() >= 16 {
+                ev.timestamp.chars().take(16).collect::<String>().replace('T', " ")
             } else {
                 ev.timestamp.clone()
             };
 
             let sym_full = format!("{}:{}", ev.file_path, ev.symbol);
-            let sym_truncated = if sym_full.len() > 32 {
-                format!("...{}", &sym_full[sym_full.len() - 29..])
+            let char_count = sym_full.chars().count();
+            let sym_truncated = if char_count > 32 {
+                let suffix: String = sym_full.chars().skip(char_count - 29).collect();
+                format!("...{}", suffix)
             } else {
                 sym_full
             };
@@ -314,4 +317,30 @@ mod tests {
         assert!(rendered.contains("MCP Server (get_symbol_slice)"));
         assert!(rendered.contains("src/auth.ts:login"));
     }
+
+    #[test]
+    fn test_unicode_symbol_truncation_no_panic() {
+        let events = vec![TelemetryEvent {
+            timestamp: "2026-08-16T12:00:00Z".to_string(),
+            file_path: "tests/fixtures/unicode/测试_service.rs".to_string(),
+            symbol: "calculate_财务_analytics".to_string(),
+            language: Some("rust".to_string()),
+            raw_tokens: 1500,
+            sliced_tokens: 200,
+            saved_tokens: 1300,
+            savings_percentage: 86.7,
+            raw_lines: 100,
+            sliced_lines: 12,
+            source: Some("cli_slice".to_string()),
+            duration_ms: Some(6),
+        }];
+
+        let summary = TelemetryLogger::aggregate(&events);
+        let path = Path::new(".ctxcut/metrics.jsonl");
+        let rendered = render_dashboard(&summary, path);
+
+        assert!(rendered.contains("TOTAL REQUESTS"));
+        assert!(rendered.contains("..."));
+    }
 }
+

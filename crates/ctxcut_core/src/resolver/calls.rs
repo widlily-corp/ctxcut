@@ -774,18 +774,37 @@ fn extract_ts_signature_stub(outer_node: Node<'_>, decl_node: Node<'_>, source: 
 }
 
 fn extract_python_signature_stub(node: Node<'_>, source: &str) -> String {
+    let decl_start = node.start_byte();
+    if let Some(end_node) = node
+        .child_by_field_name("return_type")
+        .or_else(|| node.child_by_field_name("parameters"))
+    {
+        let search_start = end_node.end_byte();
+        if search_start <= source.len() {
+            if let Some(colon_rel) = source[search_start..].find(':') {
+                let sig_end = search_start + colon_rel;
+                if decl_start < sig_end && sig_end <= source.len() {
+                    let sig = source[decl_start..sig_end].trim();
+                    let clean = sig.split('#').next().unwrap_or(sig).trim();
+                    return format!("{clean}: ...");
+                }
+            }
+        }
+    }
     if let Some(body) = node.child_by_field_name("body") {
         let start = node.start_byte();
         let body_start = body.start_byte();
         if start <= body_start && body_start <= source.len() {
             let sig = source[start..body_start].trim();
-            let clean = sig.trim_end_matches(':').trim();
+            let before_comment = sig.split('#').next().unwrap_or(sig).trim();
+            let clean = before_comment.trim_end_matches(':').trim();
             return format!("{clean}: ...");
         }
     }
     let text = AstUtils::node_text(node, source);
     let first_line = text.lines().next().unwrap_or(text).trim();
-    let clean = first_line.trim_end_matches(':').trim();
+    let before_comment = first_line.split('#').next().unwrap_or(first_line).trim();
+    let clean = before_comment.trim_end_matches(':').trim();
     format!("{clean}: ...")
 }
 
@@ -850,13 +869,14 @@ fn resolve_call_from_module(
 
     // 3. Check barrel re-exports
     let reexports = ImportResolver::extract_reexports(root, source);
-    for (exported_alias, specifier) in reexports {
+    for (exported_alias, orig_name, specifier) in reexports {
         if let Some(alias) = exported_alias {
             if alias == name {
+                let lookup_name = orig_name.as_deref().unwrap_or(name);
                 if let Some(sub_file) = ImportResolver::resolve_module_path(target_file, &specifier)
                 {
                     if let Some(res) =
-                        resolve_call_from_module(name, &sub_file, tree_sitter_lang, cache)
+                        resolve_call_from_module(lookup_name, &sub_file, tree_sitter_lang, cache)
                     {
                         return Some(res);
                     }

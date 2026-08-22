@@ -1058,15 +1058,37 @@ fn strip_python_string_quotes(raw: &str) -> String {
 }
 
 fn extract_python_sig(decl: Node<'_>, source: &str) -> String {
-    if let Some(body) = decl.child_by_field_name("body") {
-        let sig_end = body.start_byte();
-        let decl_start = decl.start_byte();
-        if decl_start < sig_end && sig_end <= source.len() {
-            let sig = source[decl_start..sig_end].trim_end();
-            return sig.strip_suffix(':').unwrap_or(sig).trim().to_string();
+    let decl_start = decl.start_byte();
+    if decl.kind() == "function_definition" {
+        if let Some(end_node) = decl
+            .child_by_field_name("return_type")
+            .or_else(|| decl.child_by_field_name("parameters"))
+        {
+            let search_start = end_node.end_byte();
+            if search_start <= source.len() {
+                if let Some(colon_rel) = source[search_start..].find(':') {
+                    let sig_end = search_start + colon_rel;
+                    if decl_start < sig_end && sig_end <= source.len() {
+                        let sig = source[decl_start..sig_end].trim();
+                        let before_comment = sig.split('#').next().unwrap_or(sig).trim();
+                        return before_comment.to_string();
+                    }
+                }
+            }
         }
     }
-    AstUtils::node_text(decl, source).to_string()
+    if let Some(body) = decl.child_by_field_name("body") {
+        let sig_end = body.start_byte();
+        if decl_start < sig_end && sig_end <= source.len() {
+            let sig = source[decl_start..sig_end].trim_end();
+            let before_comment = sig.split('#').next().unwrap_or(sig).trim();
+            return before_comment.strip_suffix(':').unwrap_or(before_comment).trim().to_string();
+        }
+    }
+    let text = AstUtils::node_text(decl, source);
+    let first_line = text.lines().next().unwrap_or(text);
+    let before_comment = first_line.split('#').next().unwrap_or(first_line).trim();
+    before_comment.strip_suffix(':').unwrap_or(before_comment).trim().to_string()
 }
 
 fn find_python_signature(root: Node<'_>, source: &str, func_name: &str) -> Option<String> {

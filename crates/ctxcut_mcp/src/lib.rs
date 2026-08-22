@@ -10,11 +10,12 @@ pub use logger::{format_rfc3339, McpFileLogger, ToolLogRecord};
 
 use anyhow::Result;
 use ctxcut_core::{
-    AstPatcher, ContextSlicer, MarkdownFormatter, SliceOptions, TelemetryLogger,
-    TestContextGenerator,
+    AstPatcher, ContextSlicer, MarkdownFormatter, OverviewOptions, SliceOptions, SliceResult,
+    TelemetryLogger, TestContextGenerator, WorkspaceOverviewGenerator,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::fs;
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::RecvTimeoutError;
@@ -189,7 +190,7 @@ fn build_tools_list_response() -> Value {
         "tools": [
             {
                 "name": "get_symbol_slice",
-                "description": "Extracts AST-accurate slice of a function/class with hoisted types, stripped signatures, and optional token budgeting",
+                "description": "Extracts AST-accurate slice of target function(s), method(s), or class(es) with hoisted types, stripped signatures, and optional token budgeting. Supports comma-separated multi-symbol batching with unified type deduplication.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
@@ -199,7 +200,7 @@ fn build_tools_list_response() -> Value {
                         },
                         "symbol": {
                             "type": "string",
-                            "description": "Target symbol name (e.g. `calculateTax` or `OrderService.refund`)"
+                            "description": "Target symbol name(s) (e.g. `calculateTax`, `OrderService.refund`, or comma-separated `processOrder,validateToken`)"
                         },
                         "budget": {
                             "type": "integer",
@@ -219,6 +220,54 @@ fn build_tools_list_response() -> Value {
                         }
                     },
                     "required": ["path", "symbol"]
+                }
+            },
+            {
+                "name": "get_workspace_overview",
+                "description": "Indexes workspace symbols and generates a token-dense architectural outline of all declarations, interfaces, and routes without parsing entire file bodies",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Workspace root directory path (defaults to current directory)"
+                        },
+                        "depth": {
+                            "type": "integer",
+                            "description": "Maximum directory traversal depth (default: unlimited)"
+                        },
+                        "budget": {
+                            "type": "integer",
+                            "description": "Optional token budget limit for compressed repository overview"
+                        },
+                        "format": {
+                            "type": "string",
+                            "description": "Output format: 'markdown' (default) or 'json'",
+                            "enum": ["markdown", "json"]
+                        },
+                        "include_routes": {
+                            "type": "boolean",
+                            "description": "Whether to detect and index web framework routes (default: true)"
+                        }
+                    }
+                }
+            },
+            {
+                "name": "get_metrics",
+                "description": "Inspects cumulative token reduction telemetry, ROI analytics, language breakdowns, and estimated API cost savings",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "format": {
+                            "type": "string",
+                            "description": "Output format: 'markdown' (default dashboard) or 'json' (raw metrics payload)",
+                            "enum": ["markdown", "text", "json"]
+                        },
+                        "clear": {
+                            "type": "boolean",
+                            "description": "Clear persistent telemetry history (default: false)"
+                        }
+                    }
                 }
             },
             {
@@ -244,20 +293,23 @@ fn build_tools_list_response() -> Value {
             },
             {
                 "name": "analyze_token_stats",
-                "description": "Calculates repository or file token savings and optimization statistics",
+                "description": "Calculates repository or file token savings and optimization statistics, or inspects lifetime history",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "path": {
                             "type": "string",
-                            "description": "File or directory path to analyze"
+                            "description": "File or directory path to analyze (optional when history=true)"
                         },
                         "fast": {
                             "type": "boolean",
                             "description": "Enable shallow fast estimation scan mode without deep AST slicing (default: true for directories, false for single files)"
+                        },
+                        "history": {
+                            "type": "boolean",
+                            "description": "Display persistent lifetime telemetry history and ROI dashboard (default: false)"
                         }
-                    },
-                    "required": ["path"]
+                    }
                 }
             },
             {
@@ -475,6 +527,8 @@ fn execute_tool_call(
 ) -> (Value, Option<Value>, Option<String>, Option<usize>) {
     match name {
         "get_symbol_slice" => execute_symbol_slice(args),
+        "get_workspace_overview" => execute_workspace_overview(args),
+        "get_metrics" => execute_metrics(args),
         "get_diff_slice" => execute_diff_slice(args),
         "analyze_token_stats" => execute_stats_slice(args),
         "patch_symbol" => execute_patch_symbol(args),
@@ -504,7 +558,21 @@ fn execute_symbol_slice(args: &Value) -> (Value, Option<Value>, Option<String>, 
             None,
         );
     };
-    let Some(symbol) = args.get("symbol").and_then(Value::as_str) else {
+
+    let symbols_vec: Vec<String> = if let Some(sym_str) = args.get("symbol").and_then(Value::as_str) {
+        sym_str
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect()
+    } else if let Some(sym_arr) = args.get("symbols").and_then(Value::as_array) {
+        sym_arr
+            .iter()
+            .filter_map(Value::as_str)
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect()
+    } else {
         let err = "Missing required parameter 'symbol'".to_string();
         return (
             json!({
@@ -516,6 +584,19 @@ fn execute_symbol_slice(args: &Value) -> (Value, Option<Value>, Option<String>, 
             None,
         );
     };
+
+    if symbols_vec.is_empty() {
+        let err = "No valid symbol name provided in parameter 'symbol'".to_string();
+        return (
+            json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            }),
+            None,
+            Some(err),
+            None,
+        );
+    }
 
     let budget = args
         .get("budget")
@@ -540,35 +621,86 @@ fn execute_symbol_slice(args: &Value) -> (Value, Option<Value>, Option<String>, 
 
     let start_time = Instant::now();
     let slicer = ContextSlicer::new();
-    match slicer.slice_symbol(Path::new(file_path_str), symbol, &opts) {
-        Ok(slice) => {
-            #[allow(clippy::cast_possible_truncation)]
-            let duration_ms = start_time.elapsed().as_millis() as u64;
-            TelemetryLogger::record_slice(&slice, "mcp_get_symbol_slice", Some(duration_ms));
 
-            let raw_tokens = slice.stats.raw_file_tokens;
-            let sliced_tokens = slice.stats.sliced_tokens;
-            let saved_tokens = raw_tokens.saturating_sub(sliced_tokens);
-            let metrics = json!({
-                "raw_tokens": raw_tokens,
-                "sliced_tokens": sliced_tokens,
-                "saved_tokens": saved_tokens,
-                "savings_percentage": slice.stats.savings_percentage,
-                "raw_lines": slice.stats.raw_lines,
-                "sliced_lines": slice.stats.sliced_lines
-            });
-            let response = json!({
-                "content": [{ "type": "text", "text": MarkdownFormatter::format(&slice) }]
-            });
-            (response, Some(metrics), None, Some(saved_tokens))
+    if symbols_vec.len() > 1 {
+        let sym_refs: Vec<&str> = symbols_vec.iter().map(|s| s.as_str()).collect();
+        match slicer.slice_batch(Path::new(file_path_str), &sym_refs, &opts) {
+            Ok(batch) => {
+                #[allow(clippy::cast_possible_truncation)]
+                let duration_ms = start_time.elapsed().as_millis() as u64;
+                for sym in &batch.target_symbols {
+                    let single = SliceResult {
+                        target_symbol: sym.clone(),
+                        hoisted_types: Vec::new(),
+                        stripped_calls: Vec::new(),
+                        stats: batch.stats.clone(),
+                    };
+                    TelemetryLogger::record_slice(
+                        &single,
+                        "mcp_get_symbol_slice",
+                        Some(duration_ms),
+                    );
+                }
+
+                let raw_tokens = batch.stats.raw_file_tokens;
+                let sliced_tokens = batch.stats.sliced_tokens;
+                let saved_tokens = raw_tokens.saturating_sub(sliced_tokens);
+                let metrics = json!({
+                    "raw_tokens": raw_tokens,
+                    "sliced_tokens": sliced_tokens,
+                    "saved_tokens": saved_tokens,
+                    "savings_percentage": batch.stats.savings_percentage,
+                    "raw_lines": batch.stats.raw_lines,
+                    "sliced_lines": batch.stats.sliced_lines,
+                    "symbols_count": batch.target_symbols.len()
+                });
+                let response = json!({
+                    "content": [{ "type": "text", "text": batch.to_markdown() }],
+                    "slice": batch
+                });
+                (response, Some(metrics), None, Some(saved_tokens))
+            }
+            Err(e) => {
+                let err = format!("Batch slicing error: {e}");
+                let response = json!({
+                    "isError": true,
+                    "content": [{ "type": "text", "text": err }]
+                });
+                (response, None, Some(err), None)
+            }
         }
-        Err(e) => {
-            let err = format!("Slicing error: {e}");
-            let response = json!({
-                "isError": true,
-                "content": [{ "type": "text", "text": err }]
-            });
-            (response, None, Some(err), None)
+    } else {
+        match slicer.slice_symbol(Path::new(file_path_str), &symbols_vec[0], &opts) {
+            Ok(slice) => {
+                #[allow(clippy::cast_possible_truncation)]
+                let duration_ms = start_time.elapsed().as_millis() as u64;
+                TelemetryLogger::record_slice(&slice, "mcp_get_symbol_slice", Some(duration_ms));
+
+                let raw_tokens = slice.stats.raw_file_tokens;
+                let sliced_tokens = slice.stats.sliced_tokens;
+                let saved_tokens = raw_tokens.saturating_sub(sliced_tokens);
+                let metrics = json!({
+                    "raw_tokens": raw_tokens,
+                    "sliced_tokens": sliced_tokens,
+                    "saved_tokens": saved_tokens,
+                    "savings_percentage": slice.stats.savings_percentage,
+                    "raw_lines": slice.stats.raw_lines,
+                    "sliced_lines": slice.stats.sliced_lines
+                });
+                let response = json!({
+                    "content": [{ "type": "text", "text": MarkdownFormatter::format(&slice) }],
+                    "slice": slice
+                });
+                (response, Some(metrics), None, Some(saved_tokens))
+            }
+            Err(e) => {
+                let err = format!("Slicing error: {e}");
+                let response = json!({
+                    "isError": true,
+                    "content": [{ "type": "text", "text": err }]
+                });
+                (response, None, Some(err), None)
+            }
         }
     }
 }
@@ -644,6 +776,10 @@ fn execute_diff_slice(args: &Value) -> (Value, Option<Value>, Option<String>, Op
 }
 
 fn execute_stats_slice(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
+    if args.get("history").and_then(Value::as_bool) == Some(true) {
+        return execute_metrics(args);
+    }
+
     let Some(path_str) = args.get("path").and_then(Value::as_str) else {
         let err = "Missing required parameter 'path'".to_string();
         return (
@@ -691,6 +827,135 @@ fn execute_stats_slice(args: &Value) -> (Value, Option<Value>, Option<String>, O
             (response, None, Some(err), None)
         }
     }
+}
+
+fn execute_workspace_overview(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
+    let path_str = args.get("path").and_then(Value::as_str).unwrap_or(".");
+    let target_root = Path::new(path_str);
+
+    let max_depth = args.get("depth").and_then(Value::as_u64).map(|d| d as usize);
+    let budget = args.get("budget").and_then(Value::as_u64).map(|b| b as usize);
+    let format_str = args.get("format").and_then(Value::as_str).unwrap_or("markdown");
+    let include_routes = args.get("include_routes").and_then(Value::as_bool).unwrap_or(true);
+    let framework = args.get("framework").and_then(Value::as_str).map(String::from);
+
+    let opts = OverviewOptions {
+        budget,
+        max_depth,
+        include_routes,
+        framework,
+    };
+
+    match WorkspaceOverviewGenerator::generate(target_root, &opts) {
+        Ok(report) => {
+            let raw_tokens = report.total_raw_tokens;
+            let overview_tokens = report.total_overview_tokens;
+            let saved_tokens = raw_tokens.saturating_sub(overview_tokens);
+            let metrics = json!({
+                "total_files": report.total_files,
+                "total_symbols": report.total_symbols,
+                "total_lines": report.total_lines,
+                "raw_tokens": raw_tokens,
+                "overview_tokens": overview_tokens,
+                "saved_tokens": saved_tokens,
+                "savings_percentage": report.token_savings_percentage
+            });
+
+            let rendered = if format_str.eq_ignore_ascii_case("json") {
+                report.to_json()
+            } else {
+                report.to_markdown()
+            };
+
+            let response = json!({
+                "content": [{ "type": "text", "text": rendered }],
+                "overview": report
+            });
+            (response, Some(metrics), None, Some(saved_tokens))
+        }
+        Err(e) => {
+            let err = format!("Workspace overview error: {e}");
+            let response = json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            });
+            (response, None, Some(err), None)
+        }
+    }
+}
+
+fn execute_metrics(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
+    let format_str = args.get("format").and_then(Value::as_str).unwrap_or("markdown");
+    let clear = args.get("clear").and_then(Value::as_bool).unwrap_or(false);
+
+    let metrics_path = TelemetryLogger::resolve_metrics_path();
+
+    if clear {
+        let _ = fs::remove_file(&metrics_path);
+    }
+
+    let summary = TelemetryLogger::load_summary().unwrap_or_else(|_| ctxcut_core::TelemetrySummary {
+        total_requests: 0,
+        total_raw_tokens: 0,
+        total_sliced_tokens: 0,
+        total_saved_tokens: 0,
+        compression_percentage: 0.0,
+        estimated_cost_savings_usd: 0.0,
+        cost_savings_by_tier: ctxcut_core::ModelTierSavings {
+            standard_sonnet_gpt4o: 0.0,
+            frontier_opus: 0.0,
+            economy_haiku_mini: 0.0,
+        },
+        language_breakdown: std::collections::BTreeMap::new(),
+        by_language: Vec::new(),
+        by_source: Vec::new(),
+        recent_events: Vec::new(),
+    });
+
+    let metrics = json!({
+        "total_requests": summary.total_requests,
+        "total_raw_tokens": summary.total_raw_tokens,
+        "total_sliced_tokens": summary.total_sliced_tokens,
+        "total_tokens_saved": summary.total_saved_tokens,
+        "savings_percentage": summary.compression_percentage,
+        "estimated_usd_savings": {
+            "economy": summary.cost_savings_by_tier.economy_haiku_mini,
+            "standard": summary.cost_savings_by_tier.standard_sonnet_gpt4o,
+            "frontier": summary.cost_savings_by_tier.frontier_opus
+        }
+    });
+
+    let rendered = if format_str.eq_ignore_ascii_case("json") {
+        serde_json::to_string_pretty(&summary).unwrap_or_else(|_| "{}".to_string())
+    } else if format_str.eq_ignore_ascii_case("text") {
+        ctxcut_cli::render_dashboard(&summary, &metrics_path)
+    } else {
+        format!(
+            "# ctxcut Lifetime Telemetry & Token Savings\n\n\
+             - **Total Slicing Requests:** `{}`\n\
+             - **Raw File Tokens Ingested:** `{}`\n\
+             - **Sliced Tokens Delivered:** `{}`\n\
+             - **Cumulative Tokens Saved:** `{}` (`{:.1}%`)\n\n\
+             ### Estimated API Cost Savings\n\
+             - **Economy Tier ($0.50/1M):** `${:.4}`\n\
+             - **Standard Tier ($3.00/1M):** `${:.4}`\n\
+             - **Frontier Tier ($15.00/1M):** `${:.4}`\n",
+            summary.total_requests,
+            summary.total_raw_tokens,
+            summary.total_sliced_tokens,
+            summary.total_saved_tokens,
+            summary.compression_percentage,
+            summary.cost_savings_by_tier.economy_haiku_mini,
+            summary.cost_savings_by_tier.standard_sonnet_gpt4o,
+            summary.cost_savings_by_tier.frontier_opus,
+        )
+    };
+
+    let response = json!({
+        "content": [{ "type": "text", "text": rendered }],
+        "metrics": summary
+    });
+    (response, Some(metrics), None, Some(summary.total_saved_tokens))
 }
 
 fn execute_patch_symbol(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {

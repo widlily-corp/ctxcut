@@ -199,7 +199,11 @@ impl ImportResolver {
     }
 
     /// Extracts barrel re-exports from a file (e.g. `export * from './foo'`, `export { Bar } from './bar'`).
-    pub fn extract_reexports(root: Node<'_>, source: &str) -> Vec<(Option<String>, String)> {
+    /// Returns a tuple of `(Option<exported_name>, Option<original_name>, specifier)`.
+    pub fn extract_reexports(
+        root: Node<'_>,
+        source: &str,
+    ) -> Vec<(Option<String>, Option<String>, String)> {
         let mut reexports = Vec::new();
         let mut cursor = root.walk();
 
@@ -227,7 +231,7 @@ impl ImportResolver {
                     AstUtils::find_descendants_by_kind(child, "export_specifier").is_empty();
                 if has_star || (child.child_by_field_name("declaration").is_none() && has_no_specs)
                 {
-                    reexports.push((None, specifier.to_string()));
+                    reexports.push((None, None, specifier.to_string()));
                 }
 
                 // Check for named re-exports: `export { A, B as C } from './sub'`
@@ -248,9 +252,13 @@ impl ImportResolver {
                         let exported_name = if let Some(alias_n) = alias_node {
                             AstUtils::node_text(alias_n, source).to_string()
                         } else {
-                            orig_name
+                            orig_name.clone()
                         };
-                        reexports.push((Some(exported_name), specifier.to_string()));
+                        reexports.push((
+                            Some(exported_name),
+                            Some(orig_name),
+                            specifier.to_string(),
+                        ));
                     }
                 }
             }

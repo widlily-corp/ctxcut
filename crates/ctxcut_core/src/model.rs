@@ -318,3 +318,120 @@ impl TestContextResult {
         serde_json::to_string_pretty(self).unwrap_or_else(|_| "{}".to_string())
     }
 }
+
+/// Result of multi-symbol slicing with globally deduplicated hoisted types and call stubs.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BatchSliceResult {
+    /// Path to the source file where target symbols reside.
+    pub file_path: String,
+    /// Target symbols extracted with full implementations.
+    pub target_symbols: Vec<ExtractedSymbol>,
+    /// Hoisted types/data contracts globally deduplicated across all target symbols.
+    pub hoisted_types: Vec<ExtractedType>,
+    /// External call stubs globally deduplicated across all target symbols.
+    pub stripped_calls: Vec<CallSignatureStub>,
+    /// Aggregate token savings statistics.
+    pub stats: TokenStats,
+}
+
+impl BatchSliceResult {
+    /// Render unified batch result to prompt-optimized Markdown.
+    pub fn to_markdown(&self) -> String {
+        crate::formatter::MarkdownFormatter::format_unified_batch(self)
+    }
+
+    /// Render unified batch result to structured JSON.
+    pub fn to_json(&self) -> String {
+        serde_json::to_string_pretty(self).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// Render unified batch result to compact JSON.
+    pub fn to_json_compact(&self) -> String {
+        serde_json::to_string(self).unwrap_or_else(|_| "{}".to_string())
+    }
+}
+
+/// Summary of an individual AST symbol in the workspace overview.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SymbolOverviewItem {
+    /// Identifier name (e.g. `OrderService`, `processOrder`, `GET /api/v1/orders`).
+    pub name: String,
+    /// Kind: `"function"`, `"method"`, `"class"`, `"interface"`, `"struct"`, `"enum"`, `"trait"`, `"type"`, `"route"`.
+    pub kind: String,
+    /// 1-based start line.
+    pub start_line: usize,
+    /// 1-based end line.
+    pub end_line: usize,
+    /// Header signature or definition stub.
+    pub signature: Option<String>,
+    /// Doc comment summary or JSDoc.
+    pub doc_summary: Option<String>,
+}
+
+/// Overview of symbols extracted from a single source file.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FileOverviewItem {
+    /// Relative or absolute path to the file.
+    pub path: String,
+    /// Programming language identifier.
+    pub language: String,
+    /// Total lines in source file.
+    pub total_lines: usize,
+    /// Raw BPE token count.
+    pub total_tokens: usize,
+    /// Extracted symbols in the file.
+    pub symbols: Vec<SymbolOverviewItem>,
+}
+
+/// Complete workspace symbol overview report.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorkspaceOverviewReport {
+    /// Root path of the workspace.
+    pub root_path: String,
+    /// Total files indexed.
+    pub total_files: usize,
+    /// Total lines across indexed files.
+    pub total_lines: usize,
+    /// Total raw tokens across indexed files.
+    pub total_raw_tokens: usize,
+    /// Total tokens in the generated overview document.
+    pub total_overview_tokens: usize,
+    /// Percentage token reduction: `(1.0 - (overview / raw)) * 100.0`.
+    pub token_savings_percentage: f64,
+    /// Total symbols indexed.
+    pub total_symbols: usize,
+    /// Language distribution statistics.
+    pub language_breakdown: Vec<crate::traversal::LanguageStatItem>,
+    /// Per-file symbol overviews.
+    pub files: Vec<FileOverviewItem>,
+}
+
+impl WorkspaceOverviewReport {
+    /// Formats the overview report into a high-density Markdown document.
+    pub fn to_markdown(&self) -> String {
+        crate::overview::format_overview_markdown(self)
+    }
+
+    /// Serializes report to JSON.
+    pub fn to_json(&self) -> String {
+        serde_json::to_string_pretty(self).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// Serializes report to compact JSON.
+    pub fn to_json_compact(&self) -> String {
+        serde_json::to_string(self).unwrap_or_else(|_| "{}".to_string())
+    }
+}
+
+/// Options controlling workspace overview generation.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct OverviewOptions {
+    /// Optional token budget limit to bound output size.
+    pub budget: Option<usize>,
+    /// Optional directory recursion depth limit.
+    pub max_depth: Option<usize>,
+    /// Whether to include framework web routes (default: true).
+    pub include_routes: bool,
+    /// Optional target framework filter (e.g. "express", "fastapi", "actix").
+    pub framework: Option<String>,
+}

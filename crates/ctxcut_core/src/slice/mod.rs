@@ -5,9 +5,10 @@ pub mod budget;
 use crate::error::{CoreError, Result};
 use crate::formatter::MarkdownFormatter;
 use crate::lang::LanguageRegistry;
-use crate::model::{SliceOptions, SliceResult, SupportedLanguage, TokenStats};
+use crate::model::{BatchSliceResult, SliceOptions, SliceResult, SupportedLanguage, TokenStats};
 use crate::parser::ParserManager;
 use crate::tokenizer::compute_stats;
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
@@ -122,7 +123,7 @@ impl ContextSlicer {
         Ok((result, report))
     }
 
-    /// Slices multiple symbols from a source file.
+    /// Slices multiple symbols from a source file into separate `SliceResult` items.
     pub fn slice_symbols(
         &self,
         file_path: &Path,
@@ -135,5 +136,121 @@ impl ContextSlicer {
             results.push(res);
         }
         Ok(results)
+    }
+
+    /// Slices multiple target symbols from a source file into a unified `BatchSliceResult` with globally deduplicated types and calls.
+    pub fn slice_batch(
+        &self,
+        file_path: &Path,
+        symbol_names: &[&str],
+        opts: &SliceOptions,
+    ) -> Result<BatchSliceResult> {
+        let source = fs::read_to_string(file_path).map_err(|source| CoreError::Io {
+            path: file_path.to_path_buf(),
+            source,
+        })?;
+
+        let adapter = LanguageRegistry::for_path(file_path)?;
+        let ts_lang = adapter.tree_sitter_language(file_path);
+        let tree = ParserManager::parse_source(&source, &ts_lang, file_path)?;
+        let root = tree.root_node();
+
+        let mut target_symbols = Vec::with_capacity(symbol_names.len());
+        let mut all_hoisted = Vec::new();
+        let mut seen_type_names = HashSet::new();
+        let mut all_calls = Vec::new();
+        let mut seen_call_keys = HashSet::new();
+
+        let framework_registry = crate::framework::FrameworkRegistry::default();
+
+        for name in symbol_names {
+            let clean_name = name.trim();
+            if clean_name.is_empty() {
+                continue;
+            }
+            let (target_symbol, target_node) =
+                adapter.locate_symbol(root, &source, clean_name, file_path)?;
+
+            // Hoist types if enabled
+            if opts.include_types {
+                let types = adapter.hoist_types(target_node, root, &source, file_path, opts)?;
+                for ty in types {
+                    if seen_type_names.insert(ty.name.clone()) {
+                        all_hoisted.push(ty);
+                    }
+                }
+            }
+
+            // Strip calls if enabled
+            if opts.include_calls {
+                let calls = adapter.strip_calls(target_node, root, &source, file_path)?;
+                for call in calls {
+                    let key = (call.receiver.clone(), call.name.clone());
+                    if seen_call_keys.insert(key) {
+                        all_calls.push(call);
+                    }
+                }
+            }
+
+            // Create temporary single slice to run framework enhancement
+            let mut temp_slice = SliceResult {
+                target_symbol: target_symbol.clone(),
+                hoisted_types: Vec::new(),
+                stripped_calls: Vec::new(),
+                stats: TokenStats::calculate(0, 0, 0, 0),
+            };
+            let _ = framework_registry.enhance_slice(
+                target_node,
+                &source,
+                file_path,
+                &mut temp_slice,
+            )?;
+            if opts.include_types {
+                for ty in temp_slice.hoisted_types {
+                    if seen_type_names.insert(ty.name.clone()) {
+                        all_hoisted.push(ty);
+                    }
+                }
+            }
+            if opts.include_calls {
+                for call in temp_slice.stripped_calls {
+                    let key = (call.receiver.clone(), call.name.clone());
+                    if seen_call_keys.insert(key) {
+                        all_calls.push(call);
+                    }
+                }
+            }
+
+            target_symbols.push(target_symbol);
+        }
+
+        let mut batch_result = BatchSliceResult {
+            file_path: file_path.to_string_lossy().to_string(),
+            target_symbols,
+            hoisted_types: all_hoisted,
+            stripped_calls: all_calls,
+            stats: TokenStats::calculate(0, 0, 0, 0),
+        };
+
+        // Budget compression if specified
+        if let Some(budget_tokens) = opts.budget {
+            let rendered_md = MarkdownFormatter::format_unified_batch(&batch_result);
+            let current_tokens = crate::tokenizer::count_tokens(&rendered_md);
+            if current_tokens > budget_tokens {
+                for sym in &mut batch_result.target_symbols {
+                    sym.doc_comment = None;
+                }
+                let compressed_md = MarkdownFormatter::format_unified_batch(&batch_result);
+                let compressed_tokens = crate::tokenizer::count_tokens(&compressed_md);
+                if compressed_tokens > budget_tokens {
+                    batch_result.stripped_calls.clear();
+                }
+            }
+        }
+
+        let rendered_markdown = MarkdownFormatter::format_unified_batch(&batch_result);
+        batch_result.stats = compute_stats(&source, &rendered_markdown);
+
+        Ok(batch_result)
     }
 }

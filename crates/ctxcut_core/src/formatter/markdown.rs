@@ -99,6 +99,107 @@ impl MarkdownFormatter {
             .collect::<Vec<_>>()
             .join("\n\n---\n\n")
     }
+
+    /// Formats a `BatchSliceResult` with unified type deduplication and consolidated sections.
+    pub fn format_unified_batch(result: &crate::model::BatchSliceResult) -> String {
+        let mut out = String::with_capacity(4096);
+
+        let lang_str = result
+            .target_symbols
+            .first()
+            .map(|s| s.language.as_str())
+            .unwrap_or("text");
+        let lang_tag = normalize_language_tag(lang_str);
+        let stats = &result.stats;
+
+        let symbol_names: Vec<&str> = result
+            .target_symbols
+            .iter()
+            .map(|s| s.name.as_str())
+            .collect();
+        let sym_header = symbol_names.join(", ");
+
+        // Header section with metadata
+        let _ = writeln!(out, "### Context Slice: `{}:{}`", result.file_path, sym_header);
+        let _ = writeln!(
+            out,
+            "*Language: `{}` | Lines: `{}` (was `{}`) | Tokens: `{}` (was `{}`) | Savings: `{:.1}%`*\n",
+            lang_str,
+            stats.sliced_lines,
+            stats.raw_lines,
+            stats.sliced_tokens,
+            stats.raw_file_tokens,
+            stats.savings_percentage
+        );
+
+        // Section 1: Target Implementations (Full Body)
+        out.push_str("#### 1. Target Implementation (Full Body)\n");
+        if result.target_symbols.is_empty() {
+            out.push_str("*None*\n\n");
+        } else {
+            for sym in &result.target_symbols {
+                let _ = writeln!(out, "```{lang_tag}");
+                if let Some(ref doc) = sym.doc_comment {
+                    let trimmed_doc = doc.trim();
+                    if !trimmed_doc.is_empty() && !sym.body.contains(trimmed_doc) {
+                        out.push_str(trimmed_doc);
+                        out.push('\n');
+                    }
+                }
+                out.push_str(sym.body.trim());
+                out.push_str("\n```\n\n");
+            }
+        }
+
+        // Section 2: Hoisted Types & Data Contracts
+        out.push_str("#### 2. Hoisted Types & Data Contracts\n");
+        let mut seen_types = HashSet::new();
+        let mut unique_types = Vec::new();
+        for ty in &result.hoisted_types {
+            if seen_types.insert(&ty.name) {
+                unique_types.push(ty);
+            }
+        }
+
+        if unique_types.is_empty() {
+            out.push_str("*None*\n\n");
+        } else {
+            let _ = writeln!(out, "```{lang_tag}");
+            for (idx, ty) in unique_types.iter().enumerate() {
+                if idx > 0 {
+                    out.push_str("\n\n");
+                }
+                out.push_str(ty.definition.trim());
+            }
+            out.push_str("\n```\n\n");
+        }
+
+        // Section 3: External Dependencies & Signatures (Body Stripped)
+        out.push_str("#### 3. External Dependencies & Signatures (Body Stripped)\n");
+        let mut seen_calls = HashSet::new();
+        let mut unique_calls = Vec::new();
+        for call in &result.stripped_calls {
+            let key = (call.receiver.as_deref(), call.name.as_str());
+            if seen_calls.insert(key) {
+                unique_calls.push(call);
+            }
+        }
+
+        if unique_calls.is_empty() {
+            out.push_str("*None*\n");
+        } else {
+            let _ = writeln!(out, "```{lang_tag}");
+            for (idx, call) in unique_calls.iter().enumerate() {
+                if idx > 0 {
+                    out.push('\n');
+                }
+                out.push_str(call.signature.trim());
+            }
+            out.push_str("\n```\n");
+        }
+
+        out
+    }
 }
 
 /// Normalizes language identifier to standard Markdown code-fence syntax tag.

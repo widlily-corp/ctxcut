@@ -28,7 +28,7 @@ impl TypeHoister {
 
         let mut hoisted = Vec::new();
         let mut visited = HashSet::new();
-        let mut queue: VecDeque<(String, usize)> = VecDeque::new();
+        let mut queue: VecDeque<(String, usize, PathBuf)> = VecDeque::new();
 
         // 1. Collect scoped generic parameter identifiers (e.g. T, K, V)
         let scoped_generics = collect_scoped_generics(target_node, source);
@@ -38,7 +38,7 @@ impl TypeHoister {
         for ty in initial_types {
             if !visited.contains(&ty) {
                 visited.insert(ty.clone());
-                queue.push_back((ty, 1));
+                queue.push_back((ty, 1, file_path.to_path_buf()));
             }
         }
 
@@ -46,19 +46,31 @@ impl TypeHoister {
         let mut file_cache: HashMap<PathBuf, (String, tree_sitter::Tree)> = HashMap::new();
 
         // 3. Process queue up to opts.depth
-        while let Some((type_name, depth)) = queue.pop_front() {
+        while let Some((type_name, depth, origin_file)) = queue.pop_front() {
             if is_builtin_or_primitive(&type_name) {
                 continue;
             }
 
-            // Attempt local file resolution first
-            if let Some(extracted) = find_type_in_file(root, source, &type_name, file_path) {
-                // If depth < opts.depth, parse definition and enqueue referenced types
+            // A. Check if type is declared in origin_file
+            let origin_is_target = origin_file == file_path;
+            let (orig_source, orig_tree_root) = if origin_is_target {
+                (source, root)
+            } else if let Some((src, tree)) =
+                get_or_load_file(&origin_file, tree_sitter_lang, &mut file_cache)
+            {
+                (src, tree.root_node())
+            } else {
+                continue;
+            };
+
+            if let Some(extracted) =
+                find_type_in_file(orig_tree_root, orig_source, &type_name, &origin_file)
+            {
                 if depth < opts.depth {
                     if let Ok(def_tree) = ParserManager::parse_source(
                         &extracted.definition,
                         tree_sitter_lang,
-                        file_path,
+                        &origin_file,
                     ) {
                         let inner_types = extract_type_identifiers(
                             def_tree.root_node(),
@@ -68,7 +80,7 @@ impl TypeHoister {
                         for inner in inner_types {
                             if !visited.contains(&inner) && !is_builtin_or_primitive(&inner) {
                                 visited.insert(inner.clone());
-                                queue.push_back((inner, depth + 1));
+                                queue.push_back((inner, depth + 1, origin_file.clone()));
                             }
                         }
                     }
@@ -77,16 +89,16 @@ impl TypeHoister {
                 continue;
             }
 
-            // If depth == 0, skip foreign resolution
+            // If depth == 0 or depth > opts.depth, skip foreign resolution
             if opts.depth == 0 {
                 continue;
             }
 
-            // Attempt imported resolution
-            let imports = ImportResolver::extract_imports(root, source);
+            // B. Check origin_file's imports
+            let imports = ImportResolver::extract_imports(orig_tree_root, orig_source);
             if let Some(mapping) = imports.get(&type_name) {
                 if let Some(target_file) =
-                    ImportResolver::resolve_module_path(file_path, &mapping.specifier)
+                    ImportResolver::resolve_module_path(&origin_file, &mapping.specifier)
                 {
                     if let Some(extracted) = resolve_type_from_module(
                         &mapping.imported_name,
@@ -94,11 +106,13 @@ impl TypeHoister {
                         tree_sitter_lang,
                         &mut file_cache,
                     ) {
+                        let def_file = PathBuf::from(&extracted.file_path);
+
                         if depth < opts.depth {
                             if let Ok(def_tree) = ParserManager::parse_source(
                                 &extracted.definition,
                                 tree_sitter_lang,
-                                &target_file,
+                                &def_file,
                             ) {
                                 let inner_types = extract_type_identifiers(
                                     def_tree.root_node(),
@@ -109,7 +123,7 @@ impl TypeHoister {
                                     if !visited.contains(&inner) && !is_builtin_or_primitive(&inner)
                                     {
                                         visited.insert(inner.clone());
-                                        queue.push_back((inner, depth + 1));
+                                        queue.push_back((inner, depth + 1, def_file.clone()));
                                     }
                                 }
                             }
@@ -560,13 +574,14 @@ fn resolve_type_from_module(
 
     // 2. Check barrel re-exports: export * from './sub', export { Type } from './sub'
     let reexports = ImportResolver::extract_reexports(root, source);
-    for (exported_alias, specifier) in reexports {
+    for (exported_alias, orig_name, specifier) in reexports {
         if let Some(alias) = exported_alias {
             if alias == type_name {
+                let lookup_name = orig_name.as_deref().unwrap_or(type_name);
                 if let Some(sub_file) = ImportResolver::resolve_module_path(target_file, &specifier)
                 {
                     if let Some(res) =
-                        resolve_type_from_module(type_name, &sub_file, tree_sitter_lang, cache)
+                        resolve_type_from_module(lookup_name, &sub_file, tree_sitter_lang, cache)
                     {
                         return Some(res);
                     }
