@@ -4,6 +4,9 @@
 //! - test_git_diff_route: Git diff detection combined with route handler extraction
 //! - test_mcp_chaining: Sequential MCP tool calls and stateful server sessions
 //! - test_multi_symbol_clip: Multi-symbol clipping and clipboard integration
+//! - test_installers: Installation script validation
+//! - test_ide_setup: IDE auto-config and MCP merge
+//! - test_v2_cross_combinations: C1..C10 pairwise interaction matrix
 
 #![allow(dead_code, unused_imports, clippy::all)]
 
@@ -21,3 +24,6 @@ mod test_installers;
 
 #[path = "tier3_cross_feature/test_ide_setup.rs"]
 mod test_ide_setup;
+
+#[path = "tier3_cross_feature/test_v2_cross_combinations.rs"]
+mod test_v2_cross_combinations;

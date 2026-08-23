@@ -34,6 +34,7 @@ fn create_dummy_slice(name: &str, body: &str, file_path: &Path, language: &str) 
             language: language.to_string(),
         },
         hoisted_types: Vec::new(),
+        hoisted_implementors: Vec::new(),
         stripped_calls: Vec::new(),
         stats: TokenStats::calculate(0, 0, 0, 0),
     }

@@ -25,153 +25,206 @@ impl ImportResolver {
     /// Extracts all import mappings from a file's root AST.
     pub fn extract_imports(root: Node<'_>, source: &str) -> HashMap<String, ImportMapping> {
         let mut map = HashMap::new();
-        let mut cursor = root.walk();
 
-        for child in root.children(&mut cursor) {
-            if child.kind() == "import_statement" {
-                let specifier = child
-                    .child_by_field_name("source")
-                    .map(|s| AstUtils::node_text(s, source).trim_matches(['\'', '"', '`']))
-                    .or_else(|| {
-                        AstUtils::find_descendants_by_kind(child, "string")
-                            .first()
-                            .map(|s| AstUtils::node_text(*s, source).trim_matches(['\'', '"', '`']))
-                    })
-                    .unwrap_or("");
+        let import_statements = AstUtils::find_descendants_by_kind(root, "import_statement");
+        for child in import_statements {
+            let specifier = child
+                .child_by_field_name("source")
+                .map(|s| AstUtils::node_text(s, source).trim_matches(['\'', '"', '`']))
+                .or_else(|| {
+                    AstUtils::find_descendants_by_kind(child, "string")
+                        .first()
+                        .map(|s| AstUtils::node_text(*s, source).trim_matches(['\'', '"', '`']))
+                })
+                .unwrap_or("");
 
-                if specifier.is_empty() {
-                    continue;
-                }
+            if specifier.is_empty() {
+                continue;
+            }
 
-                // Default import: import Foo from './foo'
-                for clause in AstUtils::find_children_by_kind(child, "import_clause") {
-                    if let Some(first_child) = clause.named_child(0) {
-                        if first_child.kind() == "identifier" {
-                            let name = AstUtils::node_text(first_child, source).to_string();
-                            map.insert(
-                                name.clone(),
-                                ImportMapping {
-                                    local_name: name,
-                                    imported_name: "default".to_string(),
-                                    specifier: specifier.to_string(),
-                                },
-                            );
-                        }
-                    }
-                }
-
-                // Named imports: import { A, B as C } from './foo'
-                for named in AstUtils::find_descendants_by_kind(child, "import_specifier") {
-                    let name_node = named
-                        .child_by_field_name("name")
-                        .or_else(|| named.named_child(0));
-                    let alias_node = named.child_by_field_name("alias").or_else(|| {
-                        if named.named_child_count() > 1 {
-                            named.named_child(1)
-                        } else {
-                            None
-                        }
-                    });
-
-                    if let Some(name_n) = name_node {
-                        let orig_name = AstUtils::node_text(name_n, source).to_string();
-                        let local_name = if let Some(alias_n) = alias_node {
-                            AstUtils::node_text(alias_n, source).to_string()
-                        } else {
-                            orig_name.clone()
-                        };
-
+            // Default import: import Foo from './foo'
+            for clause in AstUtils::find_children_by_kind(child, "import_clause") {
+                if let Some(first_child) = clause.named_child(0) {
+                    if first_child.kind() == "identifier" {
+                        let name = AstUtils::node_text(first_child, source).to_string();
                         map.insert(
-                            local_name.clone(),
+                            name.clone(),
                             ImportMapping {
-                                local_name,
-                                imported_name: orig_name,
+                                local_name: name,
+                                imported_name: "default".to_string(),
                                 specifier: specifier.to_string(),
                             },
                         );
                     }
                 }
+            }
 
-                // Namespace import: import * as Ns from './foo'
-                for ns in AstUtils::find_descendants_by_kind(child, "namespace_import") {
-                    if let Some(id) = ns.named_child(0) {
-                        let ns_name = AstUtils::node_text(id, source).to_string();
-                        map.insert(
-                            ns_name.clone(),
-                            ImportMapping {
-                                local_name: ns_name,
-                                imported_name: "*".to_string(),
-                                specifier: specifier.to_string(),
-                            },
-                        );
+            // Named imports: import { A, B as C } from './foo'
+            for named in AstUtils::find_descendants_by_kind(child, "import_specifier") {
+                let name_node = named
+                    .child_by_field_name("name")
+                    .or_else(|| named.named_child(0));
+                let alias_node = named.child_by_field_name("alias").or_else(|| {
+                    if named.named_child_count() > 1 {
+                        named.named_child(1)
+                    } else {
+                        None
                     }
+                });
+
+                if let Some(name_n) = name_node {
+                    let orig_name = AstUtils::node_text(name_n, source).to_string();
+                    let local_name = if let Some(alias_n) = alias_node {
+                        AstUtils::node_text(alias_n, source).to_string()
+                    } else {
+                        orig_name.clone()
+                    };
+
+                    map.insert(
+                        local_name.clone(),
+                        ImportMapping {
+                            local_name,
+                            imported_name: orig_name,
+                            specifier: specifier.to_string(),
+                        },
+                    );
                 }
-            } else if child.kind() == "lexical_declaration"
-                || child.kind() == "variable_declaration"
-            {
-                // CommonJS require: const { foo } = require('./foo') or const bar = require('./bar')
-                for declarator in AstUtils::find_children_by_kind(child, "variable_declarator") {
-                    if let Some(val) = declarator.child_by_field_name("value") {
-                        if val.kind() == "call_expression" {
-                            if let Some(fn_node) = val.child_by_field_name("function") {
-                                if AstUtils::node_text(fn_node, source) == "require" {
-                                    if let Some(args) = val.child_by_field_name("arguments") {
-                                        if let Some(first_arg) = args.named_child(0) {
-                                            let specifier = AstUtils::node_text(first_arg, source)
-                                                .trim_matches(['\'', '"', '`']);
-                                            if !specifier.is_empty() {
-                                                if let Some(name_node) =
-                                                    declarator.child_by_field_name("name")
-                                                {
-                                                    if name_node.kind() == "object_pattern" {
-                                                        for pattern_child in name_node
-                                                            .named_children(&mut name_node.walk())
-                                                        {
-                                                            if pattern_child.kind() == "shorthand_property_identifier_pattern" || pattern_child.kind() == "identifier" {
-                                                                let name = AstUtils::node_text(pattern_child, source).to_string();
+            }
+
+            // Namespace import: import * as Ns from './foo'
+            for ns in AstUtils::find_descendants_by_kind(child, "namespace_import") {
+                if let Some(id) = ns.named_child(0) {
+                    let ns_name = AstUtils::node_text(id, source).to_string();
+                    map.insert(
+                        ns_name.clone(),
+                        ImportMapping {
+                            local_name: ns_name,
+                            imported_name: "*".to_string(),
+                            specifier: specifier.to_string(),
+                        },
+                    );
+                }
+            }
+        }
+
+        // CommonJS require: const { foo } = require('./foo') or const bar = require('./bar')
+        let decls = AstUtils::find_descendants_by_kind(root, "lexical_declaration");
+        let vars = AstUtils::find_descendants_by_kind(root, "variable_declaration");
+        for child in decls.into_iter().chain(vars) {
+            for declarator in AstUtils::find_children_by_kind(child, "variable_declarator") {
+                if let Some(val) = declarator.child_by_field_name("value") {
+                    if val.kind() == "call_expression" {
+                        if let Some(fn_node) = val.child_by_field_name("function") {
+                            if AstUtils::node_text(fn_node, source) == "require" {
+                                if let Some(args) = val.child_by_field_name("arguments") {
+                                    if let Some(first_arg) = args.named_child(0) {
+                                        let specifier = AstUtils::node_text(first_arg, source)
+                                            .trim_matches(['\'', '"', '`']);
+                                        if !specifier.is_empty() {
+                                            if let Some(name_node) =
+                                                declarator.child_by_field_name("name")
+                                            {
+                                                if name_node.kind() == "object_pattern" {
+                                                    for pattern_child in name_node
+                                                        .named_children(&mut name_node.walk())
+                                                    {
+                                                        if pattern_child.kind() == "shorthand_property_identifier_pattern" || pattern_child.kind() == "identifier" {
+                                                            let name = AstUtils::node_text(pattern_child, source).to_string();
+                                                            map.insert(
+                                                                name.clone(),
+                                                                ImportMapping {
+                                                                    local_name: name.clone(),
+                                                                    imported_name: name,
+                                                                    specifier: specifier.to_string(),
+                                                                },
+                                                            );
+                                                        } else if pattern_child.kind() == "pair_pattern" {
+                                                            if let (Some(key), Some(val)) = (pattern_child.child_by_field_name("key"), pattern_child.child_by_field_name("value")) {
+                                                                let imported_name = AstUtils::node_text(key, source).to_string();
+                                                                let local_name = AstUtils::node_text(val, source).to_string();
                                                                 map.insert(
-                                                                    name.clone(),
+                                                                    local_name.clone(),
                                                                     ImportMapping {
-                                                                        local_name: name.clone(),
-                                                                        imported_name: name,
+                                                                        local_name,
+                                                                        imported_name,
                                                                         specifier: specifier.to_string(),
                                                                     },
                                                                 );
-                                                            } else if pattern_child.kind() == "pair_pattern" {
-                                                                if let (Some(key), Some(val)) = (pattern_child.child_by_field_name("key"), pattern_child.child_by_field_name("value")) {
-                                                                    let imported_name = AstUtils::node_text(key, source).to_string();
-                                                                    let local_name = AstUtils::node_text(val, source).to_string();
-                                                                    map.insert(
-                                                                        local_name.clone(),
-                                                                        ImportMapping {
-                                                                            local_name,
-                                                                            imported_name,
-                                                                            specifier: specifier.to_string(),
-                                                                        },
-                                                                    );
-                                                                }
                                                             }
                                                         }
-                                                    } else if name_node.kind() == "identifier" {
-                                                        let name =
-                                                            AstUtils::node_text(name_node, source)
-                                                                .to_string();
-                                                        map.insert(
-                                                            name.clone(),
-                                                            ImportMapping {
-                                                                local_name: name,
-                                                                imported_name: "default"
-                                                                    .to_string(),
-                                                                specifier: specifier.to_string(),
-                                                            },
-                                                        );
                                                     }
+                                                } else if name_node.kind() == "identifier" {
+                                                    let name =
+                                                        AstUtils::node_text(name_node, source)
+                                                            .to_string();
+                                                    map.insert(
+                                                        name.clone(),
+                                                        ImportMapping {
+                                                            local_name: name,
+                                                            imported_name: "default"
+                                                                .to_string(),
+                                                            specifier: specifier.to_string(),
+                                                        },
+                                                    );
                                                 }
                                             }
                                         }
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fallback / SFC text-based import extraction (handles .vue, .svelte, .astro frontmatter)
+        for line in source.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("import ") && trimmed.contains(" from ") {
+                if let Some(spec) = extract_specifier_from_line(trimmed) {
+                    if let Some(brace_start) = trimmed.find('{') {
+                        if let Some(brace_end) = trimmed.find('}') {
+                            let names = &trimmed[brace_start + 1..brace_end];
+                            for part in names.split(',') {
+                                let p = part.trim();
+                                if !p.is_empty() {
+                                    let mut tokens = p.split_whitespace();
+                                    let orig = tokens.next().unwrap_or("");
+                                    let local = if tokens.next() == Some("as") {
+                                        tokens.next().unwrap_or(orig)
+                                    } else {
+                                        orig
+                                    };
+                                    if !orig.is_empty() && !local.is_empty() {
+                                        map.entry(local.to_string()).or_insert_with(|| ImportMapping {
+                                            local_name: local.to_string(),
+                                            imported_name: orig.to_string(),
+                                            specifier: spec.to_string(),
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    } else if let Some(as_idx) = trimmed.find("* as ") {
+                        let after = &trimmed[as_idx + 5..];
+                        let ns_name = after.split_whitespace().next().unwrap_or("").trim();
+                        if !ns_name.is_empty() {
+                            map.entry(ns_name.to_string()).or_insert_with(|| ImportMapping {
+                                local_name: ns_name.to_string(),
+                                imported_name: "*".to_string(),
+                                specifier: spec.to_string(),
+                            });
+                        }
+                    } else {
+                        let after_import = trimmed.trim_start_matches("import ").trim();
+                        let default_name = after_import.split_whitespace().next().unwrap_or("").trim();
+                        if !default_name.is_empty() && default_name != "type" && default_name != "{" && default_name != "*" {
+                            map.entry(default_name.to_string()).or_insert_with(|| ImportMapping {
+                                local_name: default_name.to_string(),
+                                imported_name: "default".to_string(),
+                                specifier: spec.to_string(),
+                            });
                         }
                     }
                 }
@@ -185,16 +238,30 @@ impl ImportResolver {
     pub fn resolve_module_path(from_file: &Path, specifier: &str) -> Option<PathBuf> {
         let lang = SupportedLanguage::from_path(from_file);
         match lang {
-            Some(SupportedLanguage::TypeScript | SupportedLanguage::JavaScript) => {
-                resolve_ts_js_specifier(from_file, specifier)
-            }
+            Some(
+                SupportedLanguage::TypeScript
+                | SupportedLanguage::JavaScript
+                | SupportedLanguage::Vue
+                | SupportedLanguage::Svelte
+                | SupportedLanguage::Astro,
+            ) => resolve_ts_js_specifier(from_file, specifier),
             Some(SupportedLanguage::Python) => resolve_python_specifier(from_file, specifier),
             Some(SupportedLanguage::Go) => resolve_go_specifier(from_file, specifier),
             Some(SupportedLanguage::Rust) => resolve_rust_specifier(from_file, specifier),
+            Some(SupportedLanguage::C | SupportedLanguage::Cpp) => {
+                resolve_c_cpp_specifier(from_file, specifier)
+            }
+            Some(SupportedLanguage::CSharp) => resolve_csharp_specifier(from_file, specifier),
+            Some(SupportedLanguage::Java) => resolve_java_specifier(from_file, specifier),
+            Some(SupportedLanguage::Kotlin) => resolve_kotlin_specifier(from_file, specifier),
             None => resolve_ts_js_specifier(from_file, specifier)
                 .or_else(|| resolve_python_specifier(from_file, specifier))
                 .or_else(|| resolve_go_specifier(from_file, specifier))
-                .or_else(|| resolve_rust_specifier(from_file, specifier)),
+                .or_else(|| resolve_rust_specifier(from_file, specifier))
+                .or_else(|| resolve_c_cpp_specifier(from_file, specifier))
+                .or_else(|| resolve_csharp_specifier(from_file, specifier))
+                .or_else(|| resolve_java_specifier(from_file, specifier))
+                .or_else(|| resolve_kotlin_specifier(from_file, specifier)),
         }
     }
 
@@ -205,60 +272,93 @@ impl ImportResolver {
         source: &str,
     ) -> Vec<(Option<String>, Option<String>, String)> {
         let mut reexports = Vec::new();
-        let mut cursor = root.walk();
 
-        for child in root.children(&mut cursor) {
-            if child.kind() == "export_statement" {
-                let specifier = child
-                    .child_by_field_name("source")
-                    .map(|s| AstUtils::node_text(s, source).trim_matches(['\'', '"', '`']))
-                    .or_else(|| {
-                        AstUtils::find_descendants_by_kind(child, "string")
-                            .first()
-                            .map(|s| AstUtils::node_text(*s, source).trim_matches(['\'', '"', '`']))
-                    })
-                    .unwrap_or("");
+        let export_statements = AstUtils::find_descendants_by_kind(root, "export_statement");
+        for child in export_statements {
+            let specifier = child
+                .child_by_field_name("source")
+                .map(|s| AstUtils::node_text(s, source).trim_matches(['\'', '"', '`']))
+                .or_else(|| {
+                    AstUtils::find_descendants_by_kind(child, "string")
+                        .first()
+                        .map(|s| AstUtils::node_text(*s, source).trim_matches(['\'', '"', '`']))
+                })
+                .unwrap_or("");
 
-                if specifier.is_empty() {
-                    continue;
+            if specifier.is_empty() {
+                continue;
+            }
+
+            // Check for wildcard `export * from './sub'`
+            let has_star = child
+                .children(&mut child.walk())
+                .any(|c| c.kind() == "*" || c.kind() == "asterisk");
+            let has_no_specs =
+                AstUtils::find_descendants_by_kind(child, "export_specifier").is_empty();
+            if has_star || (child.child_by_field_name("declaration").is_none() && has_no_specs) {
+                reexports.push((None, None, specifier.to_string()));
+            }
+
+            // Check for named re-exports: `export { A, B as C } from './sub'`
+            for spec in AstUtils::find_descendants_by_kind(child, "export_specifier") {
+                let name_node = spec
+                    .child_by_field_name("name")
+                    .or_else(|| spec.named_child(0));
+                let alias_node = spec.child_by_field_name("alias").or_else(|| {
+                    if spec.named_child_count() > 1 {
+                        spec.named_child(1)
+                    } else {
+                        None
+                    }
+                });
+
+                if let Some(name_n) = name_node {
+                    let orig_name = AstUtils::node_text(name_n, source).to_string();
+                    let exported_name = if let Some(alias_n) = alias_node {
+                        AstUtils::node_text(alias_n, source).to_string()
+                    } else {
+                        orig_name.clone()
+                    };
+                    reexports.push((
+                        Some(exported_name),
+                        Some(orig_name),
+                        specifier.to_string(),
+                    ));
                 }
+            }
+        }
 
-                // Check for wildcard `export * from './sub'`
-                let has_star = child
-                    .children(&mut child.walk())
-                    .any(|c| c.kind() == "*" || c.kind() == "asterisk");
-                let has_no_specs =
-                    AstUtils::find_descendants_by_kind(child, "export_specifier").is_empty();
-                if has_star || (child.child_by_field_name("declaration").is_none() && has_no_specs)
-                {
-                    reexports.push((None, None, specifier.to_string()));
-                }
-
-                // Check for named re-exports: `export { A, B as C } from './sub'`
-                for spec in AstUtils::find_descendants_by_kind(child, "export_specifier") {
-                    let name_node = spec
-                        .child_by_field_name("name")
-                        .or_else(|| spec.named_child(0));
-                    let alias_node = spec.child_by_field_name("alias").or_else(|| {
-                        if spec.named_child_count() > 1 {
-                            spec.named_child(1)
-                        } else {
-                            None
+        // Fallback / SFC text-based re-export extraction
+        for line in source.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("export ") && trimmed.contains(" from ") {
+                if let Some(spec) = extract_specifier_from_line(trimmed) {
+                    if trimmed.contains("export *") {
+                        if !reexports.iter().any(|r| r.2 == spec) {
+                            reexports.push((None, None, spec.to_string()));
                         }
-                    });
-
-                    if let Some(name_n) = name_node {
-                        let orig_name = AstUtils::node_text(name_n, source).to_string();
-                        let exported_name = if let Some(alias_n) = alias_node {
-                            AstUtils::node_text(alias_n, source).to_string()
-                        } else {
-                            orig_name.clone()
-                        };
-                        reexports.push((
-                            Some(exported_name),
-                            Some(orig_name),
-                            specifier.to_string(),
-                        ));
+                    } else if let Some(brace_start) = trimmed.find('{') {
+                        if let Some(brace_end) = trimmed.find('}') {
+                            let names = &trimmed[brace_start + 1..brace_end];
+                            for part in names.split(',') {
+                                let p = part.trim();
+                                if !p.is_empty() {
+                                    let mut tokens = p.split_whitespace();
+                                    let orig = tokens.next().unwrap_or("");
+                                    let exported = if tokens.next() == Some("as") {
+                                        tokens.next().unwrap_or(orig)
+                                    } else {
+                                        orig
+                                    };
+                                    if !orig.is_empty()
+                                        && !exported.is_empty()
+                                        && !reexports.iter().any(|r| r.0.as_deref() == Some(exported) && r.2 == spec)
+                                    {
+                                        reexports.push((Some(exported.to_string()), Some(orig.to_string()), spec.to_string()));
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -266,6 +366,21 @@ impl ImportResolver {
 
         reexports
     }
+}
+
+fn extract_specifier_from_line(line: &str) -> Option<&str> {
+    if let Some(from_idx) = line.find(" from ") {
+        let after = line[from_idx + 6..].trim();
+        let trimmed = after.trim_end_matches(';').trim();
+        if ((trimmed.starts_with('\'') && trimmed.ends_with('\''))
+            || (trimmed.starts_with('"') && trimmed.ends_with('"'))
+            || (trimmed.starts_with('`') && trimmed.ends_with('`')))
+            && trimmed.len() >= 2
+        {
+            return Some(&trimmed[1..trimmed.len() - 1]);
+        }
+    }
+    None
 }
 
 /// Resolves TypeScript and JavaScript module specifiers to target file paths on disk.
@@ -696,4 +811,156 @@ pub fn normalize_path(path: &Path) -> PathBuf {
         }
     }
     components.into_iter().collect()
+}
+
+/// Resolves C/C++ `#include` headers and paths on disk.
+pub fn resolve_c_cpp_specifier(from_file: &Path, specifier: &str) -> Option<PathBuf> {
+    let current_dir = from_file.parent().unwrap_or_else(|| Path::new("."));
+    let clean = specifier.trim().trim_matches(['"', '<', '>']);
+
+    // 1. Direct path relative to current file directory
+    let candidate = current_dir.join(clean);
+    if candidate.is_file() {
+        return Some(normalize_path(&candidate));
+    }
+
+    // 2. Sibling header candidates (.h, .hpp, .hh, .hxx, .cpp, .c)
+    let base_stem = Path::new(clean).file_stem()?.to_str()?;
+    for ext in &["h", "hpp", "hh", "hxx", "c", "cpp", "cc"] {
+        let cand = current_dir.join(format!("{base_stem}.{ext}"));
+        if cand.is_file() {
+            return Some(normalize_path(&cand));
+        }
+    }
+
+    // 3. Search include/ or src/ directories in project tree
+    if let Some(root) = find_project_root(from_file) {
+        for sub in &["include", "inc", "src", "include/ctxcut", "headers"] {
+            let cand = root.join(sub).join(clean);
+            if cand.is_file() {
+                return Some(normalize_path(&cand));
+            }
+        }
+    }
+
+    None
+}
+
+/// Resolves C# `using` namespaces and class references to candidate .cs files.
+pub fn resolve_csharp_specifier(from_file: &Path, specifier: &str) -> Option<PathBuf> {
+    let current_dir = from_file.parent().unwrap_or_else(|| Path::new("."));
+    let clean = specifier.trim().trim_start_matches("using ").trim_end_matches(';').trim();
+
+    // 1. Direct sibling class file
+    let candidate = current_dir.join(format!("{clean}.cs"));
+    if candidate.is_file() {
+        return Some(normalize_path(&candidate));
+    }
+
+    // 2. Namespace to subfolder mapping (e.g. Models.User -> Models/User.cs)
+    let parts: Vec<&str> = clean.split('.').collect();
+    if let Some(last) = parts.last() {
+        let sibling_last = current_dir.join(format!("{last}.cs"));
+        if sibling_last.is_file() {
+            return Some(normalize_path(&sibling_last));
+        }
+    }
+
+    // 3. Project root search
+    if let Some(root) = find_project_root(from_file) {
+        let mut sub_path = root;
+        for part in &parts {
+            sub_path.push(part);
+        }
+        let file_cand = sub_path.with_extension("cs");
+        if file_cand.is_file() {
+            return Some(normalize_path(&file_cand));
+        }
+    }
+
+    None
+}
+
+/// Resolves Java `import` statements and package declarations to candidate .java files.
+pub fn resolve_java_specifier(from_file: &Path, specifier: &str) -> Option<PathBuf> {
+    let current_dir = from_file.parent().unwrap_or_else(|| Path::new("."));
+    let clean = specifier.trim().trim_start_matches("import ").trim_start_matches("static ").trim_end_matches(';').trim();
+
+    let parts: Vec<&str> = clean.split('.').collect();
+    if let Some(last) = parts.last() {
+        if *last != "*" {
+            let sibling = current_dir.join(format!("{last}.java"));
+            if sibling.is_file() {
+                return Some(normalize_path(&sibling));
+            }
+        }
+    }
+
+    if let Some(root) = find_project_root(from_file) {
+        let mut base = root.join("src").join("main").join("java");
+        if !base.is_dir() {
+            base = root;
+        }
+        for (i, part) in parts.iter().enumerate() {
+            if *part == "*" {
+                break;
+            }
+            if i == parts.len() - 1 {
+                let cand = base.join(format!("{part}.java"));
+                if cand.is_file() {
+                    return Some(normalize_path(&cand));
+                }
+            } else {
+                base.push(part);
+            }
+        }
+    }
+
+    None
+}
+
+/// Resolves Kotlin `import` statements to candidate .kt files.
+pub fn resolve_kotlin_specifier(from_file: &Path, specifier: &str) -> Option<PathBuf> {
+    let current_dir = from_file.parent().unwrap_or_else(|| Path::new("."));
+    let clean = specifier.trim().trim_start_matches("import ").trim_end_matches(';').trim();
+
+    let parts: Vec<&str> = clean.split('.').collect();
+    if let Some(last) = parts.last() {
+        if *last != "*" {
+            let sibling_kt = current_dir.join(format!("{last}.kt"));
+            if sibling_kt.is_file() {
+                return Some(normalize_path(&sibling_kt));
+            }
+            let sibling_kts = current_dir.join(format!("{last}.kts"));
+            if sibling_kts.is_file() {
+                return Some(normalize_path(&sibling_kts));
+            }
+        }
+    }
+
+    if let Some(root) = find_project_root(from_file) {
+        let mut base = root.join("src").join("main").join("kotlin");
+        if !base.is_dir() {
+            base = root;
+        }
+        for (i, part) in parts.iter().enumerate() {
+            if *part == "*" {
+                break;
+            }
+            if i == parts.len() - 1 {
+                let cand_kt = base.join(format!("{part}.kt"));
+                if cand_kt.is_file() {
+                    return Some(normalize_path(&cand_kt));
+                }
+                let cand_kts = base.join(format!("{part}.kts"));
+                if cand_kts.is_file() {
+                    return Some(normalize_path(&cand_kts));
+                }
+            } else {
+                base.push(part);
+            }
+        }
+    }
+
+    None
 }

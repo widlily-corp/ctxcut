@@ -598,6 +598,7 @@ func (s *AuditService{i}) Record(action string) AuditLog{i} {{
 }}
 "#
             ),
+            _ => String::new(),
         };
         fs::write(&file_path, code).unwrap();
     }

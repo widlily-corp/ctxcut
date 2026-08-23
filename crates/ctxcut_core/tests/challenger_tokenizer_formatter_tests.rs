@@ -222,6 +222,7 @@ fn test_markdown_formatter_fidelity_and_code_fence_balance() {
                 definition: "export type OrderReceipt = {\n    status: 'FILLED' | 'REJECTED';\n    txHash: string;\n};".to_string(),
             },
         ],
+        hoisted_implementors: vec![],
         stripped_calls: vec![
             CallSignatureStub {
                 name: "validateOrder".to_string(),
@@ -288,6 +289,7 @@ fn test_markdown_formatter_none_fallbacks_and_empty_doc_comments() {
             language: "typescript".to_string(),
         },
         hoisted_types: vec![],
+        hoisted_implementors: vec![],
         stripped_calls: vec![],
         stats: TokenStats::calculate(50, 15, 5, 3),
     };
@@ -326,6 +328,7 @@ fn test_markdown_batch_formatting() {
             language: "ts".to_string(),
         },
         hoisted_types: vec![],
+        hoisted_implementors: vec![],
         stripped_calls: vec![],
         stats: TokenStats::calculate(10, 5, 2, 1),
     };
@@ -342,6 +345,7 @@ fn test_markdown_batch_formatting() {
             language: "ts".to_string(),
         },
         hoisted_types: vec![],
+        hoisted_implementors: vec![],
         stripped_calls: vec![],
         stats: TokenStats::calculate(10, 5, 2, 1),
     };
@@ -392,6 +396,7 @@ fn test_json_serialization_and_roundtrip_integrity() {
                 definition: "export interface User {\n    name: string;\n    tags: string[];\n}".to_string(),
             }
         ],
+        hoisted_implementors: vec![],
         stripped_calls: vec![
             CallSignatureStub {
                 name: "sendResponse".to_string(),

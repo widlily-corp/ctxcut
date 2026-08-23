@@ -3,7 +3,8 @@
 use crate::error::{CoreError, Result};
 use crate::lang::LanguageAdapter;
 use crate::model::{
-    CallSignatureStub, ExtractedSymbol, ExtractedType, SliceOptions, SupportedLanguage,
+    CallSignatureStub, ExtractedImplementor, ExtractedSymbol, ExtractedType, SliceOptions,
+    SupportedLanguage,
 };
 use crate::parser::{AstUtils, ParserManager};
 use std::collections::{HashSet, VecDeque};
@@ -310,6 +311,72 @@ impl LanguageAdapter for RustAdapter {
         }
 
         Ok(stubs)
+    }
+
+    fn find_implementors<'a>(
+        &self,
+        root: Node<'a>,
+        source: &'a str,
+        interface_name: &str,
+        file_path: &Path,
+    ) -> Result<Vec<ExtractedImplementor>> {
+        let mut implementors = Vec::new();
+        let mut cursor = root.walk();
+
+        for child in root.children(&mut cursor) {
+            if child.kind() == "impl_item" {
+                if let Some(trait_node) = child.child_by_field_name("trait") {
+                    let trait_text = AstUtils::node_text(trait_node, source);
+                    let base_trait = trait_text.split('<').next().unwrap_or(trait_text).trim();
+                    let simple_trait =
+                        base_trait.split("::").last().unwrap_or(base_trait).trim();
+
+                    if simple_trait == interface_name {
+                        if let Some(type_node) = child.child_by_field_name("type") {
+                            let type_text = AstUtils::node_text(type_node, source);
+                            let implementor_name =
+                                type_text.split('<').next().unwrap_or(type_text).trim();
+                            let stub = extract_rust_impl_stub(child, source);
+
+                            implementors.push(ExtractedImplementor {
+                                interface_name: interface_name.to_string(),
+                                implementor_name: implementor_name.to_string(),
+                                kind: "rust_impl".to_string(),
+                                file_path: file_path.to_string_lossy().to_string(),
+                                definition: stub,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(implementors)
+    }
+}
+
+fn extract_rust_impl_stub(impl_node: Node<'_>, source: &str) -> String {
+    if let Some(body) = impl_node.child_by_field_name("body") {
+        let header_end = body.start_byte();
+        let header = source[impl_node.start_byte()..header_end].trim();
+        let mut stubs = Vec::new();
+
+        for child in body.named_children(&mut body.walk()) {
+            if child.kind() == "function_item" {
+                if let Some(fn_body) = child.child_by_field_name("body") {
+                    let sig = source[child.start_byte()..fn_body.start_byte()].trim();
+                    stubs.push(format!("    {sig} {{ ... }}"));
+                }
+            }
+        }
+
+        if stubs.is_empty() {
+            format!("{header} {{ ... }}")
+        } else {
+            format!("{header} {{\n{}\n}}", stubs.join("\n"))
+        }
+    } else {
+        AstUtils::node_text(impl_node, source).trim().to_string()
     }
 }
 

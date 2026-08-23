@@ -9,10 +9,12 @@
 //! - NestJS
 //! - Spring Boot
 
+pub mod aspnetcore;
 pub mod django_fastapi;
 pub mod express_nest_spring;
 pub mod react_next;
 
+pub use aspnetcore::AspNetCoreAnalyzer;
 pub use django_fastapi::DjangoFastApiAnalyzer;
 pub use express_nest_spring::{
     ExpressAnalyzer, ExpressNestSpringAnalyzer, NestJsAnalyzer, SpringAnalyzer,
@@ -26,7 +28,7 @@ use tree_sitter::Node;
 
 /// Common trait for framework-specific semantic extraction and AST enhancement.
 pub trait FrameworkAnalyzer: Send + Sync {
-    /// Human-readable framework name (e.g. "django_fastapi", "react_next", "express", "nestjs", "spring").
+    /// Human-readable framework name (e.g. "django_fastapi", "react_next", "express", "nestjs", "spring", "aspnetcore").
     fn name(&self) -> &'static str {
         "framework"
     }
@@ -72,6 +74,7 @@ impl FrameworkRegistry {
         registry.register(Box::new(ExpressAnalyzer));
         registry.register(Box::new(NestJsAnalyzer));
         registry.register(Box::new(SpringAnalyzer));
+        registry.register(Box::new(AspNetCoreAnalyzer));
         registry
     }
 

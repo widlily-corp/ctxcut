@@ -64,6 +64,22 @@ impl ContextSlicer {
             Vec::new()
         };
 
+        // 2.5. Hoist concrete implementors
+        let hoisted_implementors = if opts.include_types {
+            let ws_root = find_workspace_root(file_path);
+            let lang = SupportedLanguage::from_path(file_path)
+                .unwrap_or(SupportedLanguage::TypeScript);
+            crate::resolver::ImplementorHoister::hoist_implementors_for_slice(
+                &ws_root,
+                file_path,
+                &target_symbol,
+                &hoisted_types,
+                lang,
+            )?
+        } else {
+            Vec::new()
+        };
+
         // 3. Strip external calls
         let stripped_calls = if opts.include_calls {
             adapter.strip_calls(target_node, root, &source, file_path)?
@@ -75,6 +91,7 @@ impl ContextSlicer {
         let mut result = SliceResult {
             target_symbol,
             hoisted_types,
+            hoisted_implementors,
             stripped_calls,
             stats: TokenStats::calculate(0, 0, 0, 0),
         };
@@ -83,8 +100,22 @@ impl ContextSlicer {
         let framework_registry = crate::framework::FrameworkRegistry::default();
         let _ = framework_registry.enhance_slice(target_node, &source, file_path, &mut result)?;
 
+        // 4.6. ORM & Database/API Schema Stitching (Milestone 3)
+        if opts.include_types {
+            let ws_root = find_workspace_root(file_path);
+            let schema_stitcher = crate::schema::SchemaStitcher::new();
+            if let Ok(schema_types) = schema_stitcher.stitch_schemas(&ws_root, file_path, &source) {
+                for st in schema_types {
+                    if !result.hoisted_types.iter().any(|t| t.name == st.name) {
+                        result.hoisted_types.push(st);
+                    }
+                }
+            }
+        }
+
         if !opts.include_types {
             result.hoisted_types.clear();
+            result.hoisted_implementors.clear();
         }
         if !opts.include_calls {
             result.stripped_calls.clear();
@@ -196,6 +227,7 @@ impl ContextSlicer {
             let mut temp_slice = SliceResult {
                 target_symbol: target_symbol.clone(),
                 hoisted_types: Vec::new(),
+                hoisted_implementors: Vec::new(),
                 stripped_calls: Vec::new(),
                 stats: TokenStats::calculate(0, 0, 0, 0),
             };
@@ -224,10 +256,44 @@ impl ContextSlicer {
             target_symbols.push(target_symbol);
         }
 
+        let mut all_implementors = Vec::new();
+        let mut seen_imp_keys = HashSet::new();
+        if opts.include_types {
+            let ws_root = find_workspace_root(file_path);
+            let lang = SupportedLanguage::from_path(file_path)
+                .unwrap_or(SupportedLanguage::TypeScript);
+            for sym in &target_symbols {
+                if let Ok(imps) = crate::resolver::ImplementorHoister::hoist_implementors_for_slice(
+                    &ws_root,
+                    file_path,
+                    sym,
+                    &all_hoisted,
+                    lang,
+                ) {
+                    for imp in imps {
+                        let key = (imp.implementor_name.clone(), imp.file_path.clone());
+                        if seen_imp_keys.insert(key) {
+                            all_implementors.push(imp);
+                        }
+                    }
+                }
+            }
+
+            let schema_stitcher = crate::schema::SchemaStitcher::new();
+            if let Ok(schema_types) = schema_stitcher.stitch_schemas(&ws_root, file_path, &source) {
+                for st in schema_types {
+                    if seen_type_names.insert(st.name.clone()) {
+                        all_hoisted.push(st);
+                    }
+                }
+            }
+        }
+
         let mut batch_result = BatchSliceResult {
             file_path: file_path.to_string_lossy().to_string(),
             target_symbols,
             hoisted_types: all_hoisted,
+            hoisted_implementors: all_implementors,
             stripped_calls: all_calls,
             stats: TokenStats::calculate(0, 0, 0, 0),
         };
@@ -253,4 +319,20 @@ impl ContextSlicer {
 
         Ok(batch_result)
     }
+}
+
+fn find_workspace_root(path: &Path) -> std::path::PathBuf {
+    let mut curr = path.parent();
+    while let Some(dir) = curr {
+        if dir.join(".git").exists()
+            || dir.join("Cargo.toml").exists()
+            || dir.join("package.json").exists()
+            || dir.join("go.mod").exists()
+            || dir.join("pyproject.toml").exists()
+        {
+            return dir.to_path_buf();
+        }
+        curr = dir.parent();
+    }
+    path.parent().unwrap_or_else(|| Path::new(".")).to_path_buf()
 }

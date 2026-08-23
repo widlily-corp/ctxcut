@@ -1,6 +1,7 @@
-//! Type reference extraction and transitive type hoisting across TypeScript, Python, Go, and Rust.
+//! Type reference extraction and transitive type hoisting across supported languages.
 
 use crate::error::Result;
+use crate::lang::LanguageAdapter;
 use crate::model::{ExtractedType, SliceOptions, SupportedLanguage};
 use crate::parser::{AstUtils, ParserManager};
 use crate::resolver::imports::ImportResolver;
@@ -34,7 +35,28 @@ impl TypeHoister {
         let scoped_generics = collect_scoped_generics(target_node, source);
 
         // 2. Extract referenced type names from target node
-        let initial_types = extract_type_identifiers(target_node, source, &scoped_generics);
+        let mut initial_types = extract_type_identifiers(target_node, source, &scoped_generics);
+        if initial_types.is_empty() {
+            let target_text = AstUtils::node_text(target_node, source);
+            let file_imports = ImportResolver::extract_imports(root, source);
+            for imported_name in file_imports.keys() {
+                let is_type_position = target_text.contains(&format!(": {}", imported_name))
+                    || target_text.contains(&format!(":{}", imported_name))
+                    || target_text.contains(&format!("<{}", imported_name))
+                    || target_text.contains(&format!("as {}", imported_name))
+                    || target_text.contains(&format!("extends {}", imported_name))
+                    || target_text.contains(&format!("{}[]", imported_name));
+
+                if is_type_position
+                    && !initial_types.contains(imported_name)
+                    && !scoped_generics.contains(imported_name)
+                    && !is_builtin_or_primitive(imported_name)
+                {
+                    initial_types.push(imported_name.clone());
+                }
+            }
+        }
+
         for ty in initial_types {
             if !visited.contains(&ty) {
                 visited.insert(ty.clone());
@@ -234,6 +256,15 @@ fn extract_types_from_single_file(
         Err(_) => return Ok(Vec::new()),
     };
 
+    let relevant_names: Vec<&str> = type_names
+        .iter()
+        .copied()
+        .filter(|n| source.contains(n))
+        .collect();
+    if relevant_names.is_empty() {
+        return Ok(Vec::new());
+    }
+
     let ts_lang: tree_sitter::Language = match lang {
         SupportedLanguage::TypeScript => {
             let ext = file_path
@@ -251,6 +282,14 @@ fn extract_types_from_single_file(
         SupportedLanguage::Python => tree_sitter_python::LANGUAGE.into(),
         SupportedLanguage::Go => tree_sitter_go::LANGUAGE.into(),
         SupportedLanguage::Rust => tree_sitter_rust::LANGUAGE.into(),
+        SupportedLanguage::C => tree_sitter_c::LANGUAGE.into(),
+        SupportedLanguage::Cpp => tree_sitter_cpp::LANGUAGE.into(),
+        SupportedLanguage::CSharp => tree_sitter_c_sharp::LANGUAGE.into(),
+        SupportedLanguage::Java => tree_sitter_java::LANGUAGE.into(),
+        SupportedLanguage::Kotlin => tree_sitter_kotlin::LANGUAGE.into(),
+        SupportedLanguage::Vue | SupportedLanguage::Svelte | SupportedLanguage::Astro => {
+            tree_sitter_typescript::LANGUAGE_TSX.into()
+        }
     };
 
     let tree = match ParserManager::parse_source(&source, &ts_lang, file_path) {
@@ -261,9 +300,13 @@ fn extract_types_from_single_file(
     let root = tree.root_node();
     let mut extracted = Vec::new();
 
-    for &name in type_names {
+    for &name in &relevant_names {
         match lang {
-            SupportedLanguage::TypeScript | SupportedLanguage::JavaScript => {
+            SupportedLanguage::TypeScript
+            | SupportedLanguage::JavaScript
+            | SupportedLanguage::Vue
+            | SupportedLanguage::Svelte
+            | SupportedLanguage::Astro => {
                 if let Some(t) = find_type_in_file(root, &source, name, file_path) {
                     extracted.push(t);
                 }
@@ -281,6 +324,46 @@ fn extract_types_from_single_file(
             SupportedLanguage::Rust => {
                 if let Some(t) = find_rust_type_in_file(root, &source, name, file_path) {
                     extracted.push(t);
+                }
+            }
+            SupportedLanguage::C | SupportedLanguage::Cpp => {
+                let adapter = crate::lang::c_cpp::CppAdapter;
+                if let Ok(types) = adapter.hoist_types(root, root, &source, file_path, &SliceOptions::default()) {
+                    for t in types {
+                        if t.name == name && !extracted.iter().any(|e: &ExtractedType| e.name == name) {
+                            extracted.push(t);
+                        }
+                    }
+                }
+            }
+            SupportedLanguage::CSharp => {
+                let adapter = crate::lang::csharp::CSharpAdapter;
+                if let Ok(types) = adapter.hoist_types(root, root, &source, file_path, &SliceOptions::default()) {
+                    for t in types {
+                        if t.name == name && !extracted.iter().any(|e: &ExtractedType| e.name == name) {
+                            extracted.push(t);
+                        }
+                    }
+                }
+            }
+            SupportedLanguage::Java => {
+                let adapter = crate::lang::java_lang::JavaAdapter;
+                if let Ok(types) = adapter.hoist_types(root, root, &source, file_path, &SliceOptions::default()) {
+                    for t in types {
+                        if t.name == name && !extracted.iter().any(|e: &ExtractedType| e.name == name) {
+                            extracted.push(t);
+                        }
+                    }
+                }
+            }
+            SupportedLanguage::Kotlin => {
+                let adapter = crate::lang::kotlin_lang::KotlinAdapter;
+                if let Ok(types) = adapter.hoist_types(root, root, &source, file_path, &SliceOptions::default()) {
+                    for t in types {
+                        if t.name == name && !extracted.iter().any(|e: &ExtractedType| e.name == name) {
+                            extracted.push(t);
+                        }
+                    }
                 }
             }
         }
@@ -311,17 +394,36 @@ fn extract_type_identifiers(
     let mut type_names = Vec::new();
     let mut cursor = node.walk();
 
-    // Check if node is type_identifier
-    if node.kind() == "type_identifier" {
+    if node.kind() == "type_identifier"
+        || node.kind() == "user_type"
+        || (node.kind() == "identifier"
+            && node
+                .parent()
+                .map(|p| {
+                    p.kind() == "type_annotation"
+                        || p.kind() == "type_arguments"
+                        || p.kind() == "type_reference"
+                        || p.kind() == "implements_clause"
+                        || p.kind() == "heritage_clause"
+                })
+                .unwrap_or(false))
+    {
         let text = AstUtils::node_text(node, source);
-        if !scoped_generics.contains(text) && !is_builtin_or_primitive(text) {
+        if !scoped_generics.contains(text)
+            && !is_builtin_or_primitive(text)
+            && !type_names.contains(&text.to_string())
+        {
             type_names.push(text.to_string());
         }
     }
 
     for child in node.children(&mut cursor) {
         let inner = extract_type_identifiers(child, source, scoped_generics);
-        type_names.extend(inner);
+        for item in inner {
+            if !type_names.contains(&item) {
+                type_names.push(item);
+            }
+        }
     }
 
     type_names

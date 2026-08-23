@@ -3,7 +3,8 @@
 use crate::error::{CoreError, Result};
 use crate::lang::LanguageAdapter;
 use crate::model::{
-    CallSignatureStub, ExtractedSymbol, ExtractedType, SliceOptions, SupportedLanguage,
+    CallSignatureStub, ExtractedImplementor, ExtractedSymbol, ExtractedType, SliceOptions,
+    SupportedLanguage,
 };
 use crate::parser::{AstUtils, ParserManager};
 use std::collections::{HashSet, VecDeque};
@@ -288,6 +289,144 @@ impl LanguageAdapter for GoAdapter {
 
         Ok(stubs)
     }
+
+    fn find_implementors<'a>(
+        &self,
+        root: Node<'a>,
+        source: &'a str,
+        interface_name: &str,
+        file_path: &Path,
+    ) -> Result<Vec<ExtractedImplementor>> {
+        let mut implementors = Vec::new();
+
+        // 1. Extract method names required by the interface
+        let mut required_methods = extract_go_interface_methods(root, source, interface_name);
+        if required_methods.is_empty() {
+            if let Some(parent) = file_path.parent() {
+                if let Ok(entries) = fs::read_dir(parent) {
+                    for entry in entries.flatten() {
+                        let p = entry.path();
+                        if p != file_path
+                            && p.extension().and_then(|e| e.to_str()) == Some("go")
+                        {
+                            if let Ok(sib_src) = fs::read_to_string(&p) {
+                                if sib_src.contains(interface_name) {
+                                    if let Ok(tree) = ParserManager::parse_source(
+                                        &sib_src,
+                                        &tree_sitter_go::LANGUAGE.into(),
+                                        &p,
+                                    ) {
+                                        let methods = extract_go_interface_methods(
+                                            tree.root_node(),
+                                            &sib_src,
+                                            interface_name,
+                                        );
+                                        if !methods.is_empty() {
+                                            required_methods = methods;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if required_methods.is_empty() {
+            return Ok(implementors);
+        }
+
+        // 2. Map concrete receiver types to their implemented methods
+        let receiver_methods = collect_go_concrete_methods(root, source);
+
+        // 3. Match structs that implement all required methods
+        for (receiver_name, methods) in receiver_methods {
+            let matches_all = required_methods
+                .iter()
+                .all(|req| methods.iter().any(|(m, _)| m == req));
+            if matches_all {
+                let stubs: Vec<String> = methods
+                    .iter()
+                    .filter(|(m, _)| required_methods.contains(m))
+                    .map(|(_, sig)| format!("{sig} {{ ... }}"))
+                    .collect();
+
+                let definition = format!("type {receiver_name} struct {{\n    // ...\n}}\n\n{}", stubs.join("\n"));
+                implementors.push(ExtractedImplementor {
+                    interface_name: interface_name.to_string(),
+                    implementor_name: receiver_name,
+                    kind: "go_struct".to_string(),
+                    file_path: file_path.to_string_lossy().to_string(),
+                    definition,
+                });
+            }
+        }
+
+        Ok(implementors)
+    }
+}
+
+fn extract_go_interface_methods(
+    root: Node<'_>,
+    source: &str,
+    interface_name: &str,
+) -> HashSet<String> {
+    let mut methods = HashSet::new();
+    let type_specs = AstUtils::find_descendants_by_kind(root, "type_spec");
+    for spec in type_specs {
+        if let Some(name_node) = spec.child_by_field_name("name") {
+            if AstUtils::node_text(name_node, source) == interface_name {
+                if let Some(type_node) = spec.child_by_field_name("type") {
+                    if type_node.kind() == "interface_type" {
+                        for child in type_node.named_children(&mut type_node.walk()) {
+                            if let Some(m_name) = child.child_by_field_name("name") {
+                                methods.insert(AstUtils::node_text(m_name, source).to_string());
+                            } else {
+                                for id in AstUtils::find_descendants_by_kind(child, "field_identifier") {
+                                    methods.insert(AstUtils::node_text(id, source).to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    methods
+}
+
+fn collect_go_concrete_methods(
+    root: Node<'_>,
+    source: &str,
+) -> std::collections::HashMap<String, Vec<(String, String)>> {
+    let mut map = std::collections::HashMap::new();
+    let method_decls = AstUtils::find_descendants_by_kind(root, "method_declaration");
+    for decl in method_decls {
+        if let Some(receiver_name) = extract_receiver_type(decl, source) {
+            if let Some(name_node) = decl.child_by_field_name("name") {
+                let method_name = AstUtils::node_text(name_node, source).to_string();
+                let sig = extract_go_method_signature(decl, source);
+                map.entry(receiver_name)
+                    .or_insert_with(Vec::new)
+                    .push((method_name, sig));
+            }
+        }
+    }
+    map
+}
+
+fn extract_go_method_signature(method_node: Node<'_>, source: &str) -> String {
+    if let Some(body) = method_node.child_by_field_name("body") {
+        let start = method_node.start_byte();
+        let body_start = body.start_byte();
+        if start < body_start && body_start <= source.len() {
+            return source[start..body_start].trim().to_string();
+        }
+    }
+    let text = AstUtils::node_text(method_node, source);
+    text.lines().next().unwrap_or(text).trim().to_string()
 }
 
 fn collect_go_scoped_generics(node: Node<'_>, source: &str) -> HashSet<String> {
@@ -376,9 +515,20 @@ fn find_go_type_in_file(
             for spec in AstUtils::find_children_by_kind(child, "type_spec") {
                 if let Some(name_node) = spec.child_by_field_name("name") {
                     if AstUtils::node_text(name_node, source) == target_name {
+                        let kind = if let Some(type_node) = spec.child_by_field_name("type") {
+                            if type_node.kind() == "interface_type" {
+                                "interface"
+                            } else if type_node.kind() == "struct_type" {
+                                "struct"
+                            } else {
+                                "type"
+                            }
+                        } else {
+                            "type"
+                        };
                         return Some(ExtractedType {
                             name: target_name.to_string(),
-                            kind: "type".to_string(),
+                            kind: kind.to_string(),
                             file_path: file_path.to_string_lossy().to_string(),
                             definition: AstUtils::node_text(child, source).to_string(),
                         });

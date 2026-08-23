@@ -17,6 +17,22 @@ pub enum SupportedLanguage {
     Go,
     /// Rust (.rs)
     Rust,
+    /// C (.c, .h)
+    C,
+    /// C++ (.cpp, .cc, .cxx, .hpp, .hh, .hxx)
+    Cpp,
+    /// C# (.cs)
+    CSharp,
+    /// Java (.java)
+    Java,
+    /// Kotlin (.kt, .kts)
+    Kotlin,
+    /// Vue Single File Component (.vue)
+    Vue,
+    /// Svelte Single File Component (.svelte)
+    Svelte,
+    /// Astro Single File Component (.astro)
+    Astro,
 }
 
 impl SupportedLanguage {
@@ -34,6 +50,35 @@ impl SupportedLanguage {
             "py" | "pyi" => Some(Self::Python),
             "go" => Some(Self::Go),
             "rs" => Some(Self::Rust),
+            "c" | "h" => Some(Self::C),
+            "cpp" | "cc" | "cxx" | "hpp" | "hh" | "hxx" => Some(Self::Cpp),
+            "cs" => Some(Self::CSharp),
+            "java" => Some(Self::Java),
+            "kt" | "kts" => Some(Self::Kotlin),
+            "vue" => Some(Self::Vue),
+            "svelte" => Some(Self::Svelte),
+            "astro" => Some(Self::Astro),
+            _ => None,
+        }
+    }
+
+    /// Parses language from loosely formatted string (e.g. "rust", "rs", "c++", "ts", "golang").
+    pub fn from_str_loose(s: &str) -> Option<Self> {
+        let clean = s.trim().to_lowercase();
+        match clean.as_str() {
+            "ts" | "typescript" => Some(Self::TypeScript),
+            "js" | "javascript" => Some(Self::JavaScript),
+            "py" | "python" => Some(Self::Python),
+            "go" | "golang" => Some(Self::Go),
+            "rs" | "rust" => Some(Self::Rust),
+            "c" => Some(Self::C),
+            "cpp" | "c++" | "cxx" | "cc" => Some(Self::Cpp),
+            "cs" | "c#" | "csharp" => Some(Self::CSharp),
+            "java" => Some(Self::Java),
+            "kt" | "kotlin" => Some(Self::Kotlin),
+            "vue" => Some(Self::Vue),
+            "svelte" => Some(Self::Svelte),
+            "astro" => Some(Self::Astro),
             _ => None,
         }
     }
@@ -46,6 +91,14 @@ impl SupportedLanguage {
             Self::Python => "python",
             Self::Go => "go",
             Self::Rust => "rust",
+            Self::C => "c",
+            Self::Cpp => "cpp",
+            Self::CSharp => "csharp",
+            Self::Java => "java",
+            Self::Kotlin => "kotlin",
+            Self::Vue => "vue",
+            Self::Svelte => "svelte",
+            Self::Astro => "astro",
         }
     }
 
@@ -57,12 +110,27 @@ impl SupportedLanguage {
             Self::Python => "python",
             Self::Go => "go",
             Self::Rust => "rust",
+            Self::C => "c",
+            Self::Cpp => "cpp",
+            Self::CSharp => "csharp",
+            Self::Java => "java",
+            Self::Kotlin => "kotlin",
+            Self::Vue => "vue",
+            Self::Svelte => "svelte",
+            Self::Astro => "astro",
         }
     }
 
-    /// Returns true if the language is part of the TypeScript/JavaScript family.
+    /// Returns true if the language is part of the TypeScript/JavaScript family or script SFC.
     pub fn is_typescript_family(&self) -> bool {
-        matches!(self, Self::TypeScript | Self::JavaScript)
+        matches!(
+            self,
+            Self::TypeScript
+                | Self::JavaScript
+                | Self::Vue
+                | Self::Svelte
+                | Self::Astro
+        )
     }
 }
 
@@ -187,6 +255,9 @@ pub struct SliceResult {
     pub target_symbol: ExtractedSymbol,
     /// Inlined/hoisted types referenced by the symbol.
     pub hoisted_types: Vec<ExtractedType>,
+    /// Inlined concrete implementors for referenced traits/interfaces.
+    #[serde(default)]
+    pub hoisted_implementors: Vec<ExtractedImplementor>,
     /// Body-stripped signature stubs of external called functions/methods.
     pub stripped_calls: Vec<CallSignatureStub>,
     /// Token reduction and line metrics.
@@ -328,6 +399,9 @@ pub struct BatchSliceResult {
     pub target_symbols: Vec<ExtractedSymbol>,
     /// Hoisted types/data contracts globally deduplicated across all target symbols.
     pub hoisted_types: Vec<ExtractedType>,
+    /// Inlined concrete implementors for referenced traits/interfaces.
+    #[serde(default)]
+    pub hoisted_implementors: Vec<ExtractedImplementor>,
     /// External call stubs globally deduplicated across all target symbols.
     pub stripped_calls: Vec<CallSignatureStub>,
     /// Aggregate token savings statistics.
@@ -435,3 +509,244 @@ pub struct OverviewOptions {
     /// Optional target framework filter (e.g. "express", "fastapi", "actix").
     pub framework: Option<String>,
 }
+
+/// Extracted concrete implementor of a trait, interface, or protocol.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExtractedImplementor {
+    /// Name of the trait or interface being implemented.
+    pub interface_name: String,
+    /// Name of the concrete struct/class implementing the interface.
+    pub implementor_name: String,
+    /// Language-specific kind (e.g. `rust_impl`, `go_struct`, `ts_class`, `py_class`).
+    pub kind: String,
+    /// File path where the implementor is defined.
+    pub file_path: String,
+    /// Extracted signature/body stub of the concrete implementation.
+    pub definition: String,
+}
+
+/// Discovered caller item in reverse impact analysis.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImpactCallerItem {
+    /// Enclosing caller symbol name (e.g. `OrderController.checkout`, `validate_order`).
+    pub caller_symbol: String,
+    /// Kind of caller (e.g. `function`, `method`, `controller`, `middleware`).
+    pub caller_kind: String,
+    /// Relative or absolute file path containing the invocation.
+    pub file_path: String,
+    /// 1-based line number of the call expression.
+    pub line_number: usize,
+    /// Exact call invocation snippet (e.g. `authService.validate(token)`).
+    pub call_snippet: String,
+    /// Signature of the enclosing caller function.
+    pub caller_signature: Option<String>,
+}
+
+/// Complete upstream caller and reverse impact analysis slice result.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ImpactSliceResult {
+    /// Target symbol query that was traced.
+    pub target_symbol: String,
+    /// File declaring the target symbol (if known or provided).
+    pub target_file: Option<String>,
+    /// Discovered upstream caller sites.
+    pub callers: Vec<ImpactCallerItem>,
+    /// Total number of unique callers found.
+    pub total_callers: usize,
+    /// Token and line reduction metrics.
+    pub stats: TokenStats,
+}
+
+impl ImpactSliceResult {
+    /// Formats the impact slice result as Markdown.
+    pub fn to_markdown(&self) -> String {
+        crate::formatter::MarkdownFormatter::format_impact(self)
+    }
+
+    /// Formats the impact slice result as pretty JSON.
+    pub fn to_json(&self) -> String {
+        serde_json::to_string_pretty(self).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// Formats the impact slice result as compact JSON.
+    pub fn to_json_compact(&self) -> String {
+        serde_json::to_string(self).unwrap_or_else(|_| "{}".to_string())
+    }
+}
+
+/// Step within an end-to-end execution flow trace.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TraceStep {
+    /// 1-based sequence index along the invocation spine.
+    pub step_number: usize,
+    /// Symbol name at this execution step.
+    pub symbol_name: String,
+    /// Architectural role / kind (e.g. `entry_point`, `controller`, `service`, `database_sink`).
+    pub kind: String,
+    /// Source file containing this step.
+    pub file_path: String,
+    /// 1-based start line.
+    pub start_line: usize,
+    /// 1-based end line.
+    pub end_line: usize,
+    /// Language tag (e.g. `typescript`, `python`, `go`, `rust`).
+    pub language: String,
+    /// Function/method signature.
+    pub signature: String,
+    /// Extracted or compressed code snippet.
+    pub code_snippet: String,
+    /// Detected outgoing calls from this function.
+    pub outgoing_calls: Vec<String>,
+    /// Next target in the invocation spine (if resolved).
+    pub next_target: Option<String>,
+}
+
+/// End-to-end execution flow trace result.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TraceResult {
+    /// Entry point query (route, CLI entry, or function).
+    pub entry_point: String,
+    /// Entry file path.
+    pub entry_file: String,
+    /// Linear execution steps from entry to sinks.
+    pub steps: Vec<TraceStep>,
+    /// Total number of steps in the trace chain.
+    pub total_steps: usize,
+    /// Token and line reduction metrics.
+    pub stats: TokenStats,
+}
+
+impl TraceResult {
+    /// Formats the trace result as Markdown.
+    pub fn to_markdown(&self) -> String {
+        crate::formatter::MarkdownFormatter::format_trace(self)
+    }
+
+    /// Formats the trace result as pretty JSON.
+    pub fn to_json(&self) -> String {
+        serde_json::to_string_pretty(self).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// Formats the trace result as compact JSON.
+    pub fn to_json_compact(&self) -> String {
+        serde_json::to_string(self).unwrap_or_else(|_| "{}".to_string())
+    }
+}
+
+/// Diagnostic item extracted from compiler or syntax validation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VerifyDiagnostic {
+    /// Severity level ("error", "warning", "info").
+    pub severity: String,
+    /// 1-based line number.
+    pub line: Option<usize>,
+    /// 1-based column number.
+    pub column: Option<usize>,
+    /// Diagnostic description.
+    pub message: String,
+    /// Referenced file path.
+    pub file: Option<String>,
+    /// Diagnostic code (e.g. "TS2322", "E0308").
+    pub code: Option<String>,
+}
+
+/// Result of an AST-guided patch verification guard operation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct VerifyPatchResult {
+    /// Target file path.
+    pub file_path: PathBuf,
+    /// Target symbol name.
+    pub symbol_name: String,
+    /// Whether the verification succeeded without errors.
+    pub success: bool,
+    /// Whether changes were persisted to disk (`!dry_run && success`).
+    pub applied: bool,
+    /// Whether dry-run mode was requested.
+    pub dry_run: bool,
+    /// Unified diff preview of the patch.
+    pub diff: String,
+    /// Typechecker command that was executed, if any.
+    pub typechecker_command: Option<String>,
+    /// Exit code from typechecker process.
+    pub exit_code: Option<i32>,
+    /// Raw standard output from typechecker.
+    pub stdout: String,
+    /// Raw standard error from typechecker.
+    pub stderr: String,
+    /// Extracted diagnostics/error messages.
+    pub diagnostics: Vec<VerifyDiagnostic>,
+    /// Syntax error details if Tree-Sitter validation failed.
+    pub syntax_errors: Vec<SyntaxErrorDetail>,
+    /// Verification duration in milliseconds.
+    pub duration_ms: u64,
+}
+
+impl VerifyPatchResult {
+    /// Formats the verification result as Markdown.
+    pub fn to_markdown(&self) -> String {
+        let mut out = String::new();
+        if self.success {
+            out.push_str(&format!(
+                "### ✔ Patch Verified Successfully (`{}` in `{}`)\n\n",
+                self.symbol_name,
+                self.file_path.display()
+            ));
+        } else {
+            out.push_str(&format!(
+                "### ✖ Patch Verification Failed (`{}` in `{}`)\n\n",
+                self.symbol_name,
+                self.file_path.display()
+            ));
+        }
+
+        out.push_str(&format!("- **Applied to disk**: `{}`\n", self.applied));
+        out.push_str(&format!("- **Dry run**: `{}`\n", self.dry_run));
+        out.push_str(&format!("- **Duration**: `{}ms`\n", self.duration_ms));
+        if let Some(cmd) = &self.typechecker_command {
+            out.push_str(&format!("- **Typechecker command**: `{cmd}`\n"));
+            if let Some(code) = self.exit_code {
+                out.push_str(&format!("- **Exit code**: `{code}`\n"));
+            }
+        }
+        out.push('\n');
+
+        if !self.diff.is_empty() {
+            out.push_str("#### Unified Diff\n```diff\n");
+            out.push_str(&self.diff);
+            out.push_str("\n```\n\n");
+        }
+
+        if !self.diagnostics.is_empty() {
+            out.push_str("#### Diagnostics\n");
+            for diag in &self.diagnostics {
+                let loc = match (diag.line, diag.column) {
+                    (Some(l), Some(c)) => format!(" [line {l}, col {c}]"),
+                    (Some(l), None) => format!(" [line {l}]"),
+                    _ => String::new(),
+                };
+                let code_tag = diag.code.as_deref().map(|c| format!(" ({c})")).unwrap_or_default();
+                out.push_str(&format!("- **{}**{loc}{code_tag}: {}\n", diag.severity.to_uppercase(), diag.message));
+            }
+            out.push('\n');
+        }
+
+        if !self.stderr.is_empty() && !self.success {
+            out.push_str("#### Compiler Output\n```\n");
+            out.push_str(&self.stderr);
+            out.push_str("\n```\n");
+        }
+
+        out
+    }
+
+    /// Formats the verification result as pretty JSON.
+    pub fn to_json(&self) -> String {
+        serde_json::to_string_pretty(self).unwrap_or_else(|_| "{}".to_string())
+    }
+
+    /// Formats the verification result as compact JSON.
+    pub fn to_json_compact(&self) -> String {
+        serde_json::to_string(self).unwrap_or_else(|_| "{}".to_string())
+    }
+}
+

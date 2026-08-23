@@ -7,7 +7,7 @@ use crate::error::Result;
 use crate::framework::FrameworkAnalyzer;
 use crate::model::{CallSignatureStub, SliceOptions, SliceResult};
 use crate::parser::AstUtils;
-use crate::resolver::{SignatureStripper, TypeHoister};
+use crate::resolver::TypeHoister;
 use std::collections::HashSet;
 use std::path::Path;
 use tree_sitter::Node;
@@ -99,20 +99,22 @@ impl FrameworkAnalyzer for ReactNextAnalyzer {
             root = parent;
         }
 
-        // 1. Extract and hoist Props interface / generic constraint types
-        if let Some(_props_type_name) = self.extract_props_type_name(target_node, source) {
-            let opts = SliceOptions {
-                depth: 2,
-                include_types: true,
-                include_calls: true,
-                budget: None,
-            };
-            if let Ok(mut hoisted) =
-                TypeHoister::hoist_types(target_node, root, source, path, &opts, &tree_sitter_lang)
-            {
-                for ty in hoisted.drain(..) {
-                    if !slice.hoisted_types.iter().any(|t| t.name == ty.name) {
-                        slice.hoisted_types.push(ty);
+        // 1. Extract and hoist Props interface / generic constraint types if not already hoisted
+        if let Some(props_type_name) = self.extract_props_type_name(target_node, source) {
+            if !slice.hoisted_types.iter().any(|t| t.name == props_type_name) {
+                let opts = SliceOptions {
+                    depth: 2,
+                    include_types: true,
+                    include_calls: true,
+                    budget: None,
+                };
+                if let Ok(mut hoisted) =
+                    TypeHoister::hoist_types(target_node, root, source, path, &opts, &tree_sitter_lang)
+                {
+                    for ty in hoisted.drain(..) {
+                        if !slice.hoisted_types.iter().any(|t| t.name == ty.name) {
+                            slice.hoisted_types.push(ty);
+                        }
                     }
                 }
             }
@@ -120,7 +122,7 @@ impl FrameworkAnalyzer for ReactNextAnalyzer {
 
         // 2. Extract referenced custom hooks
         let custom_hooks =
-            self.extract_custom_hooks(target_node, root, source, path, &tree_sitter_lang);
+            self.extract_custom_hooks(target_node, root, source, path, &tree_sitter_lang, &slice.stripped_calls);
         for hook_stub in custom_hooks {
             if !slice
                 .stripped_calls
@@ -251,10 +253,11 @@ impl ReactNextAnalyzer {
     pub fn extract_custom_hooks<'a>(
         &self,
         node: Node<'a>,
-        root: Node<'a>,
+        _root: Node<'a>,
         source: &'a str,
         file_path: &Path,
-        tree_sitter_lang: &tree_sitter::Language,
+        _tree_sitter_lang: &tree_sitter::Language,
+        existing_calls: &[CallSignatureStub],
     ) -> Vec<CallSignatureStub> {
         let mut stubs = Vec::new();
         let mut seen = HashSet::new();
@@ -273,27 +276,10 @@ impl ReactNextAnalyzer {
                     continue;
                 };
 
-                if is_custom_hook_name(&name) && !seen.contains(&name) {
-                    seen.insert(name.clone());
-                    let mut resolved_any = false;
-                    if let Ok(mut resolved) = SignatureStripper::strip_calls(
-                        node,
-                        root,
-                        source,
-                        file_path,
-                        tree_sitter_lang,
-                    ) {
-                        for stub in resolved.drain(..) {
-                            if stub.name == name
-                                && !stubs.iter().any(|s: &CallSignatureStub| s.name == name)
-                            {
-                                stubs.push(stub);
-                                resolved_any = true;
-                            }
-                        }
-                    }
-
-                    if !resolved_any && !stubs.iter().any(|s: &CallSignatureStub| s.name == name) {
+                if is_custom_hook_name(&name) && seen.insert(name.clone()) {
+                    if let Some(existing) = existing_calls.iter().find(|c| c.name == name) {
+                        stubs.push(existing.clone());
+                    } else {
                         stubs.push(CallSignatureStub {
                             name: name.clone(),
                             receiver: None,

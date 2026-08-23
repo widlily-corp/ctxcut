@@ -1,6 +1,7 @@
 //! External call expression extractor and signature stripper supporting TypeScript, Python, Go, and Rust.
 
 use crate::error::Result;
+use crate::lang::LanguageAdapter;
 use crate::model::{CallSignatureStub, SupportedLanguage};
 use crate::parser::{AstUtils, ParserManager};
 use crate::resolver::imports::ImportResolver;
@@ -272,6 +273,14 @@ fn extract_signature_from_single_file(
         SupportedLanguage::Python => tree_sitter_python::LANGUAGE.into(),
         SupportedLanguage::Go => tree_sitter_go::LANGUAGE.into(),
         SupportedLanguage::Rust => tree_sitter_rust::LANGUAGE.into(),
+        SupportedLanguage::C => tree_sitter_c::LANGUAGE.into(),
+        SupportedLanguage::Cpp => tree_sitter_cpp::LANGUAGE.into(),
+        SupportedLanguage::CSharp => tree_sitter_c_sharp::LANGUAGE.into(),
+        SupportedLanguage::Java => tree_sitter_java::LANGUAGE.into(),
+        SupportedLanguage::Kotlin => tree_sitter_kotlin::LANGUAGE.into(),
+        SupportedLanguage::Vue | SupportedLanguage::Svelte | SupportedLanguage::Astro => {
+            tree_sitter_typescript::LANGUAGE_TSX.into()
+        }
     };
 
     let tree = match ParserManager::parse_source(&source, &ts_lang, file_path) {
@@ -282,7 +291,11 @@ fn extract_signature_from_single_file(
     let root = tree.root_node();
 
     match lang {
-        SupportedLanguage::TypeScript | SupportedLanguage::JavaScript => {
+        SupportedLanguage::TypeScript
+        | SupportedLanguage::JavaScript
+        | SupportedLanguage::Vue
+        | SupportedLanguage::Svelte
+        | SupportedLanguage::Astro => {
             if let Some(container) = container_query {
                 if let Some(stub) = find_method_in_specific_container(
                     root,
@@ -321,6 +334,46 @@ fn extract_signature_from_single_file(
                 find_rust_signature(root, &source, container_query, member_query, file_path)
             {
                 return Ok(Some(stub));
+            }
+        }
+        SupportedLanguage::C | SupportedLanguage::Cpp => {
+            let adapter = crate::lang::c_cpp::CppAdapter;
+            if let Ok(stubs) = adapter.strip_calls(root, root, &source, file_path) {
+                for s in stubs {
+                    if s.name == member_query {
+                        return Ok(Some(s));
+                    }
+                }
+            }
+        }
+        SupportedLanguage::CSharp => {
+            let adapter = crate::lang::csharp::CSharpAdapter;
+            if let Ok(stubs) = adapter.strip_calls(root, root, &source, file_path) {
+                for s in stubs {
+                    if s.name == member_query {
+                        return Ok(Some(s));
+                    }
+                }
+            }
+        }
+        SupportedLanguage::Java => {
+            let adapter = crate::lang::java_lang::JavaAdapter;
+            if let Ok(stubs) = adapter.strip_calls(root, root, &source, file_path) {
+                for s in stubs {
+                    if s.name == member_query {
+                        return Ok(Some(s));
+                    }
+                }
+            }
+        }
+        SupportedLanguage::Kotlin => {
+            let adapter = crate::lang::kotlin_lang::KotlinAdapter;
+            if let Ok(stubs) = adapter.strip_calls(root, root, &source, file_path) {
+                for s in stubs {
+                    if s.name == member_query {
+                        return Ok(Some(s));
+                    }
+                }
             }
         }
     }

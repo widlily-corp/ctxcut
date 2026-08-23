@@ -78,7 +78,7 @@ name = "e2e_slice_benchmark"
 harness = false
 
 [workspace.package]
-version = "0.1.0"
+version = "2.0.0"
 edition = "2021"
 rust-version = "1.80"
 authors = ["ctxcut contributors"]
@@ -87,9 +87,9 @@ repository = "https://github.com/widlily-corp/ctxcut"
 
 [workspace.dependencies]
 # Internal workspace crates
-ctxcut_core = { path = "crates/ctxcut_core", version = "0.1.0" }
-ctxcut_cli = { path = "crates/ctxcut_cli", version = "0.1.0" }
-ctxcut_mcp = { path = "crates/ctxcut_mcp", version = "0.1.0" }
+ctxcut_core = { path = "crates/ctxcut_core", version = "2.0.0" }
+ctxcut_cli = { path = "crates/ctxcut_cli", version = "2.0.0" }
+ctxcut_mcp = { path = "crates/ctxcut_mcp", version = "2.0.0" }
 
 # AST & Parsing
 tree-sitter = "0.24"
@@ -98,7 +98,16 @@ tree-sitter-javascript = "0.23"
 tree-sitter-python = "0.23"
 tree-sitter-go = "0.23"
 tree-sitter-rust = "0.23"
+tree-sitter-c = "0.23"
+tree-sitter-cpp = "0.23"
+tree-sitter-c-sharp = "=0.23.1"
+tree-sitter-java = "0.23"
+tree-sitter-kotlin = { package = "tree-sitter-kotlin-ng", version = "1.1" }
 streaming-iterator = "0.1"
+
+# Database & Hashing
+rusqlite = { version = "0.32", features = ["bundled"] }
+sha2 = "0.10"
 
 # Tokenization & Serialization
 tiktoken-rs = "0.6"
@@ -108,13 +117,15 @@ serde_json = "1.0"
 smallvec = "1.13"
 rustc-hash = "2.1"
 
-# CLI & Terminal
+# CLI & Terminal UI
 clap = { version = "4.5", features = ["derive", "env"] }
 colored = "3.0"
 arboard = "3.4"
 ignore = "0.4"
 anyhow = "1.0"
 similar = "2.6"
+ratatui = { version = "0.29", default-features = false, features = ["crossterm"] }
+crossterm = { version = "0.28", features = ["event-stream"] }
 
 # Testing & Benchmarking
 insta = { version = "1.48", features = ["yaml", "json", "redactions"] }
@@ -130,6 +141,7 @@ unused_qualifications = "warn"
 [workspace.lints.clippy]
 all = { level = "deny", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
+needless_raw_string_hashes = "allow"
 must_use_candidate = "allow"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"

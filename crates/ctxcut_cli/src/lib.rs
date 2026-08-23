@@ -1,17 +1,35 @@
 //! `ctxcut_cli` — Command-line interface for AST-based context slicing.
 
+pub mod callers;
 pub mod diff;
+pub mod index;
 pub mod metrics;
+pub mod query;
+pub mod refactor;
 pub mod route;
+pub mod semantic_diff;
 pub mod setup_mcp;
 pub mod stats;
+pub mod trace;
+pub mod tui;
+pub mod upgrade;
+pub mod verify;
 
+pub use callers::run_callers_command;
 pub use diff::{run_diff_slicer, run_diff_slicer_in};
+pub use index::{run_index_command, IndexCliOptions};
 pub use metrics::{render_dashboard, run_metrics_command};
+pub use query::{run_query_command, QueryOptions};
+pub use refactor::{run_refactor_rename, RefactorRenameOptions};
+pub use semantic_diff::{run_semantic_diff, SemanticDiffOptions};
 pub use setup_mcp::{
     format_setup_report, get_ide_config_paths, merge_mcp_config, run_setup_mcp, safe_merge_json,
     setup_ide_mcp, IdeTarget, MergeStatus, SetupMcpOptions, SetupResult,
 };
+pub use trace::run_trace_command;
+pub use tui::run_tui;
+pub use upgrade::{run_upgrade_command, UpgradeOptions};
+pub use verify::{run_verify_patch, VerifyPatchOptions};
 
 use anyhow::{bail, Context, Result};
 use arboard::Clipboard;
@@ -237,11 +255,157 @@ pub enum Commands {
         format: String,
     },
 
+    /// Upstream reverse caller impact analysis across workspace.
+    Callers {
+        /// Target symbol name to trace callers for (e.g. `validate_token`, `AuthService.validate`).
+        target: String,
+
+        /// Optional path to the file declaring the target symbol.
+        #[arg(short, long)]
+        path: Option<PathBuf>,
+
+        /// Workspace root directory path (defaults to current directory).
+        #[arg(short, long)]
+        root: Option<PathBuf>,
+
+        /// Adaptive token budget limit for caller output.
+        #[arg(long)]
+        budget: Option<usize>,
+
+        /// Maximum number of callers to return.
+        #[arg(long)]
+        limit: Option<usize>,
+
+        /// Copy output directly to system clipboard.
+        #[arg(long)]
+        clip: bool,
+
+        /// Output file path to save extracted Markdown/JSON.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Output format (markdown or json).
+        #[arg(long, default_value = "markdown")]
+        format: String,
+    },
+
+    /// End-to-end execution flow tracer from entry point down to services and database sinks.
+    Trace {
+        /// Entry point query (e.g. `POST /api/v1/orders`, `main`, or `OrderController.createOrder`).
+        entry: String,
+
+        /// Workspace root directory path (defaults to current directory).
+        #[arg(short, long)]
+        root: Option<PathBuf>,
+
+        /// Adaptive token budget limit (default: 1500 tokens).
+        #[arg(long)]
+        budget: Option<usize>,
+
+        /// Maximum execution trace depth hops (default: 8).
+        #[arg(long, default_value = "8")]
+        depth: usize,
+
+        /// Copy output directly to system clipboard.
+        #[arg(long)]
+        clip: bool,
+
+        /// Output file path to save extracted Markdown/JSON.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Output format (markdown or json).
+        #[arg(long, default_value = "markdown")]
+        format: String,
+    },
+
     /// Launch Model Context Protocol (MCP) server over STDIO.
     Mcp {
         /// Optional log file path for structured JSONL observability.
         #[arg(long, env = "CTXCUT_LOG_FILE")]
         log_file: Option<PathBuf>,
+    },
+
+    /// Verify a patch using AST syntax validation and language typecheckers with RAII auto-rollback guard.
+    #[command(name = "verify-patch")]
+    VerifyPatch {
+        /// Target symbol query in format `path/to/file.ts:symbolName`.
+        target: String,
+
+        /// Replacement code string or path to replacement code file.
+        #[arg(long = "with")]
+        with_code: Option<String>,
+
+        /// Direct replacement code string.
+        #[arg(short, long)]
+        code: Option<String>,
+
+        /// Path to file containing replacement code.
+        #[arg(short, long)]
+        file: Option<PathBuf>,
+
+        /// Typechecker command override (e.g. `cargo check`, `tsc --noEmit`, `mypy`).
+        #[arg(long, alias = "typecheck-cmd")]
+        typechecker: Option<String>,
+
+        /// Persist changes to disk if verification succeeds.
+        #[arg(long)]
+        apply: bool,
+
+        /// Run in dry-run mode without writing changes to disk (default if --apply is not set).
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Copy output directly to system clipboard.
+        #[arg(long)]
+        clip: bool,
+
+        /// Output file path to save verification report.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Output format (markdown or json).
+        #[arg(long, default_value = "markdown")]
+        format: String,
+    },
+
+    /// Token-efficient structural AST diff calculating signature/type deltas & ROI savings.
+    #[command(name = "semantic-diff")]
+    SemanticDiff {
+        /// Workspace directory path (defaults to current directory).
+        #[arg(short, long)]
+        path: Option<PathBuf>,
+
+        /// Target specific file path for diffing.
+        #[arg(short, long)]
+        file: Option<PathBuf>,
+
+        /// Inspect staged changes only (`git diff --staged`).
+        #[arg(long)]
+        staged: bool,
+
+        /// Adaptive token budget limit.
+        #[arg(long)]
+        budget: Option<usize>,
+
+        /// Copy output directly to system clipboard.
+        #[arg(long)]
+        clip: bool,
+
+        /// Output file path to save extracted diff.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Output format (markdown or json).
+        #[arg(long, default_value = "markdown")]
+        format: String,
+    },
+
+    /// AST-guided multi-file symbol refactoring and renaming.
+    Refactor {
+        /// Refactoring subcommand to execute.
+        #[command(subcommand)]
+        command: RefactorSubcommands,
     },
 
     /// Configure IDEs to use ctxcut as an MCP server.
@@ -301,7 +465,129 @@ pub enum Commands {
         #[arg(long)]
         dry_run: bool,
     },
+
+    /// Manage persistent SQLite index (.ctxcut/index.db) for sub-5ms repository queries.
+    Index {
+        /// Workspace root directory path (defaults to current directory).
+        path: Option<PathBuf>,
+
+        /// Rebuild index from scratch, invalidating all cached data.
+        #[arg(short, long)]
+        rebuild: bool,
+
+        /// Display index health, total symbols, and cache status without syncing.
+        #[arg(short, long)]
+        status: bool,
+
+        /// Remove and delete index database files from disk.
+        #[arg(long)]
+        clean: bool,
+
+        /// Output status or sync results in JSON format.
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Search workspace code using structural Tree-sitter AST queries or built-in presets.
+    Query {
+        /// Tree-sitter S-expression AST query pattern.
+        pattern: Option<String>,
+
+        /// Built-in query preset (e.g. functions, structs, classes, interfaces, enums, exports, async_fns, api_routes, errors, react-hooks).
+        #[arg(short, long)]
+        preset: Option<String>,
+
+        /// Programming language filter (e.g. rust, typescript, python, go, c, cpp, csharp, java, kotlin).
+        #[arg(short, long)]
+        lang: Option<String>,
+
+        /// Workspace root directory (defaults to current directory).
+        #[arg(short, long)]
+        root: Option<PathBuf>,
+
+        /// Maximum number of matches to return.
+        #[arg(long)]
+        limit: Option<usize>,
+
+        /// Output format (markdown or json).
+        #[arg(long, default_value = "markdown")]
+        format: String,
+
+        /// Copy output directly to system clipboard.
+        #[arg(long)]
+        clip: bool,
+
+        /// Output file path to save query results.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+
+    /// Launch interactive Terminal UI (TUI) Dashboard & AST Context Studio.
+    Tui {
+        /// Workspace root directory path (defaults to current directory).
+        path: Option<PathBuf>,
+    },
+
+    /// Alias for interactive TUI Dashboard (`ctxcut tui`).
+    Dashboard {
+        /// Workspace root directory path (defaults to current directory).
+        path: Option<PathBuf>,
+    },
+
+    /// Check for updates and self-upgrade ctxcut to the latest release version.
+    Upgrade {
+        /// Check for updates without installing.
+        #[arg(long)]
+        check: bool,
+
+        /// Upgrade to a specific version tag (e.g. `2.0.0` or `v2.0.0`).
+        #[arg(long)]
+        version: Option<String>,
+
+        /// Force re-installation even if already at latest version.
+        #[arg(long)]
+        force: bool,
+
+        /// Allow installing an older version (bypasses downgrade prevention).
+        #[arg(long)]
+        allow_downgrade: bool,
+    },
 }
+
+/// Subcommands for AST-guided refactoring.
+#[derive(Subcommand, Debug)]
+pub enum RefactorSubcommands {
+    /// Rename a symbol across the workspace with AST accuracy.
+    Rename {
+        /// Target symbol query (e.g. `src/calc.rs:calculate_tax` or `calculateTax`).
+        target: String,
+
+        /// New identifier name.
+        #[arg(long)]
+        to: String,
+
+        /// Workspace root directory (defaults to current directory).
+        #[arg(short, long)]
+        root: Option<PathBuf>,
+
+        /// Preview unified diff without writing changes to disk.
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Copy output directly to system clipboard.
+        #[arg(long)]
+        clip: bool,
+
+        /// Output file path to save refactor report.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Output format (text, markdown, or json).
+        #[arg(long, default_value = "text")]
+        format: String,
+    },
+}
+
 
 /// Executes the CLI application with a custom MCP server runner.
 pub fn run_cli_handler<F>(mcp_runner: F) -> Result<()>
@@ -544,6 +830,116 @@ where
             handle_output(&[result], &format, clip, output.as_deref())
         }
 
+        Some(Commands::Callers {
+            target,
+            path,
+            root,
+            budget,
+            limit,
+            clip,
+            output,
+            format,
+        }) => run_callers_command(
+            &target,
+            path.as_deref(),
+            root,
+            budget,
+            limit,
+            clip,
+            output.as_deref(),
+            &format,
+        ),
+
+        Some(Commands::Trace {
+            entry,
+            root,
+            budget,
+            depth,
+            clip,
+            output,
+            format,
+        }) => run_trace_command(
+            &entry,
+            root,
+            budget,
+            depth,
+            clip,
+            output.as_deref(),
+            &format,
+        ),
+
+        Some(Commands::VerifyPatch {
+            target,
+            with_code,
+            code,
+            file,
+            typechecker,
+            apply,
+            dry_run,
+            clip,
+            output,
+            format,
+        }) => {
+            let opts = VerifyPatchOptions {
+                target: &target,
+                with_code: with_code.as_deref(),
+                code: code.as_deref(),
+                file: file.as_deref(),
+                typecheck_cmd: typechecker.as_deref(),
+                apply,
+                dry_run,
+                clip,
+                output: output.as_deref(),
+                format: &format,
+            };
+            run_verify_patch(opts)
+        }
+
+        Some(Commands::SemanticDiff {
+            path,
+            file,
+            staged,
+            budget,
+            clip,
+            output,
+            format,
+        }) => {
+            let opts = SemanticDiffOptions {
+                root: path,
+                file,
+                staged,
+                budget,
+                clip,
+                output,
+                format,
+            };
+            run_semantic_diff(opts)
+        }
+
+        Some(Commands::Refactor {
+            command:
+                RefactorSubcommands::Rename {
+                    target,
+                    to,
+                    root,
+                    dry_run,
+                    clip,
+                    output,
+                    format,
+                },
+        }) => {
+            let opts = RefactorRenameOptions {
+                target: &target,
+                to: &to,
+                root: root.as_deref(),
+                dry_run,
+                format: &format,
+                clip,
+                output: output.as_deref(),
+            };
+            run_refactor_rename(opts)
+        }
+
         Some(Commands::SetupMcp {
             ide,
             custom_path,
@@ -587,6 +983,65 @@ where
             let results = run_setup_mcp(&options)?;
             print!("{}", format_setup_report(&results));
             Ok(())
+        }
+
+        Some(Commands::Index {
+            path,
+            rebuild,
+            status,
+            clean,
+            json,
+        }) => {
+            let opts = IndexCliOptions {
+                path,
+                rebuild,
+                status,
+                clean,
+                json,
+            };
+            run_index_command(opts)
+        }
+
+        Some(Commands::Query {
+            pattern,
+            preset,
+            lang,
+            root,
+            limit,
+            format,
+            clip,
+            output,
+        }) => {
+            let opts = QueryOptions {
+                pattern,
+                preset,
+                lang,
+                root,
+                limit,
+                format,
+                clip,
+                output,
+            };
+            run_query_command(&opts)
+        }
+
+        Some(Commands::Tui { path } | Commands::Dashboard { path }) => {
+            run_tui(path)
+        }
+
+        Some(Commands::Upgrade {
+            check,
+            version,
+            force,
+            allow_downgrade,
+        }) => {
+            let opts = UpgradeOptions {
+                check,
+                version,
+                force,
+                allow_downgrade,
+            };
+            run_upgrade_command(&opts)
         }
 
         None => {
@@ -654,6 +1109,7 @@ fn handle_slice_and_output(
             let single_slice = SliceResult {
                 target_symbol: sym.clone(),
                 hoisted_types: Vec::new(),
+                hoisted_implementors: Vec::new(),
                 stripped_calls: Vec::new(),
                 stats: batch.stats.clone(),
             };

@@ -1,20 +1,31 @@
 //! Language adapter traits and registry for multi-language AST extraction.
 
+pub mod c_cpp;
+pub mod csharp;
 pub mod go;
+pub mod java_lang;
+pub mod kotlin_lang;
 pub mod python;
 pub mod rust_lang;
+pub mod sfc;
 pub mod typescript;
 
 use crate::error::{CoreError, Result};
 use crate::model::{
-    CallSignatureStub, ExtractedSymbol, ExtractedType, SliceOptions, SupportedLanguage,
+    CallSignatureStub, ExtractedImplementor, ExtractedSymbol, ExtractedType, SliceOptions,
+    SupportedLanguage,
 };
 use std::path::Path;
 use tree_sitter::{Language, Node};
 
+pub use c_cpp::{CAdapter, CppAdapter};
+pub use csharp::CSharpAdapter;
 pub use go::GoAdapter;
+pub use java_lang::JavaAdapter;
+pub use kotlin_lang::KotlinAdapter;
 pub use python::PythonAdapter;
 pub use rust_lang::RustAdapter;
+pub use sfc::{AstroAdapter, SfcBlock, SfcDocument, SvelteAdapter, VueAdapter};
 pub use typescript::TypeScriptAdapter;
 
 /// Common trait implemented by each target programming language parser & resolver.
@@ -23,9 +34,9 @@ pub trait LanguageAdapter: Send + Sync {
     fn language(&self) -> SupportedLanguage;
 
     /// Returns the tree-sitter `Language` definition for the given file path.
-    fn tree_sitter_language(&self, path: &Path) -> Language;
+    fn tree_sitter_language(&self, file_path: &Path) -> Language;
 
-    /// Locates the AST node and extracted metadata for a target symbol query.
+    /// Locates the AST node for a specified target symbol query.
     fn locate_symbol<'a>(
         &self,
         root: Node<'a>,
@@ -34,7 +45,7 @@ pub trait LanguageAdapter: Send + Sync {
         file_path: &Path,
     ) -> Result<(ExtractedSymbol, Node<'a>)>;
 
-    /// Lists all available symbols in the file for diagnostics and error reporting.
+    /// Lists all candidate top-level or exported symbol names defined in the AST.
     fn list_symbols<'a>(&self, root: Node<'a>, source: &'a str) -> Vec<String>;
 
     /// Extracts referenced types from the symbol signature and body.
@@ -55,6 +66,15 @@ pub trait LanguageAdapter: Send + Sync {
         source: &'a str,
         file_path: &Path,
     ) -> Result<Vec<CallSignatureStub>>;
+
+    /// Finds concrete implementors for a given interface or trait name.
+    fn find_implementors<'a>(
+        &self,
+        root: Node<'a>,
+        source: &'a str,
+        interface_name: &str,
+        file_path: &Path,
+    ) -> Result<Vec<ExtractedImplementor>>;
 }
 
 /// Registry and factory for resolving language adapters.
@@ -82,6 +102,14 @@ impl LanguageRegistry {
             SupportedLanguage::Python => Ok(Box::new(PythonAdapter)),
             SupportedLanguage::Go => Ok(Box::new(GoAdapter)),
             SupportedLanguage::Rust => Ok(Box::new(RustAdapter)),
+            SupportedLanguage::C => Ok(Box::new(CAdapter)),
+            SupportedLanguage::Cpp => Ok(Box::new(CppAdapter)),
+            SupportedLanguage::CSharp => Ok(Box::new(CSharpAdapter)),
+            SupportedLanguage::Java => Ok(Box::new(JavaAdapter)),
+            SupportedLanguage::Kotlin => Ok(Box::new(KotlinAdapter)),
+            SupportedLanguage::Vue => Ok(Box::new(VueAdapter)),
+            SupportedLanguage::Svelte => Ok(Box::new(SvelteAdapter)),
+            SupportedLanguage::Astro => Ok(Box::new(AstroAdapter)),
         }
     }
 }

@@ -60,6 +60,14 @@ pub enum CoreError {
     #[error("Tree-sitter query error: {0}")]
     QueryError(String),
 
+    /// Invalid AST structural query or unsupported language preset.
+    #[error("Invalid AST query: {0}")]
+    InvalidQuery(String),
+
+    /// Persistent SQLite index error.
+    #[error("Database error: {0}")]
+    DatabaseError(String),
+
     /// Clipboard operation failed.
     #[error("Clipboard error: {0}")]
     ClipboardError(String),
@@ -174,3 +182,9 @@ fn edit_distance(s1: &str, s2: &str) -> usize {
 
 /// Specialized Result alias for `ctxcut_core`.
 pub type Result<T> = std::result::Result<T, CoreError>;
+
+impl From<rusqlite::Error> for CoreError {
+    fn from(err: rusqlite::Error) -> Self {
+        CoreError::DatabaseError(err.to_string())
+    }
+}

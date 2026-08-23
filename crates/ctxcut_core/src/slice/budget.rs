@@ -62,6 +62,10 @@ impl BudgetCompressor {
             ty.definition = strip_doc_comments_from_str(&ty.definition);
         }
 
+        for imp in &mut slice.hoisted_implementors {
+            imp.definition = strip_doc_comments_from_str(&imp.definition);
+        }
+
         for call in &mut slice.stripped_calls {
             call.signature = strip_doc_comments_from_str(&call.signature);
         }
@@ -74,7 +78,7 @@ impl BudgetCompressor {
         }
 
         // =========================================================================
-        // Level 2: Minify / Prune Hoisted Types
+        // Level 2: Minify / Prune Hoisted Types and Implementors
         // =========================================================================
         report.degradation_level = 2;
         report
@@ -85,6 +89,10 @@ impl BudgetCompressor {
             ty.definition = minify_type_definition(&ty.definition, &ty.kind);
         }
 
+        for imp in &mut slice.hoisted_implementors {
+            imp.definition = minify_type_definition(&imp.definition, &imp.kind);
+        }
+
         let l2_md = MarkdownFormatter::format(slice);
         let l2_tokens = count_tokens(&l2_md);
         report.final_tokens = l2_tokens;
@@ -92,14 +100,27 @@ impl BudgetCompressor {
             return Ok(report);
         }
 
-        // If still overflowing, drop secondary hoisted types
+        // If still overflowing, drop secondary hoisted types and implementors (>2)
+        let mut pruned_l2 = false;
         if slice.hoisted_types.len() > 2 {
             let removed = slice.hoisted_types.len() - 2;
             slice.hoisted_types.truncate(2);
             report.actions_taken.push(format!(
                 "Level 2b: Pruned {removed} secondary hoisted types"
             ));
+            pruned_l2 = true;
+        }
 
+        if slice.hoisted_implementors.len() > 2 {
+            let removed = slice.hoisted_implementors.len() - 2;
+            slice.hoisted_implementors.truncate(2);
+            report.actions_taken.push(format!(
+                "Level 2c: Pruned {removed} secondary hoisted implementors"
+            ));
+            pruned_l2 = true;
+        }
+
+        if pruned_l2 {
             let l2b_md = MarkdownFormatter::format(slice);
             let l2b_tokens = count_tokens(&l2b_md);
             report.final_tokens = l2b_tokens;
@@ -109,7 +130,7 @@ impl BudgetCompressor {
         }
 
         // =========================================================================
-        // Level 3: Prune / Minify Stripped Calls
+        // Level 3: Prune / Minify Stripped Calls and Implementors
         // =========================================================================
         report.degradation_level = 3;
         report
@@ -126,6 +147,14 @@ impl BudgetCompressor {
                 .to_string();
         }
 
+        if slice.hoisted_implementors.len() > 1 {
+            let removed = slice.hoisted_implementors.len() - 1;
+            slice.hoisted_implementors.truncate(1);
+            report.actions_taken.push(format!(
+                "Level 3b: Pruned {removed} secondary hoisted implementors"
+            ));
+        }
+
         let l3_md = MarkdownFormatter::format(slice);
         let l3_tokens = count_tokens(&l3_md);
         report.final_tokens = l3_tokens;
@@ -138,7 +167,7 @@ impl BudgetCompressor {
             let removed = slice.stripped_calls.len() - 2;
             slice.stripped_calls.truncate(2);
             report.actions_taken.push(format!(
-                "Level 3b: Pruned {removed} secondary external dependency stubs"
+                "Level 3c: Pruned {removed} secondary external dependency stubs"
             ));
 
             let l3b_md = MarkdownFormatter::format(slice);
@@ -175,6 +204,7 @@ impl BudgetCompressor {
             .push("Level 5: Collapsed target symbol to signature-only stub".to_string());
 
         slice.hoisted_types.clear();
+        slice.hoisted_implementors.clear();
         slice.stripped_calls.clear();
 
         let sig = &slice.target_symbol.signature;
@@ -316,6 +346,7 @@ mod tests {
                     definition: "/** Payment response payload */\nexport interface PaymentResponse {\n    id: string;\n    status: string;\n    receiptSent: boolean;\n}".to_string(),
                 },
             ],
+            hoisted_implementors: Vec::new(),
             stripped_calls: vec![
                 CallSignatureStub {
                     name: "validatePayment".to_string(),
@@ -357,10 +388,50 @@ mod tests {
         let report = BudgetCompressor::compress_slice(&mut slice, 35).unwrap();
         assert_eq!(report.degradation_level, 5);
         assert!(slice.hoisted_types.is_empty());
+        assert!(slice.hoisted_implementors.is_empty());
         assert!(slice.stripped_calls.is_empty());
         assert!(slice
             .target_symbol
             .body
             .contains("// Implementation collapsed"));
+    }
+
+    #[test]
+    fn test_budget_hoisted_implementors_progressive_degradation() {
+        use crate::model::ExtractedImplementor;
+
+        let mut slice = make_test_slice();
+        for i in 1..=4 {
+            slice.hoisted_implementors.push(ExtractedImplementor {
+                interface_name: "PaymentProcessor".to_string(),
+                implementor_name: format!("ProcessorImpl{i}"),
+                kind: "ts_class".to_string(),
+                file_path: format!("src/impl{i}.ts"),
+                definition: format!("/** Doc comment for Impl {i} */\nexport class ProcessorImpl{i} implements PaymentProcessor {{\n    public process() {{}}\n}}"),
+            });
+        }
+
+        // Test Level 1: docstrings stripped
+        let initial_tokens = count_tokens(&slice.to_markdown());
+        let report_l1 = BudgetCompressor::compress_slice(&mut slice, initial_tokens - 10).unwrap();
+        assert!(report_l1.degradation_level >= 1);
+        for imp in &slice.hoisted_implementors {
+            assert!(!imp.definition.contains("/**"));
+        }
+
+        // Test Level 2: implementors pruned to <= 2
+        let report_l2 = BudgetCompressor::compress_slice(&mut slice, 120).unwrap();
+        assert!(report_l2.degradation_level >= 2);
+        assert!(slice.hoisted_implementors.len() <= 2);
+
+        // Test Level 3: implementors pruned to <= 1
+        let report_l3 = BudgetCompressor::compress_slice(&mut slice, 70).unwrap();
+        assert!(report_l3.degradation_level >= 3);
+        assert!(slice.hoisted_implementors.len() <= 1);
+
+        // Test Level 5: implementors cleared
+        let report_l5 = BudgetCompressor::compress_slice(&mut slice, 30).unwrap();
+        assert_eq!(report_l5.degradation_level, 5);
+        assert!(slice.hoisted_implementors.is_empty());
     }
 }

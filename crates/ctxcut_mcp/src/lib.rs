@@ -10,8 +10,10 @@ pub use logger::{format_rfc3339, McpFileLogger, ToolLogRecord};
 
 use anyhow::Result;
 use ctxcut_core::{
-    AstPatcher, ContextSlicer, MarkdownFormatter, OverviewOptions, SliceOptions, SliceResult,
-    TelemetryLogger, TestContextGenerator, WorkspaceOverviewGenerator,
+    AstPatcher, AstQueryEngine, ContextSlicer, ExecutionTracer, ImpactAnalyzer, IndexEngine,
+    IndexOptions, MarkdownFormatter, OverviewOptions, PatchVerifier, SemanticDiffEngine,
+    SliceOptions, SliceResult, SupportedLanguage, SymbolRenamer, TelemetryLogger,
+    TestContextGenerator, WorkspaceOverviewGenerator,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -389,6 +391,249 @@ fn build_tools_list_response() -> Value {
                     },
                     "required": ["method", "path"]
                 }
+            },
+            {
+                "name": "get_impact_slice",
+                "description": "Performs upstream caller and reverse impact analysis across the workspace to locate all call sites and enclosing functions consuming a target symbol.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "target": {
+                            "type": "string",
+                            "description": "Target symbol name to trace callers for (e.g. `validate_token`, `AuthService.validate`)"
+                        },
+                        "path": {
+                            "type": "string",
+                            "description": "Optional path to the file declaring the target symbol"
+                        },
+                        "root_dir": {
+                            "type": "string",
+                            "description": "Workspace root directory to search within (defaults to current directory)"
+                        },
+                        "budget": {
+                            "type": "integer",
+                            "description": "Optional adaptive token budget limit"
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "Maximum number of caller sites to return"
+                        },
+                        "format": {
+                            "type": "string",
+                            "description": "Output format: 'markdown' (default) or 'json'",
+                            "enum": ["markdown", "json"]
+                        },
+                        "timeout_ms": {
+                            "type": "integer",
+                            "description": "Optional execution timeout in milliseconds (default: 10000)"
+                        }
+                    },
+                    "required": ["target"]
+                }
+            },
+            {
+                "name": "get_trace_slice",
+                "description": "Traces end-to-end execution flow from an entry point (HTTP route, CLI main, or controller symbol) down to services and database layers within a progressive 1,000–2,000 token budget, pruning irrelevant sibling branches.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "entry_point": {
+                            "type": "string",
+                            "description": "Entry point query (e.g. `POST /api/v1/orders`, `main`, or `OrderController.createOrder`)"
+                        },
+                        "root_dir": {
+                            "type": "string",
+                            "description": "Workspace root directory to search within (defaults to current directory)"
+                        },
+                        "budget": {
+                            "type": "integer",
+                            "description": "Optional token budget limit (default: 1500 tokens)"
+                        },
+                        "depth": {
+                            "type": "integer",
+                            "description": "Maximum call chain depth hops (default: 8)"
+                        },
+                        "format": {
+                            "type": "string",
+                            "description": "Output format: 'markdown' (default) or 'json'",
+                            "enum": ["markdown", "json"]
+                        },
+                        "timeout_ms": {
+                            "type": "integer",
+                            "description": "Optional execution timeout in milliseconds (default: 10000)"
+                        }
+                    },
+                    "required": ["entry_point"]
+                }
+            },
+            {
+                "name": "verify_patch",
+                "description": "Applies a code replacement to a target symbol with Tree-Sitter syntax validation, triggers language typecheckers (cargo check, tsc, mypy, go vet, dotnet build, javac) with RAII auto-rollback safety, and returns a structured verification report.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "target": {
+                            "type": "string",
+                            "description": "Target symbol in `path/to/file:symbol` format (e.g. `src/math.rs:compute`)"
+                        },
+                        "path": {
+                            "type": "string",
+                            "description": "Optional source file path if not included in target"
+                        },
+                        "symbol": {
+                            "type": "string",
+                            "description": "Optional target symbol name if not included in target"
+                        },
+                        "new_code": {
+                            "type": "string",
+                            "description": "Replacement code to splice into the AST symbol"
+                        },
+                        "code": {
+                            "type": "string",
+                            "description": "Alias for `new_code`"
+                        },
+                        "typechecker": {
+                            "type": "string",
+                            "description": "Optional custom typechecker command override (e.g. `cargo check`, `npx tsc --noEmit`)"
+                        },
+                        "dry_run": {
+                            "type": "boolean",
+                            "description": "Whether to perform a dry-run without persisting changes to disk (default: true)"
+                        },
+                        "timeout_ms": {
+                            "type": "integer",
+                            "description": "Optional typechecker execution timeout in milliseconds (default: 30000)"
+                        }
+                    }
+                }
+            },
+            {
+                "name": "semantic_diff",
+                "description": "Performs token-efficient structural AST diff comparing working tree or staged changes against Git baseline, detecting added/removed/modified functions, classes, interfaces, signature changes, and token ROI savings.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Workspace root directory path (defaults to current directory)"
+                        },
+                        "file_path": {
+                            "type": "string",
+                            "description": "Optional path to a specific file to diff"
+                        },
+                        "staged": {
+                            "type": "boolean",
+                            "description": "Whether to inspect staged changes only (default: false)"
+                        },
+                        "budget": {
+                            "type": "integer",
+                            "description": "Optional token budget limit for progressive semantic degradation"
+                        },
+                        "format": {
+                            "type": "string",
+                            "description": "Output format: 'markdown' (default) or 'json'",
+                            "enum": ["markdown", "json"]
+                        }
+                    }
+                }
+            },
+            {
+                "name": "refactor_rename",
+                "description": "Performs AST-accurate multi-file symbol renaming across the workspace, updating declarations, usage call sites, imports, and re-exports with pre-write syntax validation and dry-run preview.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "target": {
+                            "type": "string",
+                            "description": "Target symbol query (e.g. `src/calc.rs:calculate_tax` or `calculateTax`)"
+                        },
+                        "new_name": {
+                            "type": "string",
+                            "description": "New identifier name (e.g. `compute_tax`)"
+                        },
+                        "root_dir": {
+                            "type": "string",
+                            "description": "Workspace root directory (defaults to current directory)"
+                        },
+                        "dry_run": {
+                            "type": "boolean",
+                            "description": "Preview diff without writing changes to disk (default: false)"
+                        },
+                        "format": {
+                            "type": "string",
+                            "description": "Output format: 'markdown' (default) or 'json'",
+                            "enum": ["markdown", "json"]
+                        }
+                    },
+                    "required": ["target", "new_name"]
+                }
+            },
+            {
+                "name": "index_workspace",
+                "description": "Builds, updates, or checks the persistent SQLite index (.ctxcut/index.db) for the workspace. Enables sub-5ms incremental indexing, instant symbol lookups, caller discovery, and workspace overview queries.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Workspace root directory path (defaults to current working directory)"
+                        },
+                        "rebuild": {
+                            "type": "boolean",
+                            "description": "Force a complete index rebuild from scratch (default: false)"
+                        },
+                        "status_only": {
+                            "type": "boolean",
+                            "description": "Check index status and health without re-indexing (default: false)"
+                        }
+                    }
+                }
+            },
+            {
+                "name": "query_ast",
+                "description": "Performs structural Tree-sitter AST queries across workspace files using custom S-expression patterns or built-in presets (functions, structs, classes, interfaces, enums, exports, async_fns, api_routes, errors, react_hooks).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "pattern": {
+                            "type": "string",
+                            "description": "Custom Tree-sitter S-expression query pattern (e.g. `(function_item name: (identifier) @name)`)"
+                        },
+                        "preset": {
+                            "type": "string",
+                            "description": "Built-in AST query preset name (`functions`, `structs`, `classes`, `interfaces`, `enums`, `exports`, `async_fns`, `api_routes`, `errors`, `react_hooks`)",
+                            "enum": [
+                                "functions",
+                                "structs",
+                                "classes",
+                                "interfaces",
+                                "enums",
+                                "exports",
+                                "async_fns",
+                                "api_routes",
+                                "errors",
+                                "react_hooks"
+                            ]
+                        },
+                        "language": {
+                            "type": "string",
+                            "description": "Optional programming language filter (e.g. `rust`, `typescript`, `javascript`, `python`, `go`, `c`, `cpp`, `csharp`, `java`, `kotlin`, `vue`, `svelte`, `astro`)"
+                        },
+                        "root_dir": {
+                            "type": "string",
+                            "description": "Workspace root directory path to search within (defaults to current directory)"
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "Maximum number of matches to return (default: unlimited)"
+                        },
+                        "format": {
+                            "type": "string",
+                            "description": "Output format: 'markdown' (default) or 'json'",
+                            "enum": ["markdown", "json"]
+                        }
+                    }
+                }
             }
         ]
     })
@@ -534,6 +779,13 @@ fn execute_tool_call(
         "patch_symbol" => execute_patch_symbol(args),
         "get_test_context" => execute_get_test_context(args),
         "get_route_slice" => execute_get_route_slice(args),
+        "get_impact_slice" => execute_impact_slice(args),
+        "get_trace_slice" => execute_trace_slice(args),
+        "verify_patch" => execute_verify_patch(args),
+        "semantic_diff" => execute_semantic_diff(args),
+        "refactor_rename" => execute_refactor_rename(args),
+        "index_workspace" => execute_index_workspace(args),
+        "query_ast" => execute_query_ast(args),
         _ => {
             let err = format!("Unknown tool: `{name}`");
             let response = json!({
@@ -632,6 +884,7 @@ fn execute_symbol_slice(args: &Value) -> (Value, Option<Value>, Option<String>, 
                     let single = SliceResult {
                         target_symbol: sym.clone(),
                         hoisted_types: Vec::new(),
+                        hoisted_implementors: Vec::new(),
                         stripped_calls: Vec::new(),
                         stats: batch.stats.clone(),
                     };
@@ -1140,3 +1393,450 @@ fn execute_get_route_slice(args: &Value) -> (Value, Option<Value>, Option<String
         }
     }
 }
+
+fn execute_impact_slice(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
+    let Some(target) = args.get("target").and_then(Value::as_str) else {
+        let err = "Missing required parameter 'target'".to_string();
+        return (
+            json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            }),
+            None,
+            Some(err),
+            None,
+        );
+    };
+
+    let target_file = args.get("path").and_then(Value::as_str).map(PathBuf::from);
+    let root_dir = args
+        .get("root_dir")
+        .and_then(Value::as_str)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+
+    let budget = args
+        .get("budget")
+        .and_then(Value::as_u64)
+        .map(|b| b as usize);
+    let limit = args
+        .get("limit")
+        .and_then(Value::as_u64)
+        .map(|l| l as usize);
+
+    let opts = SliceOptions {
+        depth: 1,
+        budget,
+        include_types: true,
+        include_calls: true,
+    };
+
+    match ImpactAnalyzer::find_callers(&root_dir, target, target_file.as_deref(), &opts) {
+        Ok(mut result) => {
+            if let Some(lim) = limit {
+                result.callers.truncate(lim);
+                result.total_callers = result.callers.len();
+            }
+
+            let saved_tokens = result
+                .stats
+                .raw_file_tokens
+                .saturating_sub(result.stats.sliced_tokens);
+            TelemetryLogger::record_operation(
+                "mcp_impact",
+                &root_dir.to_string_lossy(),
+                result.stats.raw_file_tokens,
+                result.stats.sliced_tokens,
+                saved_tokens,
+            );
+
+            let text_output = result.to_markdown();
+            let metrics_val = json!({
+                "raw_tokens": result.stats.raw_file_tokens,
+                "sliced_tokens": result.stats.sliced_tokens,
+                "savings_pct": result.stats.savings_percentage,
+                "total_callers": result.total_callers,
+            });
+
+            let response = json!({
+                "content": [{ "type": "text", "text": text_output }],
+                "impact": result
+            });
+
+            (response, Some(metrics_val), None, Some(saved_tokens))
+        }
+        Err(e) => {
+            let err = format!("Impact analysis error: {e}");
+            let response = json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            });
+            (response, None, Some(err), None)
+        }
+    }
+}
+
+fn execute_trace_slice(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
+    let Some(entry_point) = args.get("entry_point").and_then(Value::as_str) else {
+        let err = "Missing required parameter 'entry_point'".to_string();
+        return (
+            json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            }),
+            None,
+            Some(err),
+            None,
+        );
+    };
+
+    let root_dir = args
+        .get("root_dir")
+        .and_then(Value::as_str)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+
+    let budget = args
+        .get("budget")
+        .and_then(Value::as_u64)
+        .map(|b| b as usize);
+    let depth = args
+        .get("depth")
+        .and_then(Value::as_u64)
+        .map(|d| d as usize)
+        .unwrap_or(8);
+
+    let opts = SliceOptions {
+        depth,
+        budget,
+        include_types: true,
+        include_calls: true,
+    };
+
+    match ExecutionTracer::trace(&root_dir, entry_point, &opts) {
+        Ok(trace) => {
+            let saved_tokens = trace
+                .stats
+                .raw_file_tokens
+                .saturating_sub(trace.stats.sliced_tokens);
+            TelemetryLogger::record_operation(
+                "mcp_trace",
+                &root_dir.to_string_lossy(),
+                trace.stats.raw_file_tokens,
+                trace.stats.sliced_tokens,
+                saved_tokens,
+            );
+
+            let text_output = trace.to_markdown();
+            let metrics_val = json!({
+                "raw_tokens": trace.stats.raw_file_tokens,
+                "sliced_tokens": trace.stats.sliced_tokens,
+                "savings_pct": trace.stats.savings_percentage,
+                "total_steps": trace.total_steps,
+            });
+
+            let response = json!({
+                "content": [{ "type": "text", "text": text_output }],
+                "trace": trace
+            });
+
+            (response, Some(metrics_val), None, Some(saved_tokens))
+        }
+        Err(e) => {
+            let err = format!("Execution trace error: {e}");
+            let response = json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            });
+            (response, None, Some(err), None)
+        }
+    }
+}
+
+fn execute_verify_patch(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
+    let target = if let Some(t) = args.get("target").and_then(Value::as_str) {
+        t.to_string()
+    } else if let (Some(p), Some(s)) = (
+        args.get("path").and_then(Value::as_str),
+        args.get("symbol").and_then(Value::as_str),
+    ) {
+        format!("{p}:{s}")
+    } else {
+        let err = "Missing required parameter: provide 'target' (e.g. `src/lib.rs:foo`) or 'path' and 'symbol'".to_string();
+        return (
+            json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            }),
+            None,
+            Some(err),
+            None,
+        );
+    };
+
+    let replacement_code = if let Some(code) = args.get("new_code").and_then(Value::as_str) {
+        code
+    } else if let Some(code) = args.get("code").and_then(Value::as_str) {
+        code
+    } else {
+        let err = "Missing required parameter 'new_code' (or 'code')".to_string();
+        return (
+            json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            }),
+            None,
+            Some(err),
+            None,
+        );
+    };
+
+    let dry_run = args.get("dry_run").and_then(Value::as_bool).unwrap_or(true);
+    let typechecker = args.get("typechecker").and_then(Value::as_str);
+    let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+
+    match PatchVerifier::verify_patch(
+        &current_dir,
+        &target,
+        replacement_code,
+        typechecker,
+        dry_run,
+    ) {
+        Ok(verify_res) => {
+            let response = json!({
+                "content": [{ "type": "text", "text": verify_res.to_markdown() }],
+                "verify_result": verify_res
+            });
+            (response, None, None, None)
+        }
+        Err(e) => {
+            let err = format!("Verification Guard Error: {e}");
+            let response = json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            });
+            (response, None, Some(err), None)
+        }
+    }
+}
+
+fn execute_semantic_diff(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
+    let root_str = args.get("path").and_then(Value::as_str).unwrap_or(".");
+    let file_path = args.get("file_path").and_then(Value::as_str).map(Path::new);
+    let staged = args.get("staged").and_then(Value::as_bool).unwrap_or(false);
+    let budget = args.get("budget").and_then(Value::as_u64).map(|b| b as usize);
+    let format = args.get("format").and_then(Value::as_str).unwrap_or("markdown");
+
+    match SemanticDiffEngine::compute_diff(Path::new(root_str), staged, file_path, budget) {
+        Ok(result) => {
+            let rendered = if format.eq_ignore_ascii_case("json") {
+                result.to_json()
+            } else {
+                result.to_markdown()
+            };
+            let metrics = json!({
+                "raw_tokens": result.roi.raw_tokens,
+                "diff_tokens": result.roi.semantic_diff_tokens,
+                "tokens_saved": result.roi.tokens_saved,
+                "savings_percentage": result.roi.savings_percentage,
+                "total_files": result.files.len()
+            });
+            let tokens_saved = result.roi.tokens_saved;
+            let response = json!({
+                "content": [{ "type": "text", "text": rendered }],
+                "semantic_diff": result
+            });
+            (response, Some(metrics), None, Some(tokens_saved))
+        }
+        Err(e) => {
+            let err = format!("Semantic diff error: {e}");
+            let response = json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            });
+            (response, None, Some(err), None)
+        }
+    }
+}
+
+fn execute_refactor_rename(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
+    let Some(target) = args.get("target").and_then(Value::as_str) else {
+        let err = "Missing required parameter 'target'".to_string();
+        return (
+            json!({ "isError": true, "content": [{ "type": "text", "text": err }] }),
+            None,
+            Some(err),
+            None,
+        );
+    };
+    let Some(new_name) = args.get("new_name").and_then(Value::as_str) else {
+        let err = "Missing required parameter 'new_name'".to_string();
+        return (
+            json!({ "isError": true, "content": [{ "type": "text", "text": err }] }),
+            None,
+            Some(err),
+            None,
+        );
+    };
+
+    let root_str = args.get("root_dir").and_then(Value::as_str).unwrap_or(".");
+    let dry_run = args.get("dry_run").and_then(Value::as_bool).unwrap_or(false);
+    let format_str = args.get("format").and_then(Value::as_str).unwrap_or("markdown");
+
+    match SymbolRenamer::rename_symbol(Path::new(root_str), target, new_name, dry_run) {
+        Ok(result) => {
+            let rendered = if format_str.eq_ignore_ascii_case("json") {
+                result.to_json()
+            } else {
+                result.to_markdown()
+            };
+            let metrics = json!({
+                "files_modified": result.total_files_modified,
+                "occurrences_renamed": result.total_occurrences,
+                "dry_run": result.dry_run
+            });
+            let response = json!({
+                "content": [{ "type": "text", "text": rendered }],
+                "rename": result
+            });
+            (response, Some(metrics), None, None)
+        }
+        Err(e) => {
+            let err = format!("Refactor rename error: {e}");
+            let response = json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            });
+            (response, None, Some(err), None)
+        }
+    }
+}
+
+fn execute_index_workspace(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
+    let root_str = args.get("path").and_then(Value::as_str).unwrap_or(".");
+    let ws_root = PathBuf::from(root_str);
+    let rebuild = args.get("rebuild").and_then(Value::as_bool).unwrap_or(false);
+    let status_only = args.get("status_only").and_then(Value::as_bool).unwrap_or(false);
+
+    let mut engine = match IndexEngine::open_or_create(&ws_root) {
+        Ok(e) => e,
+        Err(e) => {
+            let err = format!("Failed to open index: {e}");
+            let response = json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            });
+            return (response, None, Some(err), None);
+        }
+    };
+
+    if status_only {
+        match engine.status() {
+            Ok(status) => {
+                let metrics = json!({
+                    "total_files": status.total_files,
+                    "total_symbols": status.total_symbols,
+                    "total_callers": status.total_callers,
+                    "total_implementors": status.total_implementors,
+                    "is_wal_mode": status.is_wal_mode,
+                    "in_memory": status.in_memory
+                });
+                let response = json!({
+                    "content": [{ "type": "text", "text": serde_json::to_string_pretty(&status).unwrap_or_default() }],
+                    "status": status
+                });
+                (response, Some(metrics), None, None)
+            }
+            Err(e) => {
+                let err = format!("Failed to get index status: {e}");
+                let response = json!({
+                    "isError": true,
+                    "content": [{ "type": "text", "text": err }]
+                });
+                (response, None, Some(err), None)
+            }
+        }
+    } else {
+        let opts = IndexOptions {
+            rebuild,
+            ..Default::default()
+        };
+        match engine.sync_incremental(&opts) {
+            Ok(sync_result) => {
+                let metrics = json!({
+                    "files_added": sync_result.files_added,
+                    "files_updated": sync_result.files_updated,
+                    "files_deleted": sync_result.files_deleted,
+                    "files_unchanged": sync_result.files_unchanged,
+                    "total_symbols": sync_result.total_symbols,
+                    "duration_ms": sync_result.duration_ms
+                });
+                let summary_text = format!(
+                    "✔ Workspace index synchronized in {}ms ({} added, {} updated, {} deleted, {} unchanged, {} total symbols)",
+                    sync_result.duration_ms,
+                    sync_result.files_added,
+                    sync_result.files_updated,
+                    sync_result.files_deleted,
+                    sync_result.files_unchanged,
+                    sync_result.total_symbols
+                );
+                let response = json!({
+                    "content": [{ "type": "text", "text": summary_text }],
+                    "sync_result": sync_result
+                });
+                (response, Some(metrics), None, None)
+            }
+            Err(e) => {
+                let err = format!("Failed to synchronize index: {e}");
+                let response = json!({
+                    "isError": true,
+                    "content": [{ "type": "text", "text": err }]
+                });
+                (response, None, Some(err), None)
+            }
+        }
+    }
+}
+
+fn execute_query_ast(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
+    let pattern = args.get("pattern").and_then(Value::as_str);
+    let preset = args.get("preset").and_then(Value::as_str);
+    let lang_str = args.get("language").and_then(Value::as_str);
+    let root_str = args.get("root_dir").and_then(Value::as_str).unwrap_or(".");
+    let limit = args.get("limit").and_then(Value::as_u64).map(|l| l as usize);
+    let format_str = args.get("format").and_then(Value::as_str).unwrap_or("markdown");
+
+    let lang_filter = lang_str.and_then(SupportedLanguage::from_str_loose);
+
+    match AstQueryEngine::query_workspace(Path::new(root_str), pattern, lang_filter, preset, limit) {
+        Ok(report) => {
+            let rendered = if format_str.eq_ignore_ascii_case("json") {
+                report.to_json()
+            } else {
+                report.to_markdown()
+            };
+
+            let metrics = json!({
+                "total_matches": report.total_matches,
+                "files_scanned": report.files_scanned,
+                "files_matched": report.files_matched
+            });
+
+            let response = json!({
+                "content": [{ "type": "text", "text": rendered }],
+                "query_report": report
+            });
+            (response, Some(metrics), None, None)
+        }
+        Err(e) => {
+            let err = format!("AST Query error: {e}");
+            let response = json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            });
+            (response, None, Some(err), None)
+        }
+    }
+}
+
+

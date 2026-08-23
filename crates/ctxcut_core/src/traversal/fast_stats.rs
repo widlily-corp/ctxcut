@@ -79,8 +79,18 @@ pub fn estimate_sliced_tokens(
         return raw_tokens;
     }
     let lang_weight = match lang {
-        Some(SupportedLanguage::Rust) => 1.05,
-        Some(SupportedLanguage::TypeScript | SupportedLanguage::JavaScript) | None => 1.00,
+        Some(SupportedLanguage::Rust | SupportedLanguage::Cpp) => 1.05,
+        Some(
+            SupportedLanguage::TypeScript
+            | SupportedLanguage::JavaScript
+            | SupportedLanguage::Vue
+            | SupportedLanguage::Svelte
+            | SupportedLanguage::Astro
+            | SupportedLanguage::C,
+        )
+        | None => 1.00,
+        Some(SupportedLanguage::CSharp | SupportedLanguage::Java) => 1.08,
+        Some(SupportedLanguage::Kotlin) => 1.03,
         Some(SupportedLanguage::Python) => 0.95,
         Some(SupportedLanguage::Go) => 1.02,
     };

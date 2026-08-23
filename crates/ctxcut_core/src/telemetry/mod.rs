@@ -88,7 +88,7 @@ pub struct SourceMetric {
 }
 
 /// Multi-tier pricing cost comparisons.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct ModelTierSavings {
     /// Standard tier (Claude 3.5 Sonnet / GPT-4o: $3.00 / 1M tokens).
     pub standard_sonnet_gpt4o: f64,
@@ -99,7 +99,7 @@ pub struct ModelTierSavings {
 }
 
 /// Comprehensive aggregated summary of lifetime token savings and ROI metrics.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct TelemetrySummary {
     /// Total slicing operations recorded.
     pub total_requests: usize,
@@ -256,6 +256,38 @@ impl TelemetryLogger {
         };
 
         Self::record_event_to_path(path, &event);
+    }
+
+    /// Records generic operation metrics to telemetry.
+    pub fn record_operation(
+        op: &str,
+        file_path: &str,
+        raw_tokens: usize,
+        sliced_tokens: usize,
+        saved_tokens: usize,
+    ) {
+        let pct = if raw_tokens > 0 {
+            (saved_tokens as f64 / raw_tokens as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        let event = TelemetryEvent {
+            timestamp: current_rfc3339_timestamp(),
+            file_path: file_path.to_string(),
+            symbol: op.to_string(),
+            language: None,
+            raw_tokens,
+            sliced_tokens,
+            saved_tokens,
+            savings_percentage: pct,
+            raw_lines: 0,
+            sliced_lines: 0,
+            source: Some(op.to_string()),
+            duration_ms: None,
+        };
+
+        Self::record_event(&event);
     }
 
     /// Reads all recorded telemetry events from the default metrics file.

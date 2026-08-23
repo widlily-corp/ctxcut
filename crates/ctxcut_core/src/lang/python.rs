@@ -3,7 +3,8 @@
 use crate::error::{CoreError, Result};
 use crate::lang::LanguageAdapter;
 use crate::model::{
-    CallSignatureStub, ExtractedSymbol, ExtractedType, SliceOptions, SupportedLanguage,
+    CallSignatureStub, ExtractedImplementor, ExtractedSymbol, ExtractedType, SliceOptions,
+    SupportedLanguage,
 };
 use crate::parser::{AstUtils, ParserManager};
 use std::collections::{HashSet, VecDeque};
@@ -433,6 +434,147 @@ impl LanguageAdapter for PythonAdapter {
         }
 
         Ok(stubs)
+    }
+
+    fn find_implementors<'a>(
+        &self,
+        root: Node<'a>,
+        source: &'a str,
+        interface_name: &str,
+        file_path: &Path,
+    ) -> Result<Vec<ExtractedImplementor>> {
+        let mut implementors = Vec::new();
+        let mut cursor = root.walk();
+
+        let target_protocol_methods =
+            extract_python_protocol_methods(root, source, interface_name);
+
+        for child in root.children(&mut cursor) {
+            let decl = unwrap_decorated(child);
+            if decl.kind() == "class_definition" {
+                if let Some(name_node) = decl.child_by_field_name("name") {
+                    let class_name = AstUtils::node_text(name_node, source);
+                    if class_name == interface_name {
+                        continue;
+                    }
+
+                    let mut matched = false;
+
+                    // 1. Check nominal inheritance in superclasses / argument_list
+                    if let Some(arg_list) = decl
+                        .child_by_field_name("superclasses")
+                        .or_else(|| AstUtils::find_child_by_kind(decl, "argument_list"))
+                    {
+                        for arg in arg_list.named_children(&mut arg_list.walk()) {
+                            let arg_text = AstUtils::node_text(arg, source);
+                            let base_arg =
+                                arg_text.split('.').next_back().unwrap_or(arg_text).trim();
+                            if base_arg == interface_name {
+                                matched = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    // 2. Structural duck-typing match for Protocol methods
+                    if !matched && !target_protocol_methods.is_empty() {
+                        let class_methods = extract_class_defined_methods(decl, source);
+                        if target_protocol_methods
+                            .iter()
+                            .all(|req| class_methods.contains(req))
+                        {
+                            matched = true;
+                        }
+                    }
+
+                    if matched {
+                        let stub = extract_python_class_stub(decl, source);
+                        implementors.push(ExtractedImplementor {
+                            interface_name: interface_name.to_string(),
+                            implementor_name: class_name.to_string(),
+                            kind: "py_class".to_string(),
+                            file_path: file_path.to_string_lossy().to_string(),
+                            definition: stub,
+                        });
+                    }
+                }
+            }
+        }
+
+        Ok(implementors)
+    }
+}
+
+fn extract_python_protocol_methods(
+    root: Node<'_>,
+    source: &str,
+    protocol_name: &str,
+) -> HashSet<String> {
+    let mut methods = HashSet::new();
+    let mut cursor = root.walk();
+    for child in root.children(&mut cursor) {
+        let decl = unwrap_decorated(child);
+        if decl.kind() == "class_definition" {
+            if let Some(name_node) = decl.child_by_field_name("name") {
+                if AstUtils::node_text(name_node, source) == protocol_name {
+                    if let Some(body) = decl.child_by_field_name("body") {
+                        for member in body.named_children(&mut body.walk()) {
+                            let m_node = unwrap_decorated(member);
+                            if m_node.kind() == "function_definition" {
+                                if let Some(m_name) = m_node.child_by_field_name("name") {
+                                    let name_str = AstUtils::node_text(m_name, source);
+                                    if !name_str.starts_with("__") {
+                                        methods.insert(name_str.to_string());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    methods
+}
+
+fn extract_class_defined_methods(class_node: Node<'_>, source: &str) -> HashSet<String> {
+    let mut methods = HashSet::new();
+    if let Some(body) = class_node.child_by_field_name("body") {
+        for member in body.named_children(&mut body.walk()) {
+            let m_node = unwrap_decorated(member);
+            if m_node.kind() == "function_definition" {
+                if let Some(m_name) = m_node.child_by_field_name("name") {
+                    methods.insert(AstUtils::node_text(m_name, source).to_string());
+                }
+            }
+        }
+    }
+    methods
+}
+
+fn extract_python_class_stub(class_node: Node<'_>, source: &str) -> String {
+    if let Some(body) = class_node.child_by_field_name("body") {
+        let header_end = body.start_byte();
+        let header = source[class_node.start_byte()..header_end].trim();
+        let mut stubs = Vec::new();
+
+        for member in body.named_children(&mut body.walk()) {
+            let m_node = unwrap_decorated(member);
+            if m_node.kind() == "function_definition" {
+                if let Some(m_body) = m_node.child_by_field_name("body") {
+                    let sig = source[m_node.start_byte()..m_body.start_byte()].trim();
+                    stubs.push(format!("    {sig}\n        ..."));
+                }
+            }
+        }
+
+        if stubs.is_empty() {
+            format!("{header}\n    pass")
+        } else {
+            format!("{header}\n{}", stubs.join("\n"))
+        }
+    } else {
+        AstUtils::node_text(class_node, source).trim().to_string()
     }
 }
 

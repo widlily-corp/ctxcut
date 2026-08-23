@@ -143,7 +143,7 @@ impl WorkspaceOverviewGenerator {
     }
 }
 
-fn extract_symbols_from_file(
+pub(crate) fn extract_symbols_from_file(
     file_path: &Path,
     lang: SupportedLanguage,
     source: &str,
@@ -161,12 +161,18 @@ fn extract_symbols_from_file(
 
     let root = tree.root_node();
     match lang {
-        SupportedLanguage::TypeScript | SupportedLanguage::JavaScript => {
-            extract_ts_overview(root, source, opts)
-        }
+        SupportedLanguage::TypeScript
+        | SupportedLanguage::JavaScript
+        | SupportedLanguage::Vue
+        | SupportedLanguage::Svelte
+        | SupportedLanguage::Astro => extract_ts_overview(root, source, opts),
         SupportedLanguage::Python => extract_py_overview(root, source, opts),
         SupportedLanguage::Rust => extract_rs_overview(root, source, opts),
         SupportedLanguage::Go => extract_go_overview(root, source, opts),
+        SupportedLanguage::C | SupportedLanguage::Cpp => extract_c_cpp_overview(root, source, opts),
+        SupportedLanguage::CSharp => extract_csharp_overview(root, source, opts),
+        SupportedLanguage::Java => extract_java_overview(root, source, opts),
+        SupportedLanguage::Kotlin => extract_kotlin_overview(root, source, opts),
     }
 }
 
@@ -631,6 +637,183 @@ fn extract_go_overview(
                 }
             }
             _ => {}
+        }
+    }
+
+    items
+}
+
+fn extract_c_cpp_overview(
+    root: Node<'_>,
+    source: &str,
+    _opts: &OverviewOptions,
+) -> Vec<SymbolOverviewItem> {
+    let mut items = Vec::new();
+    let mut cursor = root.walk();
+
+    for child in root.children(&mut cursor) {
+        let start_line = child.start_position().row + 1;
+        let end_line = child.end_position().row + 1;
+
+        match child.kind() {
+            "function_definition" => {
+                if let Some(decl) = child.child_by_field_name("declarator") {
+                    let mut curr = decl;
+                    while let Some(inner) = curr.child_by_field_name("declarator") {
+                        curr = inner;
+                    }
+                    let name = AstUtils::node_text(curr, source).to_string();
+                    let doc = extract_leading_doc_comment(child, source);
+                    items.push(SymbolOverviewItem {
+                        name,
+                        kind: "function".to_string(),
+                        start_line,
+                        end_line,
+                        signature: None,
+                        doc_summary: doc,
+                    });
+                }
+            }
+            "class_specifier" | "struct_specifier" => {
+                if let Some(name_n) = child.child_by_field_name("name") {
+                    let name = AstUtils::node_text(name_n, source).to_string();
+                    let kind = if child.kind() == "class_specifier" { "class" } else { "struct" };
+                    let doc = extract_leading_doc_comment(child, source);
+                    items.push(SymbolOverviewItem {
+                        name,
+                        kind: kind.to_string(),
+                        start_line,
+                        end_line,
+                        signature: None,
+                        doc_summary: doc,
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+
+    items
+}
+
+fn extract_csharp_overview(
+    root: Node<'_>,
+    source: &str,
+    _opts: &OverviewOptions,
+) -> Vec<SymbolOverviewItem> {
+    let mut items = Vec::new();
+    let classes = AstUtils::find_descendants_by_kind(root, "class_declaration");
+    let records = AstUtils::find_descendants_by_kind(root, "record_declaration");
+    let interfaces = AstUtils::find_descendants_by_kind(root, "interface_declaration");
+    let structs = AstUtils::find_descendants_by_kind(root, "struct_declaration");
+
+    for node in classes.into_iter().chain(records).chain(interfaces).chain(structs) {
+        if let Some(name_node) = node.child_by_field_name("name") {
+            let name = AstUtils::node_text(name_node, source).to_string();
+            let kind = match node.kind() {
+                "class_declaration" => "class",
+                "record_declaration" => "record",
+                "interface_declaration" => "interface",
+                "struct_declaration" => "struct",
+                _ => "type",
+            };
+            let start_line = node.start_position().row + 1;
+            let end_line = node.end_position().row + 1;
+            let doc = extract_leading_doc_comment(node, source);
+            items.push(SymbolOverviewItem {
+                name,
+                kind: kind.to_string(),
+                start_line,
+                end_line,
+                signature: None,
+                doc_summary: doc,
+            });
+        }
+    }
+
+    items
+}
+
+fn extract_java_overview(
+    root: Node<'_>,
+    source: &str,
+    _opts: &OverviewOptions,
+) -> Vec<SymbolOverviewItem> {
+    let mut items = Vec::new();
+    let classes = AstUtils::find_descendants_by_kind(root, "class_declaration");
+    let interfaces = AstUtils::find_descendants_by_kind(root, "interface_declaration");
+    let records = AstUtils::find_descendants_by_kind(root, "record_declaration");
+    let enums = AstUtils::find_descendants_by_kind(root, "enum_declaration");
+
+    for node in classes.into_iter().chain(interfaces).chain(records).chain(enums) {
+        if let Some(name_node) = node.child_by_field_name("name") {
+            let name = AstUtils::node_text(name_node, source).to_string();
+            let kind = match node.kind() {
+                "class_declaration" => "class",
+                "interface_declaration" => "interface",
+                "record_declaration" => "record",
+                "enum_declaration" => "enum",
+                _ => "type",
+            };
+            let start_line = node.start_position().row + 1;
+            let end_line = node.end_position().row + 1;
+            let doc = extract_leading_doc_comment(node, source);
+            items.push(SymbolOverviewItem {
+                name,
+                kind: kind.to_string(),
+                start_line,
+                end_line,
+                signature: None,
+                doc_summary: doc,
+            });
+        }
+    }
+
+    items
+}
+
+fn extract_kotlin_overview(
+    root: Node<'_>,
+    source: &str,
+    _opts: &OverviewOptions,
+) -> Vec<SymbolOverviewItem> {
+    let mut items = Vec::new();
+    let classes = AstUtils::find_descendants_by_kind(root, "class_declaration");
+    let objects = AstUtils::find_descendants_by_kind(root, "object_declaration");
+    let functions = AstUtils::find_descendants_by_kind(root, "function_declaration");
+
+    for node in classes.into_iter().chain(objects) {
+        if let Some(name_node) = node.child_by_field_name("name") {
+            let name = AstUtils::node_text(name_node, source).to_string();
+            let kind = if node.kind() == "class_declaration" { "class" } else { "object" };
+            let start_line = node.start_position().row + 1;
+            let end_line = node.end_position().row + 1;
+            let doc = extract_leading_doc_comment(node, source);
+            items.push(SymbolOverviewItem {
+                name,
+                kind: kind.to_string(),
+                start_line,
+                end_line,
+                signature: None,
+                doc_summary: doc,
+            });
+        }
+    }
+
+    for node in functions {
+        if let Some(name_node) = node.child_by_field_name("name") {
+            let name = AstUtils::node_text(name_node, source).to_string();
+            let start_line = node.start_position().row + 1;
+            let end_line = node.end_position().row + 1;
+            let doc = extract_leading_doc_comment(node, source);
+            items.push(SymbolOverviewItem {
+                name,
+                kind: "function".to_string(),
+                start_line,
+                end_line,
+                signature: None,
+                doc_summary: doc,
+            });
         }
     }
 

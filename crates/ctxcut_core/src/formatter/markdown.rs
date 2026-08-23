@@ -65,8 +65,38 @@ impl MarkdownFormatter {
             out.push_str("\n```\n\n");
         }
 
-        // Section 3: External Dependencies & Signatures (Body Stripped)
-        out.push_str("#### 3. External Dependencies & Signatures (Body Stripped)\n");
+        // Section 3: Concrete Implementors (if present)
+        if !result.hoisted_implementors.is_empty() {
+            out.push_str("#### 3. Concrete Implementors\n");
+            let mut seen_imp = HashSet::new();
+            let mut unique_imp = Vec::new();
+            for imp in &result.hoisted_implementors {
+                let key = (&imp.interface_name, &imp.implementor_name);
+                if seen_imp.insert(key) {
+                    unique_imp.push(imp);
+                }
+            }
+
+            let _ = writeln!(out, "```{lang_tag}");
+            for (idx, imp) in unique_imp.iter().enumerate() {
+                if idx > 0 {
+                    out.push_str("\n\n");
+                }
+                out.push_str(imp.definition.trim());
+            }
+            out.push_str("\n```\n\n");
+        }
+
+        // Section 4 (or 3): External Dependencies & Signatures (Body Stripped)
+        let dep_sec = if result.hoisted_implementors.is_empty() {
+            3
+        } else {
+            4
+        };
+        let _ = writeln!(
+            out,
+            "#### {dep_sec}. External Dependencies & Signatures (Body Stripped)"
+        );
         let mut seen_calls = HashSet::new();
         let mut unique_calls = Vec::new();
         for call in &result.stripped_calls {
@@ -174,8 +204,38 @@ impl MarkdownFormatter {
             out.push_str("\n```\n\n");
         }
 
-        // Section 3: External Dependencies & Signatures (Body Stripped)
-        out.push_str("#### 3. External Dependencies & Signatures (Body Stripped)\n");
+        // Section 3: Concrete Implementors (if present)
+        if !result.hoisted_implementors.is_empty() {
+            out.push_str("#### 3. Concrete Implementors\n");
+            let mut seen_imp = HashSet::new();
+            let mut unique_imp = Vec::new();
+            for imp in &result.hoisted_implementors {
+                let key = (&imp.interface_name, &imp.implementor_name);
+                if seen_imp.insert(key) {
+                    unique_imp.push(imp);
+                }
+            }
+
+            let _ = writeln!(out, "```{lang_tag}");
+            for (idx, imp) in unique_imp.iter().enumerate() {
+                if idx > 0 {
+                    out.push_str("\n\n");
+                }
+                out.push_str(imp.definition.trim());
+            }
+            out.push_str("\n```\n\n");
+        }
+
+        // Section 4 (or 3): External Dependencies & Signatures (Body Stripped)
+        let dep_sec = if result.hoisted_implementors.is_empty() {
+            3
+        } else {
+            4
+        };
+        let _ = writeln!(
+            out,
+            "#### {dep_sec}. External Dependencies & Signatures (Body Stripped)"
+        );
         let mut seen_calls = HashSet::new();
         let mut unique_calls = Vec::new();
         for call in &result.stripped_calls {
@@ -196,6 +256,117 @@ impl MarkdownFormatter {
                 out.push_str(call.signature.trim());
             }
             out.push_str("\n```\n");
+        }
+
+        out
+    }
+
+    /// Formats an `ImpactSliceResult` into high-density Markdown.
+    pub fn format_impact(result: &crate::model::ImpactSliceResult) -> String {
+        let mut out = String::with_capacity(2048);
+
+        let _ = writeln!(out, "### Upstream Impact Analysis: `{}`", result.target_symbol);
+        if let Some(ref tf) = result.target_file {
+            let _ = writeln!(out, "*Target Declaration File: `{tf}`*");
+        }
+        let _ = writeln!(
+            out,
+            "*Discovered Callers: `{}` call site(s) | Tokens: `{}` (was `{}`) | Savings: `{:.1}%`*\n",
+            result.total_callers,
+            result.stats.sliced_tokens,
+            result.stats.raw_file_tokens,
+            result.stats.savings_percentage
+        );
+
+        if result.callers.is_empty() {
+            out.push_str("#### Discovered Call Sites\n*No upstream callers found in workspace.*\n");
+            return out;
+        }
+
+        out.push_str("#### Discovered Call Sites\n\n");
+        for (idx, caller) in result.callers.iter().enumerate() {
+            let num = idx + 1;
+            let _ = writeln!(
+                out,
+                "{num}. **`{}`** (`{}`) — `{}:{}`",
+                caller.caller_symbol, caller.caller_kind, caller.file_path, caller.line_number
+            );
+
+            if let Some(ref sig) = caller.caller_signature {
+                let _ = writeln!(out, "   - **Caller Signature**: `{}`", sig.trim());
+            }
+            let _ = writeln!(out, "   - **Call Invocation** (line {}):", caller.line_number);
+            let _ = writeln!(out, "     ```");
+            for line in caller.call_snippet.lines() {
+                let _ = writeln!(out, "     {line}");
+            }
+            let _ = writeln!(out, "     ```\n");
+        }
+
+        out
+    }
+
+    /// Formats an end-to-end execution flow trace result into a structured Markdown document.
+    pub fn format_trace(trace: &crate::model::TraceResult) -> String {
+        let mut out = String::with_capacity(3072);
+
+        let _ = writeln!(out, "# Execution Flow Trace: `{}`\n", trace.entry_point);
+        let _ = writeln!(
+            out,
+            "**Entry File**: `{}` | **Steps**: `{}` | **Tokens**: `{}` (Raw: `{}`, Savings: `{:.1}%`)\n",
+            trace.entry_file,
+            trace.total_steps,
+            trace.stats.sliced_tokens,
+            trace.stats.raw_file_tokens,
+            trace.stats.savings_percentage
+        );
+
+        // Section 1: Topology Flowchart
+        out.push_str("## 1. Invocation Spine Topology\n\n```text\n");
+        for (i, step) in trace.steps.iter().enumerate() {
+            let prefix = if i == 0 {
+                format!("[1] {} ({})", step.symbol_name, step.file_path)
+            } else {
+                let indent = " ".repeat(i * 3);
+                format!(
+                    "{indent}└──> [{}] {} ({})",
+                    step.step_number, step.symbol_name, step.file_path
+                )
+            };
+            out.push_str(&prefix);
+            out.push('\n');
+        }
+        out.push_str("```\n\n");
+
+        // Section 2: Step-by-Step Breakdown
+        out.push_str("## 2. Step-by-Step Invocation Pathway\n\n");
+        for step in &trace.steps {
+            let lang_tag = normalize_language_tag(&step.language);
+            let _ = writeln!(
+                out,
+                "### Step {}: `{}` ({})\n- **File**: `{}:{}-{}`\n- **Signature**: `{}`",
+                step.step_number,
+                step.symbol_name,
+                step.kind,
+                step.file_path,
+                step.start_line,
+                step.end_line,
+                step.signature
+            );
+
+            if let Some(ref next) = step.next_target {
+                let _ = writeln!(out, "- **Next Invocation Spine**: `{}`", next);
+            }
+
+            if !step.outgoing_calls.is_empty() {
+                let calls_str = step.outgoing_calls.join(", ");
+                let _ = writeln!(out, "- **Detected Calls**: `{}`", calls_str);
+            }
+
+            out.push('\n');
+            let _ = writeln!(out, "```{lang_tag}");
+            out.push_str(step.code_snippet.trim());
+            out.push_str("\n```\n\n");
         }
 
         out

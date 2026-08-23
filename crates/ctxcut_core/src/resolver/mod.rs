@@ -1,8 +1,11 @@
 //! AST symbol, module import, type hoisting, and signature stripper resolvers.
 
+pub mod callers;
 pub mod calls;
+pub mod implementors;
 pub mod imports;
 pub mod symbol;
+pub mod trace;
 pub mod types;
 
 use crate::error::Result;
@@ -12,12 +15,15 @@ use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 use tree_sitter::Tree;
 
+pub use callers::ImpactAnalyzer;
 pub use calls::{resolve_foreign_signature, SignatureStripper};
+pub use implementors::ImplementorHoister;
 pub use imports::{
     has_go_files, normalize_path, resolve_go_specifier, resolve_python_specifier,
     resolve_rust_specifier, resolve_ts_js_specifier, ImportMapping, ImportResolver,
 };
 pub use symbol::SymbolLocator;
+pub use trace::ExecutionTracer;
 pub use types::{resolve_foreign_types, TypeHoister};
 
 /// Abstract interface for cross-file symbol resolution, import mapping,

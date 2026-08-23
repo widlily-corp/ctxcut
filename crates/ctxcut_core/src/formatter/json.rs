@@ -48,6 +48,7 @@ mod tests {
                 file_path: "test.ts".to_string(),
                 definition: "type T = string;".to_string(),
             }],
+            hoisted_implementors: Vec::new(),
             stripped_calls: vec![CallSignatureStub {
                 name: "call".to_string(),
                 receiver: None,
