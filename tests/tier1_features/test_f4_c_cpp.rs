@@ -42,7 +42,9 @@ int main() {
 
     // Act: Run stats/token analysis on C++ file
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", file_path.to_str().unwrap()]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", file_path.to_str().unwrap()])
+        .expect("Command failed");
 
     // Assert: C++ file recognized and analyzed
     output.assert_success();
@@ -66,7 +68,9 @@ T clamp(T val, T min_val, T max_val) {
 
     // Act: Execute stats scan
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", file_path.to_str().unwrap()]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", file_path.to_str().unwrap()])
+        .expect("Command failed");
 
     // Assert: Template code processed cleanly
     output.assert_success();
@@ -95,7 +99,9 @@ double distance_squared(Point2D a, Point2D b) {
 
     // Act: Fast stats scan
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", "-f", file_path.to_str().unwrap()]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", "-f", file_path.to_str().unwrap()])
+        .expect("Command failed");
 
     // Assert: C file processed
     output.assert_success();
@@ -108,12 +114,22 @@ fn test_f4_cpp_header_include_resolution() {
     let header_path = dir.path().join("engine.hpp");
     let src_path = dir.path().join("engine.cpp");
 
-    fs::write(&header_path, "#pragma once\nstruct EngineConfig { int threads; };\n").unwrap();
-    fs::write(&src_path, "#include \"engine.hpp\"\nvoid init_engine(EngineConfig cfg) {}\n").unwrap();
+    fs::write(
+        &header_path,
+        "#pragma once\nstruct EngineConfig { int threads; };\n",
+    )
+    .unwrap();
+    fs::write(
+        &src_path,
+        "#include \"engine.hpp\"\nvoid init_engine(EngineConfig cfg) {}\n",
+    )
+    .unwrap();
 
     // Act: Stats on project root
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", dir.path().to_str().unwrap()]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", dir.path().to_str().unwrap()])
+        .expect("Command failed");
 
     // Assert: Successfully scanned C++ files in repository
     output.assert_success();

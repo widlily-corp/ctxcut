@@ -22,13 +22,17 @@ pub fn render_impact(app: &AppState, area: Rect, buf: &mut Buffer) {
         .title_style(
             Style::default()
                 .fg(if is_active { Color::White } else { Color::Gray })
-                .add_modifier(if is_active { Modifier::BOLD } else { Modifier::empty() }),
+                .add_modifier(if is_active {
+                    Modifier::BOLD
+                } else {
+                    Modifier::empty()
+                }),
         );
 
     let inner = block.inner(area);
     block.render(area, buf);
 
-    if inner.height == 0 {
+    if inner.width == 0 || inner.height == 0 {
         return;
     }
 
@@ -40,19 +44,40 @@ pub fn render_impact(app: &AppState, area: Rect, buf: &mut Buffer) {
             lines.push("  • (No external callers detected in workspace)".to_string());
         } else {
             for c in callers {
-                let rel = std::path::Path::new(&c.file_path)
-                    .strip_prefix(&app.workspace_root)
-                    .map(|p| p.to_string_lossy().to_string())
-                    .unwrap_or_else(|_| c.file_path.clone())
-                    .replace('\\', "/");
-                lines.push(format!("  • {}:{} in `{}`", rel, c.line_number, c.caller_symbol));
+                let caller_path_str = &c.file_path;
+                let ws_root_str = app.workspace_root.to_string_lossy();
+                let clean_caller = caller_path_str
+                    .strip_prefix(r"\\?\")
+                    .unwrap_or(caller_path_str);
+                let clean_ws_root = ws_root_str.strip_prefix(r"\\?\").unwrap_or(&ws_root_str);
+                let caller_norm = clean_caller.replace('\\', "/");
+                let ws_norm = clean_ws_root.replace('\\', "/");
+                let ws_norm_trimmed = ws_norm.trim_end_matches('/');
+
+                let rel = if caller_norm
+                    .to_lowercase()
+                    .starts_with(&ws_norm_trimmed.to_lowercase())
+                {
+                    caller_norm[ws_norm_trimmed.len()..]
+                        .trim_start_matches('/')
+                        .to_string()
+                } else {
+                    caller_norm
+                };
+                lines.push(format!(
+                    "  • {}:{} in `{}`",
+                    rel, c.line_number, c.caller_symbol
+                ));
                 if !c.call_snippet.is_empty() {
                     lines.push(format!("    └─ {}", c.call_snippet.trim()));
                 }
             }
         }
     } else if let Some(ref trace) = app.current_trace {
-        lines.push(format!("▼ Execution Flow Trace ({} hops):", trace.steps.len()));
+        lines.push(format!(
+            "▼ Execution Flow Trace ({} hops):",
+            trace.steps.len()
+        ));
         for (i, step) in trace.steps.iter().enumerate() {
             let next_info = step
                 .next_target
@@ -73,7 +98,8 @@ pub fn render_impact(app: &AppState, area: Rect, buf: &mut Buffer) {
     }
 
     let visible_rows = inner.height as usize;
-    let scroll = app.impact_scroll as usize;
+    let max_scroll = lines.len().saturating_sub(visible_rows);
+    let scroll = (app.impact_scroll as usize).min(max_scroll);
 
     for (row, line) in lines.iter().skip(scroll).take(visible_rows).enumerate() {
         let y = inner.y + row as u16;
@@ -81,15 +107,13 @@ pub fn render_impact(app: &AppState, area: Rect, buf: &mut Buffer) {
             break;
         }
 
-        let max_w = inner.width as usize;
-        let truncated = if line.len() > max_w {
-            &line[..max_w]
-        } else {
-            line.as_str()
-        };
+        let max_w = inner.width.saturating_sub(2) as usize;
+        let truncated = super::truncate_chars(line, max_w);
 
         let style = if line.starts_with('▲') || line.starts_with('▼') {
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
         } else if line.contains("└─") || line.starts_with("Press") {
             Style::default().fg(Color::DarkGray)
         } else {

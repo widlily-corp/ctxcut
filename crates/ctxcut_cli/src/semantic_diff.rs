@@ -30,13 +30,9 @@ pub struct SemanticDiffOptions {
 pub fn run_semantic_diff(opts: SemanticDiffOptions) -> Result<()> {
     let root = opts.root.unwrap_or_else(|| PathBuf::from("."));
 
-    let result = SemanticDiffEngine::compute_diff(
-        &root,
-        opts.staged,
-        opts.file.as_deref(),
-        opts.budget,
-    )
-    .context("Failed to compute semantic AST diff")?;
+    let result =
+        SemanticDiffEngine::compute_diff(&root, opts.staged, opts.file.as_deref(), opts.budget)
+            .context("Failed to compute semantic AST diff")?;
 
     let rendered = if opts.format.eq_ignore_ascii_case("json") {
         result.to_json()
@@ -45,9 +41,17 @@ pub fn run_semantic_diff(opts: SemanticDiffOptions) -> Result<()> {
     };
 
     if let Some(ref out_file) = opts.output {
-        fs::write(out_file, &rendered)
-            .with_context(|| format!("Failed to write semantic diff report to `{}`", out_file.display()))?;
-        println!("{} Semantic diff saved to `{}`", "✔".green(), out_file.display());
+        fs::write(out_file, &rendered).with_context(|| {
+            format!(
+                "Failed to write semantic diff report to `{}`",
+                out_file.display()
+            )
+        })?;
+        println!(
+            "{} Semantic diff saved to `{}`",
+            "✔".green(),
+            out_file.display()
+        );
     }
 
     if opts.clip {

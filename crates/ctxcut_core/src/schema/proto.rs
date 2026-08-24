@@ -273,9 +273,7 @@ impl ProtoStitcher {
 
             // 3. Check direct enum matching
             for proto_enum in parsed.enums.values() {
-                if source.contains(&proto_enum.name)
-                    && seen_types.insert(proto_enum.name.clone())
-                {
+                if source.contains(&proto_enum.name) && seen_types.insert(proto_enum.name.clone()) {
                     extracted.push(ExtractedType {
                         name: proto_enum.name.clone(),
                         kind: "protobuf_enum".to_string(),
@@ -407,7 +405,11 @@ fn parse_rpc_line(line: &str) -> Option<ProtoRpcDef> {
     let close_paren = after_req.find(')')?;
     let req_str = after_req[..close_paren].trim();
     let client_streaming = req_str.starts_with("stream ");
-    let request_type = req_str.strip_prefix("stream ").unwrap_or(req_str).trim().to_string();
+    let request_type = req_str
+        .strip_prefix("stream ")
+        .unwrap_or(req_str)
+        .trim()
+        .to_string();
 
     let returns_idx = after_req[close_paren..].find("returns")?;
     let after_returns = &after_req[close_paren + returns_idx + 7..];
@@ -416,7 +418,11 @@ fn parse_rpc_line(line: &str) -> Option<ProtoRpcDef> {
     let resp_close = after_resp_open.find(')')?;
     let resp_str = after_resp_open[..resp_close].trim();
     let server_streaming = resp_str.starts_with("stream ");
-    let response_type = resp_str.strip_prefix("stream ").unwrap_or(resp_str).trim().to_string();
+    let response_type = resp_str
+        .strip_prefix("stream ")
+        .unwrap_or(resp_str)
+        .trim()
+        .to_string();
 
     Some(ProtoRpcDef {
         name: rpc_name,
@@ -640,8 +646,14 @@ service OrderService {
         let file_path = temp_dir.path().join("src/handler.rs");
 
         let stitched = stitcher.stitch(temp_dir.path(), &file_path, source);
-        assert!(stitched.iter().any(|t| t.name == "OrderService" && t.kind == "protobuf_service"));
-        assert!(stitched.iter().any(|t| t.name == "OrderRequest" && t.kind == "protobuf_message"));
-        assert!(stitched.iter().any(|t| t.name == "OrderResponse" && t.kind == "protobuf_message"));
+        assert!(stitched
+            .iter()
+            .any(|t| t.name == "OrderService" && t.kind == "protobuf_service"));
+        assert!(stitched
+            .iter()
+            .any(|t| t.name == "OrderRequest" && t.kind == "protobuf_message"));
+        assert!(stitched
+            .iter()
+            .any(|t| t.name == "OrderResponse" && t.kind == "protobuf_message"));
     }
 }

@@ -35,7 +35,9 @@ impl LanguageAdapter for SvelteAdapter {
         }
 
         // 2. Standard TypeScript AST lookup
-        if let Ok((mut sym, node)) = SymbolLocator::locate(root, source, symbol_query, file_path, "svelte") {
+        if let Ok((mut sym, node)) =
+            SymbolLocator::locate(root, source, symbol_query, file_path, "svelte")
+        {
             sym.language = "svelte".to_string();
             Ok((sym, node))
         } else {
@@ -55,12 +57,19 @@ impl LanguageAdapter for SvelteAdapter {
             let trimmed = line.trim();
             if trimmed.starts_with("export let ") {
                 let var_part = trimmed.trim_start_matches("export let ").trim();
-                let var_name = var_part.split(|c: char| c == ':' || c == '=' || c.is_whitespace()).next().unwrap_or("").trim();
+                let var_name = var_part
+                    .split(|c: char| c == ':' || c == '=' || c.is_whitespace())
+                    .next()
+                    .unwrap_or("")
+                    .trim();
                 if !var_name.is_empty() && !symbols.contains(&var_name.to_string()) {
                     symbols.push(var_name.to_string());
                 }
             } else if trimmed.contains("$props()") || trimmed.contains("$state(") {
-                if let Some(var_name) = trimmed.split(|c: char| c == '=' || c == ':' || c.is_whitespace()).find(|s| !s.is_empty() && *s != "let" && *s != "const" && *s != "var") {
+                if let Some(var_name) = trimmed
+                    .split(|c: char| c == '=' || c == ':' || c.is_whitespace())
+                    .find(|s| !s.is_empty() && *s != "let" && *s != "const" && *s != "var")
+                {
                     if !symbols.contains(&var_name.to_string()) {
                         symbols.push(var_name.to_string());
                     }
@@ -106,7 +115,11 @@ impl LanguageAdapter for SvelteAdapter {
     }
 }
 
-fn find_svelte_prop_symbol(script_source: &str, target_name: &str, file_path: &Path) -> Option<ExtractedSymbol> {
+fn find_svelte_prop_symbol(
+    script_source: &str,
+    target_name: &str,
+    file_path: &Path,
+) -> Option<ExtractedSymbol> {
     for (line_idx, line) in script_source.lines().enumerate() {
         let trimmed = line.trim();
         if trimmed.starts_with("export let ") && trimmed.contains(target_name) {

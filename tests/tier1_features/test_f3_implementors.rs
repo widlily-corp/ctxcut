@@ -41,7 +41,9 @@ pub fn execute_payment(gateway: &dyn PaymentGateway, amount: u64) -> bool {
     // Act: Slice function using the trait
     let runner = CliRunner::new();
     let target = format!("{}:execute_payment", file_path.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     // Assert: Slicing output retains trait and contract
     output.assert_success();
@@ -76,7 +78,9 @@ func HandleRequest(l Logger, msg string) {
     // Act: Slice Go function
     let runner = CliRunner::new();
     let target = format!("{}:HandleRequest", file_path.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     // Assert: Go function and interface hoisted
     output.assert_success();
@@ -109,7 +113,9 @@ export async function broadcast(n: Notifier, text: string): Promise<void> {
     // Act: Slice function
     let runner = CliRunner::new();
     let target = format!("{}:broadcast", file_path.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     // Assert: TypeScript interface contract preserved
     output.assert_success();
@@ -141,7 +147,9 @@ def output_view(doc: Renderable) -> str:
     // Act: Slice Python function
     let runner = CliRunner::new();
     let target = format!("{}:output_view", file_path.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     // Assert: Python Protocol type preserved
     output.assert_success();
@@ -168,11 +176,14 @@ export function runGreet(g: Greeter, name: string): string {
     // Act: Request JSON format
     let runner = CliRunner::new();
     let target = format!("{}:runGreet", file_path.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target, "--format", "json"]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target, "--format", "json"])
+        .expect("Command failed");
 
     // Assert: JSON has valid fields
     output.assert_success();
-    let json: serde_json::Value = serde_json::from_str(&output.stdout).expect("Failed to parse JSON");
+    let json: serde_json::Value =
+        serde_json::from_str(&output.stdout).expect("Failed to parse JSON");
     assert_eq!(
         json.get("target_symbol")
             .and_then(|v| v.get("name"))

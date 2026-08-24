@@ -1,5 +1,9 @@
 //! SQLite storage backend, index lifecycle, and incremental synchronization.
-#![allow(clippy::cast_possible_wrap, clippy::cast_lossless, clippy::collapsible_if)]
+#![allow(
+    clippy::cast_possible_wrap,
+    clippy::cast_lossless,
+    clippy::collapsible_if
+)]
 
 use super::schema::{apply_pragmas, apply_schema, CURRENT_SCHEMA_VERSION};
 use crate::error::{CoreError, Result};
@@ -338,7 +342,9 @@ impl IndexEngine {
                 .prepare(
                     "SELECT id, path, size_bytes, mtime_secs, mtime_nanos, sha256_hash FROM files",
                 )
-                .map_err(|e| CoreError::DatabaseError(format!("Failed to prepare file query: {e}")))?;
+                .map_err(|e| {
+                    CoreError::DatabaseError(format!("Failed to prepare file query: {e}"))
+                })?;
 
             let rows = stmt
                 .query_map([], |row| {

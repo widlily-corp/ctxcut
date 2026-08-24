@@ -34,7 +34,11 @@ export class Calculator {
     let (response, metrics, error_opt, tokens_saved) =
         execute_tool_with_timeout("get_workspace_overview", &args, 5000);
 
-    assert!(error_opt.is_none(), "Expected no error, got {:?}", error_opt);
+    assert!(
+        error_opt.is_none(),
+        "Expected no error, got {:?}",
+        error_opt
+    );
     assert_ne!(response.get("isError"), Some(&json!(true)));
 
     let content_text = response["content"][0]["text"].as_str().unwrap();
@@ -79,7 +83,11 @@ export function midpoint(p1: Point, p2: Point): Point {
     let (response, metrics, error_opt, tokens_saved) =
         execute_tool_with_timeout("get_symbol_slice", &args, 5000);
 
-    assert!(error_opt.is_none(), "Expected no error, got {:?}", error_opt);
+    assert!(
+        error_opt.is_none(),
+        "Expected no error, got {:?}",
+        error_opt
+    );
     assert_ne!(response.get("isError"), Some(&json!(true)));
 
     let text = response["content"][0]["text"].as_str().unwrap();
@@ -101,8 +109,7 @@ fn test_mcp_get_metrics_and_analyze_stats_history() {
     let args = json!({
         "format": "markdown"
     });
-    let (response, metrics, error_opt, _) =
-        execute_tool_with_timeout("get_metrics", &args, 5000);
+    let (response, metrics, error_opt, _) = execute_tool_with_timeout("get_metrics", &args, 5000);
 
     assert!(error_opt.is_none());
     assert_ne!(response.get("isError"), Some(&json!(true)));

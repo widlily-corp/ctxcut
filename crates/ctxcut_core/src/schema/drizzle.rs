@@ -36,7 +36,11 @@ impl DrizzleStitcher {
     }
 
     /// Discovers candidate Drizzle schema files in the workspace.
-    pub fn discover_schema_files(&self, workspace_root: &Path, current_file: &Path) -> Vec<PathBuf> {
+    pub fn discover_schema_files(
+        &self,
+        workspace_root: &Path,
+        current_file: &Path,
+    ) -> Vec<PathBuf> {
         let mut candidates = Vec::new();
 
         // 1. Ascend from current_file parent up to workspace_root

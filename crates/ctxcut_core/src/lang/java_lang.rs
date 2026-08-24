@@ -34,7 +34,9 @@ impl LanguageAdapter for JavaAdapter {
         let (container_query, member_query) = parse_query(symbol_query);
 
         if let Some(container_name) = container_query {
-            if let Some((sym, node)) = find_in_container(root, source, container_name, member_query, file_path) {
+            if let Some((sym, node)) =
+                find_in_container(root, source, container_name, member_query, file_path)
+            {
                 return Ok((sym, node));
             }
         } else {
@@ -98,8 +100,12 @@ impl LanguageAdapter for JavaAdapter {
             // 1. Local file
             if let Some(extracted) = find_java_type_in_file(root, source, &type_name, file_path) {
                 if depth < opts.depth {
-                    if let Ok(tree) = ParserManager::parse_source(&extracted.definition, &ts_lang, file_path) {
-                        for id in AstUtils::find_descendants_by_kind(tree.root_node(), "type_identifier") {
+                    if let Ok(tree) =
+                        ParserManager::parse_source(&extracted.definition, &ts_lang, file_path)
+                    {
+                        for id in
+                            AstUtils::find_descendants_by_kind(tree.root_node(), "type_identifier")
+                        {
                             let nested = AstUtils::node_text(id, &extracted.definition);
                             if !is_builtin_java_type(nested) && visited.insert(nested.to_string()) {
                                 queue.push_back((nested.to_string(), depth + 1));
@@ -117,7 +123,10 @@ impl LanguageAdapter for JavaAdapter {
                 if let Ok(entries) = fs::read_dir(dir) {
                     for entry in entries.flatten() {
                         let p = entry.path();
-                        if p.is_file() && p != file_path && p.extension().and_then(|e| e.to_str()) == Some("java") {
+                        if p.is_file()
+                            && p != file_path
+                            && p.extension().and_then(|e| e.to_str()) == Some("java")
+                        {
                             candidate_files.push(p);
                         }
                     }
@@ -126,12 +135,24 @@ impl LanguageAdapter for JavaAdapter {
                 for cand_path in candidate_files {
                     if let Ok(cand_source) = fs::read_to_string(&cand_path) {
                         if cand_source.contains(&type_name) {
-                            if let Ok(tree) = ParserManager::parse_source(&cand_source, &ts_lang, &cand_path) {
-                                if let Some(extracted) = find_java_type_in_file(tree.root_node(), &cand_source, &type_name, &cand_path) {
+                            if let Ok(tree) =
+                                ParserManager::parse_source(&cand_source, &ts_lang, &cand_path)
+                            {
+                                if let Some(extracted) = find_java_type_in_file(
+                                    tree.root_node(),
+                                    &cand_source,
+                                    &type_name,
+                                    &cand_path,
+                                ) {
                                     if depth < opts.depth {
-                                        for id in AstUtils::find_descendants_by_kind(tree.root_node(), "type_identifier") {
+                                        for id in AstUtils::find_descendants_by_kind(
+                                            tree.root_node(),
+                                            "type_identifier",
+                                        ) {
                                             let nested = AstUtils::node_text(id, &cand_source);
-                                            if !is_builtin_java_type(nested) && visited.insert(nested.to_string()) {
+                                            if !is_builtin_java_type(nested)
+                                                && visited.insert(nested.to_string())
+                                            {
                                                 queue.push_back((nested.to_string(), depth + 1));
                                             }
                                         }
@@ -265,18 +286,29 @@ fn find_symbol_recursive<'a>(
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         match child.kind() {
-            "class_declaration" | "interface_declaration" | "record_declaration"
-            | "enum_declaration" | "annotation_type_declaration" => {
+            "class_declaration"
+            | "interface_declaration"
+            | "record_declaration"
+            | "enum_declaration"
+            | "annotation_type_declaration" => {
                 if let Some(name_node) = child.child_by_field_name("name") {
                     if AstUtils::node_text(name_node, source) == target_name {
-                        return Some((build_java_symbol(child, source, file_path, target_name), child));
+                        return Some((
+                            build_java_symbol(child, source, file_path, target_name),
+                            child,
+                        ));
                     }
                 }
             }
-            "method_declaration" | "constructor_declaration" | "compact_constructor_declaration" => {
+            "method_declaration"
+            | "constructor_declaration"
+            | "compact_constructor_declaration" => {
                 if let Some(name_node) = child.child_by_field_name("name") {
                     if AstUtils::node_text(name_node, source) == target_name {
-                        return Some((build_java_symbol(child, source, file_path, target_name), child));
+                        return Some((
+                            build_java_symbol(child, source, file_path, target_name),
+                            child,
+                        ));
                     }
                 }
             }
@@ -302,11 +334,19 @@ fn find_in_container<'a>(
             if AstUtils::node_text(name_node, source) == container_name {
                 if let Some(body) = node.child_by_field_name("body") {
                     for member in body.named_children(&mut body.walk()) {
-                        if matches!(member.kind(), "method_declaration" | "constructor_declaration" | "compact_constructor_declaration") {
+                        if matches!(
+                            member.kind(),
+                            "method_declaration"
+                                | "constructor_declaration"
+                                | "compact_constructor_declaration"
+                        ) {
                             if let Some(m_name_node) = member.child_by_field_name("name") {
                                 if AstUtils::node_text(m_name_node, source) == member_name {
                                     let full_name = format!("{container_name}.{member_name}");
-                                    return Some((build_java_symbol(member, source, file_path, &full_name), member));
+                                    return Some((
+                                        build_java_symbol(member, source, file_path, &full_name),
+                                        member,
+                                    ));
                                 }
                             }
                         }
@@ -333,7 +373,10 @@ fn find_any_method<'a>(
                     Some(c) => format!("{c}.{member_name}"),
                     None => member_name.to_string(),
                 };
-                return Some((build_java_symbol(method, source, file_path, &full_name), method));
+                return Some((
+                    build_java_symbol(method, source, file_path, &full_name),
+                    method,
+                ));
             }
         }
     }
@@ -343,7 +386,13 @@ fn find_any_method<'a>(
 fn find_enclosing_class_name(node: Node<'_>, source: &str) -> Option<String> {
     let mut current = node.parent();
     while let Some(n) = current {
-        if matches!(n.kind(), "class_declaration" | "record_declaration" | "interface_declaration" | "enum_declaration") {
+        if matches!(
+            n.kind(),
+            "class_declaration"
+                | "record_declaration"
+                | "interface_declaration"
+                | "enum_declaration"
+        ) {
             if let Some(name_node) = n.child_by_field_name("name") {
                 return Some(AstUtils::node_text(name_node, source).to_string());
             }
@@ -372,7 +421,11 @@ fn build_java_symbol(
         "enum_declaration" => "enum",
         "annotation_type_declaration" => "annotation",
         "method_declaration" => {
-            if name.contains('.') { "method" } else { "function" }
+            if name.contains('.') {
+                "method"
+            } else {
+                "function"
+            }
         }
         "constructor_declaration" | "compact_constructor_declaration" => "constructor",
         _ => "function",
@@ -475,8 +528,11 @@ fn collect_symbols_recursive(
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         match child.kind() {
-            "class_declaration" | "record_declaration" | "interface_declaration"
-            | "enum_declaration" | "annotation_type_declaration" => {
+            "class_declaration"
+            | "record_declaration"
+            | "interface_declaration"
+            | "enum_declaration"
+            | "annotation_type_declaration" => {
                 if let Some(name_node) = child.child_by_field_name("name") {
                     let type_name = AstUtils::node_text(name_node, source).to_string();
                     let full_type = match current_container {
@@ -489,7 +545,9 @@ fn collect_symbols_recursive(
                     }
                 }
             }
-            "method_declaration" | "constructor_declaration" | "compact_constructor_declaration" => {
+            "method_declaration"
+            | "constructor_declaration"
+            | "compact_constructor_declaration" => {
                 if let Some(name_node) = child.child_by_field_name("name") {
                     let m_name = AstUtils::node_text(name_node, source);
                     let sym = match current_container {
@@ -507,30 +565,126 @@ fn collect_symbols_recursive(
 fn is_builtin_java_type(name: &str) -> bool {
     matches!(
         name,
-        "byte" | "short" | "int" | "long" | "float" | "double" | "boolean" | "char" | "void"
-            | "Byte" | "Short" | "Integer" | "Long" | "Float" | "Double" | "Boolean" | "Character"
-            | "String" | "Object" | "Class" | "List" | "ArrayList" | "LinkedList"
-            | "Set" | "HashSet" | "TreeSet" | "Map" | "HashMap" | "TreeMap"
-            | "Collection" | "Iterable" | "Iterator" | "Optional" | "ResponseEntity" | "HttpStatus"
-            | "Arrays" | "Collections" | "Objects" | "UUID" | "Throwable" | "Exception"
-            | "RuntimeException" | "StringBuilder" | "StringBuffer" | "BigDecimal" | "BigInteger"
-            | "Date" | "LocalDate" | "LocalDateTime" | "Instant" | "CompletableFuture" | "Stream"
-            | "Autowired" | "RestController" | "Controller" | "Service" | "Repository" | "Component"
-            | "GetMapping" | "PostMapping" | "PutMapping" | "DeleteMapping" | "RequestMapping"
-            | "RequestBody" | "PathVariable" | "RequestParam" | "Valid" | "NotNull" | "NotEmpty"
-            | "Entity" | "Table" | "Id" | "GeneratedValue" | "Column" | "ManyToOne" | "OneToMany"
+        "byte"
+            | "short"
+            | "int"
+            | "long"
+            | "float"
+            | "double"
+            | "boolean"
+            | "char"
+            | "void"
+            | "Byte"
+            | "Short"
+            | "Integer"
+            | "Long"
+            | "Float"
+            | "Double"
+            | "Boolean"
+            | "Character"
+            | "String"
+            | "Object"
+            | "Class"
+            | "List"
+            | "ArrayList"
+            | "LinkedList"
+            | "Set"
+            | "HashSet"
+            | "TreeSet"
+            | "Map"
+            | "HashMap"
+            | "TreeMap"
+            | "Collection"
+            | "Iterable"
+            | "Iterator"
+            | "Optional"
+            | "ResponseEntity"
+            | "HttpStatus"
+            | "Arrays"
+            | "Collections"
+            | "Objects"
+            | "UUID"
+            | "Throwable"
+            | "Exception"
+            | "RuntimeException"
+            | "StringBuilder"
+            | "StringBuffer"
+            | "BigDecimal"
+            | "BigInteger"
+            | "Date"
+            | "LocalDate"
+            | "LocalDateTime"
+            | "Instant"
+            | "CompletableFuture"
+            | "Stream"
+            | "Autowired"
+            | "RestController"
+            | "Controller"
+            | "Service"
+            | "Repository"
+            | "Component"
+            | "GetMapping"
+            | "PostMapping"
+            | "PutMapping"
+            | "DeleteMapping"
+            | "RequestMapping"
+            | "RequestBody"
+            | "PathVariable"
+            | "RequestParam"
+            | "Valid"
+            | "NotNull"
+            | "NotEmpty"
+            | "Entity"
+            | "Table"
+            | "Id"
+            | "GeneratedValue"
+            | "Column"
+            | "ManyToOne"
+            | "OneToMany"
     )
 }
 
 fn is_builtin_java_method(name: &str) -> bool {
     matches!(
         name,
-        "equals" | "hashCode" | "toString" | "getClass" | "notify" | "notifyAll" | "wait"
-            | "get" | "set" | "add" | "remove" | "clear" | "size" | "isEmpty" | "contains"
-            | "stream" | "map" | "filter" | "collect" | "toList" | "toSet" | "forEach"
-            | "of" | "builder" | "build" | "println" | "print" | "format"
-            | "ok" | "body" | "status" | "badRequest" | "notFound"
-            | "orElse" | "orElseThrow" | "orElseGet" | "isPresent" | "ifPresent"
+        "equals"
+            | "hashCode"
+            | "toString"
+            | "getClass"
+            | "notify"
+            | "notifyAll"
+            | "wait"
+            | "get"
+            | "set"
+            | "add"
+            | "remove"
+            | "clear"
+            | "size"
+            | "isEmpty"
+            | "contains"
+            | "stream"
+            | "map"
+            | "filter"
+            | "collect"
+            | "toList"
+            | "toSet"
+            | "forEach"
+            | "of"
+            | "builder"
+            | "build"
+            | "println"
+            | "print"
+            | "format"
+            | "ok"
+            | "body"
+            | "status"
+            | "badRequest"
+            | "notFound"
+            | "orElse"
+            | "orElseThrow"
+            | "orElseGet"
+            | "isPresent"
+            | "ifPresent"
     )
 }
 
@@ -541,7 +695,10 @@ fn collect_java_scoped_generics(node: Node<'_>, source: &str) -> HashSet<String>
         if let Some(type_params) = n.child_by_field_name("type_parameters") {
             for param in type_params.named_children(&mut type_params.walk()) {
                 if param.kind() == "type_parameter" {
-                    if let Some(name_node) = param.child_by_field_name("name").or_else(|| param.named_child(0)) {
+                    if let Some(name_node) = param
+                        .child_by_field_name("name")
+                        .or_else(|| param.named_child(0))
+                    {
                         set.insert(AstUtils::node_text(name_node, source).to_string());
                     }
                 }

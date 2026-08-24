@@ -811,7 +811,8 @@ fn execute_symbol_slice(args: &Value) -> (Value, Option<Value>, Option<String>, 
         );
     };
 
-    let symbols_vec: Vec<String> = if let Some(sym_str) = args.get("symbol").and_then(Value::as_str) {
+    let symbols_vec: Vec<String> = if let Some(sym_str) = args.get("symbol").and_then(Value::as_str)
+    {
         sym_str
             .split(',')
             .map(|s| s.trim().to_string())
@@ -1082,15 +1083,32 @@ fn execute_stats_slice(args: &Value) -> (Value, Option<Value>, Option<String>, O
     }
 }
 
-fn execute_workspace_overview(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
+fn execute_workspace_overview(
+    args: &Value,
+) -> (Value, Option<Value>, Option<String>, Option<usize>) {
     let path_str = args.get("path").and_then(Value::as_str).unwrap_or(".");
     let target_root = Path::new(path_str);
 
-    let max_depth = args.get("depth").and_then(Value::as_u64).map(|d| d as usize);
-    let budget = args.get("budget").and_then(Value::as_u64).map(|b| b as usize);
-    let format_str = args.get("format").and_then(Value::as_str).unwrap_or("markdown");
-    let include_routes = args.get("include_routes").and_then(Value::as_bool).unwrap_or(true);
-    let framework = args.get("framework").and_then(Value::as_str).map(String::from);
+    let max_depth = args
+        .get("depth")
+        .and_then(Value::as_u64)
+        .map(|d| d as usize);
+    let budget = args
+        .get("budget")
+        .and_then(Value::as_u64)
+        .map(|b| b as usize);
+    let format_str = args
+        .get("format")
+        .and_then(Value::as_str)
+        .unwrap_or("markdown");
+    let include_routes = args
+        .get("include_routes")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    let framework = args
+        .get("framework")
+        .and_then(Value::as_str)
+        .map(String::from);
 
     let opts = OverviewOptions {
         budget,
@@ -1138,7 +1156,10 @@ fn execute_workspace_overview(args: &Value) -> (Value, Option<Value>, Option<Str
 }
 
 fn execute_metrics(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
-    let format_str = args.get("format").and_then(Value::as_str).unwrap_or("markdown");
+    let format_str = args
+        .get("format")
+        .and_then(Value::as_str)
+        .unwrap_or("markdown");
     let clear = args.get("clear").and_then(Value::as_bool).unwrap_or(false);
 
     let metrics_path = TelemetryLogger::resolve_metrics_path();
@@ -1147,23 +1168,24 @@ fn execute_metrics(args: &Value) -> (Value, Option<Value>, Option<String>, Optio
         let _ = fs::remove_file(&metrics_path);
     }
 
-    let summary = TelemetryLogger::load_summary().unwrap_or_else(|_| ctxcut_core::TelemetrySummary {
-        total_requests: 0,
-        total_raw_tokens: 0,
-        total_sliced_tokens: 0,
-        total_saved_tokens: 0,
-        compression_percentage: 0.0,
-        estimated_cost_savings_usd: 0.0,
-        cost_savings_by_tier: ctxcut_core::ModelTierSavings {
-            standard_sonnet_gpt4o: 0.0,
-            frontier_opus: 0.0,
-            economy_haiku_mini: 0.0,
-        },
-        language_breakdown: std::collections::BTreeMap::new(),
-        by_language: Vec::new(),
-        by_source: Vec::new(),
-        recent_events: Vec::new(),
-    });
+    let summary =
+        TelemetryLogger::load_summary().unwrap_or_else(|_| ctxcut_core::TelemetrySummary {
+            total_requests: 0,
+            total_raw_tokens: 0,
+            total_sliced_tokens: 0,
+            total_saved_tokens: 0,
+            compression_percentage: 0.0,
+            estimated_cost_savings_usd: 0.0,
+            cost_savings_by_tier: ctxcut_core::ModelTierSavings {
+                standard_sonnet_gpt4o: 0.0,
+                frontier_opus: 0.0,
+                economy_haiku_mini: 0.0,
+            },
+            language_breakdown: std::collections::BTreeMap::new(),
+            by_language: Vec::new(),
+            by_source: Vec::new(),
+            recent_events: Vec::new(),
+        });
 
     let metrics = json!({
         "total_requests": summary.total_requests,
@@ -1208,7 +1230,12 @@ fn execute_metrics(args: &Value) -> (Value, Option<Value>, Option<String>, Optio
         "content": [{ "type": "text", "text": rendered }],
         "metrics": summary
     });
-    (response, Some(metrics), None, Some(summary.total_saved_tokens))
+    (
+        response,
+        Some(metrics),
+        None,
+        Some(summary.total_saved_tokens),
+    )
 }
 
 fn execute_patch_symbol(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
@@ -1624,8 +1651,14 @@ fn execute_semantic_diff(args: &Value) -> (Value, Option<Value>, Option<String>,
     let root_str = args.get("path").and_then(Value::as_str).unwrap_or(".");
     let file_path = args.get("file_path").and_then(Value::as_str).map(Path::new);
     let staged = args.get("staged").and_then(Value::as_bool).unwrap_or(false);
-    let budget = args.get("budget").and_then(Value::as_u64).map(|b| b as usize);
-    let format = args.get("format").and_then(Value::as_str).unwrap_or("markdown");
+    let budget = args
+        .get("budget")
+        .and_then(Value::as_u64)
+        .map(|b| b as usize);
+    let format = args
+        .get("format")
+        .and_then(Value::as_str)
+        .unwrap_or("markdown");
 
     match SemanticDiffEngine::compute_diff(Path::new(root_str), staged, file_path, budget) {
         Ok(result) => {
@@ -1680,8 +1713,14 @@ fn execute_refactor_rename(args: &Value) -> (Value, Option<Value>, Option<String
     };
 
     let root_str = args.get("root_dir").and_then(Value::as_str).unwrap_or(".");
-    let dry_run = args.get("dry_run").and_then(Value::as_bool).unwrap_or(false);
-    let format_str = args.get("format").and_then(Value::as_str).unwrap_or("markdown");
+    let dry_run = args
+        .get("dry_run")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let format_str = args
+        .get("format")
+        .and_then(Value::as_str)
+        .unwrap_or("markdown");
 
     match SymbolRenamer::rename_symbol(Path::new(root_str), target, new_name, dry_run) {
         Ok(result) => {
@@ -1715,8 +1754,14 @@ fn execute_refactor_rename(args: &Value) -> (Value, Option<Value>, Option<String
 fn execute_index_workspace(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
     let root_str = args.get("path").and_then(Value::as_str).unwrap_or(".");
     let ws_root = PathBuf::from(root_str);
-    let rebuild = args.get("rebuild").and_then(Value::as_bool).unwrap_or(false);
-    let status_only = args.get("status_only").and_then(Value::as_bool).unwrap_or(false);
+    let rebuild = args
+        .get("rebuild")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let status_only = args
+        .get("status_only")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
 
     let mut engine = match IndexEngine::open_or_create(&ws_root) {
         Ok(e) => e,
@@ -1803,12 +1848,19 @@ fn execute_query_ast(args: &Value) -> (Value, Option<Value>, Option<String>, Opt
     let preset = args.get("preset").and_then(Value::as_str);
     let lang_str = args.get("language").and_then(Value::as_str);
     let root_str = args.get("root_dir").and_then(Value::as_str).unwrap_or(".");
-    let limit = args.get("limit").and_then(Value::as_u64).map(|l| l as usize);
-    let format_str = args.get("format").and_then(Value::as_str).unwrap_or("markdown");
+    let limit = args
+        .get("limit")
+        .and_then(Value::as_u64)
+        .map(|l| l as usize);
+    let format_str = args
+        .get("format")
+        .and_then(Value::as_str)
+        .unwrap_or("markdown");
 
     let lang_filter = lang_str.and_then(SupportedLanguage::from_str_loose);
 
-    match AstQueryEngine::query_workspace(Path::new(root_str), pattern, lang_filter, preset, limit) {
+    match AstQueryEngine::query_workspace(Path::new(root_str), pattern, lang_filter, preset, limit)
+    {
         Ok(report) => {
             let rendered = if format_str.eq_ignore_ascii_case("json") {
                 report.to_json()
@@ -1838,5 +1890,3 @@ fn execute_query_ast(args: &Value) -> (Value, Option<Value>, Option<String>, Opt
         }
     }
 }
-
-

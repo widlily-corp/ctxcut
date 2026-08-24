@@ -37,7 +37,10 @@ impl IndexEngine {
             .query(params![norm_path, pattern_path, symbol_query, pattern_sym])
             .map_err(|e| CoreError::DatabaseError(format!("Failed to query find_symbol: {e}")))?;
 
-        if let Some(row) = rows.next().map_err(|e| CoreError::DatabaseError(e.to_string()))? {
+        if let Some(row) = rows
+            .next()
+            .map_err(|e| CoreError::DatabaseError(e.to_string()))?
+        {
             let name: String = row.get(0)?;
             let kind: String = row.get(1)?;
             let path_str: String = row.get(2)?;
@@ -158,15 +161,20 @@ impl IndexEngine {
 
     /// Accelerated interface/trait implementor lookup.
     pub fn find_implementors(&self, interface_name: &str) -> Result<Vec<ExtractedImplementor>> {
-        let mut stmt = self.conn.prepare(
-            r#"
+        let mut stmt = self
+            .conn
+            .prepare(
+                r#"
             SELECT i.interface_name, i.implementor_name, f.path, i.kind, i.definition
             FROM implementors i
             JOIN files f ON i.file_id = f.id
             WHERE i.interface_name = ?1 OR i.interface_name LIKE ?2
             ORDER BY i.implementor_name ASC
             "#,
-        ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare find_implementors: {e}")))?;
+            )
+            .map_err(|e| {
+                CoreError::DatabaseError(format!("Failed to prepare find_implementors: {e}"))
+            })?;
 
         let pattern = format!("%{interface_name}%");
         let rows = stmt
@@ -208,9 +216,12 @@ impl IndexEngine {
             total_tokens: usize,
         }
 
-        let mut stmt_files = self.conn.prepare(
-            "SELECT id, path, language, total_lines, total_tokens FROM files ORDER BY path ASC",
-        ).map_err(|e| CoreError::DatabaseError(e.to_string()))?;
+        let mut stmt_files = self
+            .conn
+            .prepare(
+                "SELECT id, path, language, total_lines, total_tokens FROM files ORDER BY path ASC",
+            )
+            .map_err(|e| CoreError::DatabaseError(e.to_string()))?;
 
         let file_rows = stmt_files
             .query_map([], |r| {
@@ -240,13 +251,16 @@ impl IndexEngine {
         }
 
         // 2. Fetch all symbols
-        let mut stmt_syms = self.conn.prepare(
-            r#"
+        let mut stmt_syms = self
+            .conn
+            .prepare(
+                r#"
             SELECT file_id, name, kind, start_line, end_line, signature, doc_comment
             FROM symbols
             ORDER BY file_id ASC, start_line ASC
             "#,
-        ).map_err(|e| CoreError::DatabaseError(e.to_string()))?;
+            )
+            .map_err(|e| CoreError::DatabaseError(e.to_string()))?;
 
         let mut file_symbols_map: HashMap<i64, Vec<SymbolOverviewItem>> = HashMap::new();
         let sym_rows = stmt_syms

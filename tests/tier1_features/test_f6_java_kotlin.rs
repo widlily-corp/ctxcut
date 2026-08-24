@@ -39,7 +39,9 @@ public class UserController {
 
     // Act: Run stats
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", file_path.to_str().unwrap()]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", file_path.to_str().unwrap()])
+        .expect("Command failed");
 
     // Assert: Java file processed cleanly
     output.assert_success();
@@ -100,7 +102,9 @@ class PaymentService {
 
     // Act: Run fast stats scan
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", "-f", file_path.to_str().unwrap()]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", "-f", file_path.to_str().unwrap()])
+        .expect("Command failed");
 
     // Assert: Kotlin code analyzed
     output.assert_success();
@@ -127,7 +131,9 @@ class AsyncClient {
 
     // Act: Overview scan
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()])
+        .expect("Command failed");
 
     // Assert: Overview successful
     output.assert_success();
@@ -150,7 +156,9 @@ public record OrderCancelled(String orderId, String reason) implements DomainEve
 
     // Act: Stats calculation
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", file_path.to_str().unwrap()]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", file_path.to_str().unwrap()])
+        .expect("Command failed");
 
     // Assert: Clean exit
     output.assert_success();

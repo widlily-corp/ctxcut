@@ -18,9 +18,7 @@ pub fn render_preview(app: &AppState, area: Rect, buf: &mut Buffer) {
     let title = if let Some(ref slice) = app.current_slice {
         format!(
             " 🔬 AST SLICE LIVE PREVIEW [{}: {} | -{:.1}%] ",
-            slice.target_symbol.name,
-            slice.target_symbol.language,
-            slice.stats.savings_percentage
+            slice.target_symbol.name, slice.target_symbol.language, slice.stats.savings_percentage
         )
     } else {
         " 🔬 AST SLICE LIVE PREVIEW ".to_string()
@@ -33,27 +31,52 @@ pub fn render_preview(app: &AppState, area: Rect, buf: &mut Buffer) {
         .title_style(
             Style::default()
                 .fg(if is_active { Color::White } else { Color::Gray })
-                .add_modifier(if is_active { Modifier::BOLD } else { Modifier::empty() }),
+                .add_modifier(if is_active {
+                    Modifier::BOLD
+                } else {
+                    Modifier::empty()
+                }),
         );
 
     let inner = block.inner(area);
     block.render(area, buf);
 
-    if inner.height == 0 {
+    if inner.width == 0 || inner.height == 0 {
+        return;
+    }
+
+    if app.is_loading {
+        if inner.y < buf.area().bottom() {
+            let max_w = inner.width.saturating_sub(2) as usize;
+            let msg = if max_w > 40 {
+                "⚡ Discovering AST context and indexing workspace..."
+            } else {
+                "⚡ Indexing..."
+            };
+            let truncated = super::truncate_chars(msg, max_w);
+            buf.set_string(
+                inner.x + 1,
+                inner.y,
+                truncated,
+                Style::default().fg(Color::DarkGray),
+            );
+        }
         return;
     }
 
     let Some(ref slice) = app.current_slice else {
-        if inner.height > 0 && inner.y < buf.area().bottom() {
-            let msg = if inner.width > 40 {
+        if inner.y < buf.area().bottom() {
+            let max_w = inner.width.saturating_sub(2) as usize;
+            let msg = if max_w > 40 {
                 "Press [Enter] on a symbol to generate AST context slice."
             } else {
                 "Press [Enter] to slice"
             };
+            let truncated = super::truncate_chars(msg, max_w);
             buf.set_string(
                 inner.x + 1,
                 inner.y,
-                msg,
+                truncated,
                 Style::default().fg(Color::DarkGray),
             );
         }
@@ -106,7 +129,8 @@ pub fn render_preview(app: &AppState, area: Rect, buf: &mut Buffer) {
     }
 
     let visible_rows = inner.height as usize;
-    let scroll = app.preview_scroll as usize;
+    let max_scroll = lines.len().saturating_sub(visible_rows);
+    let scroll = (app.preview_scroll as usize).min(max_scroll);
 
     for (row, line) in lines.iter().skip(scroll).take(visible_rows).enumerate() {
         let y = inner.y + row as u16;
@@ -114,16 +138,16 @@ pub fn render_preview(app: &AppState, area: Rect, buf: &mut Buffer) {
             break;
         }
 
-        let max_w = inner.width as usize;
-        let truncated = if line.len() > max_w {
-            &line[..max_w]
-        } else {
-            line.as_str()
-        };
+        let max_w = inner.width.saturating_sub(2) as usize;
+        let truncated = super::truncate_chars(line, max_w);
 
         let style = if line.starts_with("/*") || line.starts_with("//") {
             Style::default().fg(Color::DarkGray)
-        } else if line.starts_with("export") || line.starts_with("pub") || line.starts_with("def") || line.starts_with("func") {
+        } else if line.starts_with("export")
+            || line.starts_with("pub")
+            || line.starts_with("def")
+            || line.starts_with("func")
+        {
             Style::default().fg(Color::LightBlue)
         } else {
             Style::default().fg(Color::White)

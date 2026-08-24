@@ -37,8 +37,9 @@ pub fn run_verify_patch(opts: VerifyPatchOptions) -> Result<()> {
     let replacement = if let Some(w) = opts.with_code {
         let p = Path::new(w);
         if p.exists() && p.is_file() {
-            fs::read_to_string(p)
-                .with_context(|| format!("Failed to read replacement code from `{}`", p.display()))?
+            fs::read_to_string(p).with_context(|| {
+                format!("Failed to read replacement code from `{}`", p.display())
+            })?
         } else {
             w.to_string()
         }
@@ -69,9 +70,17 @@ pub fn run_verify_patch(opts: VerifyPatchOptions) -> Result<()> {
     };
 
     if let Some(out_file) = opts.output {
-        fs::write(out_file, &rendered)
-            .with_context(|| format!("Failed to write verification report to `{}`", out_file.display()))?;
-        println!("{} Verification report saved to `{}`", "✔".green(), out_file.display());
+        fs::write(out_file, &rendered).with_context(|| {
+            format!(
+                "Failed to write verification report to `{}`",
+                out_file.display()
+            )
+        })?;
+        println!(
+            "{} Verification report saved to `{}`",
+            "✔".green(),
+            out_file.display()
+        );
     }
 
     if opts.clip {

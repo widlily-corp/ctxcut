@@ -1,4 +1,4 @@
-﻿//! Challenger 2 Empirical Stress Test Suite
+//! Challenger 2 Empirical Stress Test Suite
 //!
 //! Rigorously verifies:
 //! 1. Zero Body Leakage across Python, Rust, TypeScript/JavaScript signature extractions.
@@ -103,10 +103,16 @@ def caller_function(holder: ConfigHolder) -> Dict[str, Any]:
 
     // 1. Verify caller target body is retained
     assert_eq!(result.target_symbol.name, "caller_function");
-    assert!(result.target_symbol.body.contains("compute_distributed_metrics([\"node1\", \"node2\"])"));
+    assert!(result
+        .target_symbol
+        .body
+        .contains("compute_distributed_metrics([\"node1\", \"node2\"])"));
 
     // 2. Verify all hoisted stripped calls have ZERO body leakage
-    assert!(!result.stripped_calls.is_empty(), "Should extract call stubs");
+    assert!(
+        !result.stripped_calls.is_empty(),
+        "Should extract call stubs"
+    );
     for stub in &result.stripped_calls {
         let sig = &stub.signature;
         assert!(
@@ -205,10 +211,16 @@ pub fn run_pipeline(ctx: &ProcessingContext<String>) {
         .expect("slice run_pipeline");
 
     assert_eq!(result.target_symbol.name, "run_pipeline");
-    assert!(result.target_symbol.body.contains("execute_batch_processing(ctx, 50.0)"));
+    assert!(result
+        .target_symbol
+        .body
+        .contains("execute_batch_processing(ctx, 50.0)"));
 
     // Verify stripped calls have ZERO body leakage
-    assert!(!result.stripped_calls.is_empty(), "Should extract call stubs");
+    assert!(
+        !result.stripped_calls.is_empty(),
+        "Should extract call stubs"
+    );
     for stub in &result.stripped_calls {
         let sig = &stub.signature;
         assert!(
@@ -301,10 +313,16 @@ export async function handleUserLogin(session: UserSession): Promise<boolean> {
         .expect("slice handleUserLogin");
 
     assert_eq!(result.target_symbol.name, "handleUserLogin");
-    assert!(result.target_symbol.body.contains("await auditUserSession(session, true)"));
+    assert!(result
+        .target_symbol
+        .body
+        .contains("await auditUserSession(session, true)"));
 
     // Verify stripped calls
-    assert!(!result.stripped_calls.is_empty(), "Should extract call stubs");
+    assert!(
+        !result.stripped_calls.is_empty(),
+        "Should extract call stubs"
+    );
     for stub in &result.stripped_calls {
         let sig = &stub.signature;
         assert!(
@@ -359,7 +377,8 @@ export function executeDeepOperation(entity: CoreEntity, factor: number): string
     return `result_${entity.id}_${computed}`;
 }
 "#,
-    ).expect("write leaf.ts");
+    )
+    .expect("write leaf.ts");
 
     // Hop 1: barrel_1.ts (named re-export with alias)
     let b1_path = root.join("barrel_1.ts");
@@ -368,7 +387,8 @@ export function executeDeepOperation(entity: CoreEntity, factor: number): string
         r#"
 export { CoreEntity as PrimaryEntity, executeDeepOperation as step1Operation } from './leaf';
 "#,
-    ).expect("write barrel_1.ts");
+    )
+    .expect("write barrel_1.ts");
 
     // Hop 2: barrel_2.ts (wildcard export)
     let b2_path = root.join("barrel_2.ts");
@@ -377,7 +397,8 @@ export { CoreEntity as PrimaryEntity, executeDeepOperation as step1Operation } f
         r#"
 export * from './barrel_1';
 "#,
-    ).expect("write barrel_2.ts");
+    )
+    .expect("write barrel_2.ts");
 
     // Hop 3: barrel_3.ts (re-export aliasing again)
     let b3_path = root.join("barrel_3.ts");
@@ -386,7 +407,8 @@ export * from './barrel_1';
         r#"
 export { PrimaryEntity as SchemaEntity, step1Operation as step3Operation } from './barrel_2';
 "#,
-    ).expect("write barrel_3.ts");
+    )
+    .expect("write barrel_3.ts");
 
     // Hop 4: barrel_4.ts (wildcard export)
     let b4_path = root.join("barrel_4.ts");
@@ -395,7 +417,8 @@ export { PrimaryEntity as SchemaEntity, step1Operation as step3Operation } from 
         r#"
 export * from './barrel_3';
 "#,
-    ).expect("write barrel_4.ts");
+    )
+    .expect("write barrel_4.ts");
 
     // Hop 5: index.ts (final public entry point)
     let index_path = root.join("index.ts");
@@ -404,7 +427,8 @@ export * from './barrel_3';
         r#"
 export { SchemaEntity as FinalEntity, step3Operation as finalOperation } from './barrel_4';
 "#,
-    ).expect("write index.ts");
+    )
+    .expect("write index.ts");
 
     // Consumer: app.ts
     let app_path = root.join("app.ts");
@@ -418,7 +442,8 @@ export function runClientWorkflow(entity: FinalEntity): string {
     return outcome;
 }
 "#,
-    ).expect("write app.ts");
+    )
+    .expect("write app.ts");
 
     let opts = SliceOptions {
         depth: 5,
@@ -434,7 +459,11 @@ export function runClientWorkflow(entity: FinalEntity): string {
     let elapsed = start.elapsed();
 
     println!("5-hop barrel resolution elapsed: {:?}", elapsed);
-    assert!(elapsed.as_millis() < 2000, "5-hop resolution took too long: {:?}", elapsed);
+    assert!(
+        elapsed.as_millis() < 2000,
+        "5-hop resolution took too long: {:?}",
+        elapsed
+    );
 
     // 1. Verify target symbol
     assert_eq!(result.target_symbol.name, "runClientWorkflow");
@@ -446,7 +475,10 @@ export function runClientWorkflow(entity: FinalEntity): string {
         .map(|t| t.name.as_str())
         .collect();
     assert!(
-        type_names.contains(&"FinalEntity") || type_names.contains(&"CoreEntity") || type_names.contains(&"PrimaryEntity") || type_names.contains(&"SchemaEntity"),
+        type_names.contains(&"FinalEntity")
+            || type_names.contains(&"CoreEntity")
+            || type_names.contains(&"PrimaryEntity")
+            || type_names.contains(&"SchemaEntity"),
         "Hoisted types must contain entity resolved across 5 hops: {:?}",
         type_names
     );
@@ -458,7 +490,10 @@ export function runClientWorkflow(entity: FinalEntity): string {
         .map(|c| c.name.as_str())
         .collect();
     assert!(
-        call_names.contains(&"finalOperation") || call_names.contains(&"executeDeepOperation") || call_names.contains(&"step1Operation") || call_names.contains(&"step3Operation"),
+        call_names.contains(&"finalOperation")
+            || call_names.contains(&"executeDeepOperation")
+            || call_names.contains(&"step1Operation")
+            || call_names.contains(&"step3Operation"),
         "Stripped calls must resolve call across 5 hops: {:?}",
         call_names
     );
@@ -492,7 +527,8 @@ export function stepA(input: TypeA, depth: number): string {
     return stepB({ id: input.id + "_b", cRef: undefined }, depth - 1);
 }
 "#,
-    ).expect("write nodeA");
+    )
+    .expect("write nodeA");
 
     fs::write(
         &node_b,
@@ -509,7 +545,8 @@ export function stepB(input: TypeB, depth: number): string {
     return stepC({ id: input.id + "_c", aRef: undefined }, depth - 1);
 }
 "#,
-    ).expect("write nodeB");
+    )
+    .expect("write nodeB");
 
     fs::write(
         &node_c,
@@ -526,7 +563,8 @@ export function stepC(input: TypeC, depth: number): string {
     return stepA({ id: input.id + "_a", bRef: undefined }, depth - 1);
 }
 "#,
-    ).expect("write nodeC");
+    )
+    .expect("write nodeC");
 
     for depth in [1, 2, 3, 5, 10, 20] {
         let opts = SliceOptions {
@@ -539,7 +577,12 @@ export function stepC(input: TypeC, depth: number): string {
         let start = Instant::now();
         let result = slicer
             .slice_symbol(&node_a, "stepA", &opts)
-            .unwrap_or_else(|e| panic!("Cyclic 3-way graph slice failed at depth {}: {:?}", depth, e));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Cyclic 3-way graph slice failed at depth {}: {:?}",
+                    depth, e
+                )
+            });
         let elapsed = start.elapsed();
 
         assert!(
@@ -597,7 +640,8 @@ export class ExistingClass {
     }
 }
 "#,
-    ).expect("write valid.ts");
+    )
+    .expect("write valid.ts");
 
     let empty_file = root.join("empty.ts");
     fs::write(&empty_file, "").expect("write empty.ts");
@@ -615,13 +659,15 @@ export class ExistingClass {
     fs::write(
         &corrupted_py,
         "def broken():\n    let x = ; ; ;\n\nclass ValidPartial:\n    x: int = 1\n",
-    ).expect("write corrupted.py");
+    )
+    .expect("write corrupted.py");
 
     let corrupted_rs = root.join("corrupted.rs");
     fs::write(
         &corrupted_rs,
         "fn broken() { let x = ; ; ; }\n\npub fn valid_partial() -> i32 {\n    42\n}\n",
-    ).expect("write corrupted.rs");
+    )
+    .expect("write corrupted.rs");
 
     let opts = SliceOptions::default();
 
@@ -629,7 +675,10 @@ export class ExistingClass {
     let non_existent = root.join("non_existent_file.ts");
     let res = slicer.slice_symbol(&non_existent, "existingFunction", &opts);
     assert!(res.is_err());
-    assert!(matches!(res.unwrap_err(), CoreError::Io { .. } | CoreError::SymbolNotFound { .. }));
+    assert!(matches!(
+        res.unwrap_err(),
+        CoreError::Io { .. } | CoreError::SymbolNotFound { .. }
+    ));
 
     // 2. Non-existent symbols in valid file
     let missing_queries = [
@@ -643,9 +692,16 @@ export class ExistingClass {
         let res = slicer.slice_symbol(&valid_ts, q, &opts);
         assert!(res.is_err(), "Query '{}' should return error", q);
         match res.unwrap_err() {
-            CoreError::SymbolNotFound { symbol, available_symbols, .. } => {
+            CoreError::SymbolNotFound {
+                symbol,
+                available_symbols,
+                ..
+            } => {
                 assert_eq!(&symbol, q);
-                assert!(!available_symbols.is_empty(), "Should list available symbols for suggestion");
+                assert!(
+                    !available_symbols.is_empty(),
+                    "Should list available symbols for suggestion"
+                );
                 assert!(available_symbols.contains(&"existingFunction".to_string()));
             }
             other => panic!("Expected SymbolNotFound for '{}', got {:?}", q, other),
@@ -673,7 +729,11 @@ export class ExistingClass {
     ];
     for q in &adversarial_queries {
         let res = slicer.slice_symbol(&valid_ts, q, &opts);
-        assert!(res.is_err(), "Adversarial query '{:?}' must return error gracefully", q);
+        assert!(
+            res.is_err(),
+            "Adversarial query '{:?}' must return error gracefully",
+            q
+        );
         assert!(matches!(res.unwrap_err(), CoreError::SymbolNotFound { .. }));
     }
 
@@ -687,17 +747,26 @@ export class ExistingClass {
     // 5. Corrupted source error recovery across all languages
     // TS
     let ts_partial = slicer.slice_symbol(&corrupted_ts, "ValidPartial", &opts);
-    assert!(ts_partial.is_ok(), "Tree-sitter must recover ValidPartial from corrupted TS");
+    assert!(
+        ts_partial.is_ok(),
+        "Tree-sitter must recover ValidPartial from corrupted TS"
+    );
     assert_eq!(ts_partial.unwrap().target_symbol.name, "ValidPartial");
 
     // Py
     let py_partial = slicer.slice_symbol(&corrupted_py, "ValidPartial", &opts);
-    assert!(py_partial.is_ok(), "Tree-sitter must recover ValidPartial from corrupted Python");
+    assert!(
+        py_partial.is_ok(),
+        "Tree-sitter must recover ValidPartial from corrupted Python"
+    );
     assert_eq!(py_partial.unwrap().target_symbol.name, "ValidPartial");
 
     // Rs
     let rs_partial = slicer.slice_symbol(&corrupted_rs, "valid_partial", &opts);
-    assert!(rs_partial.is_ok(), "Tree-sitter must recover valid_partial from corrupted Rust");
+    assert!(
+        rs_partial.is_ok(),
+        "Tree-sitter must recover valid_partial from corrupted Rust"
+    );
     assert_eq!(rs_partial.unwrap().target_symbol.name, "valid_partial");
 
     // 6. Extreme budget options
@@ -725,7 +794,9 @@ fn test_empirical_performance_and_massive_file_token_reduction() {
 
     // Generate a massive 3,000+ line TypeScript file with 100 functions, 30 classes, 50 interfaces
     let mut sb = String::with_capacity(200_000);
-    sb.push_str("// Massive synthetic module for performance and token reduction stress testing\n\n");
+    sb.push_str(
+        "// Massive synthetic module for performance and token reduction stress testing\n\n",
+    );
 
     for i in 0..50 {
         sb.push_str(&format!(
@@ -777,14 +848,16 @@ export class ServiceController_{i} {{
     }
 
     // Target function in the middle calling multiple helpers and types
-    sb.push_str(r#"
+    sb.push_str(
+        r#"
 export function targetWorkflowFunction(item: ItemSchema_10, ctrl: ServiceController_5): number {
     const val1 = computeHelper_10(item, 3);
     const val2 = computeHelper_20(item, 5);
     const batchRes = ctrl.processBatch(item);
     return val1 + val2 + batchRes;
 }
-"#);
+"#,
+    );
 
     fs::write(&huge_file, &sb).expect("write massive module");
 
@@ -810,11 +883,21 @@ export function targetWorkflowFunction(item: ItemSchema_10, ctrl: ServiceControl
     );
 
     // Invariant 1: Performance must be under 2000ms in debug and under 50ms in release
-    assert!(elapsed.as_millis() < 2000, "Massive file slice took too long: {:?}", elapsed);
+    assert!(
+        elapsed.as_millis() < 2000,
+        "Massive file slice took too long: {:?}",
+        elapsed
+    );
 
     // Invariant 2: Token reduction must be massive (>80% savings)
-    assert!(result.stats.raw_file_tokens > 5000, "Raw tokens should be >5000");
-    assert!(result.stats.sliced_tokens < 1000, "Sliced tokens should be <1000");
+    assert!(
+        result.stats.raw_file_tokens > 5000,
+        "Raw tokens should be >5000"
+    );
+    assert!(
+        result.stats.sliced_tokens < 1000,
+        "Sliced tokens should be <1000"
+    );
     assert!(
         result.stats.savings_percentage > 80.0,
         "Savings percentage must be >80%, got {:.2}%",
@@ -823,6 +906,12 @@ export function targetWorkflowFunction(item: ItemSchema_10, ctrl: ServiceControl
 
     // Invariant 3: Precision - target body is intact and hoisted types/calls are present
     assert_eq!(result.target_symbol.name, "targetWorkflowFunction");
-    assert!(result.target_symbol.body.contains("computeHelper_10(item, 3)"));
-    assert!(result.target_symbol.body.contains("ctrl.processBatch(item)"));
+    assert!(result
+        .target_symbol
+        .body
+        .contains("computeHelper_10(item, 3)"));
+    assert!(result
+        .target_symbol
+        .body
+        .contains("ctrl.processBatch(item)"));
 }

@@ -67,8 +67,8 @@ impl ContextSlicer {
         // 2.5. Hoist concrete implementors
         let hoisted_implementors = if opts.include_types {
             let ws_root = find_workspace_root(file_path);
-            let lang = SupportedLanguage::from_path(file_path)
-                .unwrap_or(SupportedLanguage::TypeScript);
+            let lang =
+                SupportedLanguage::from_path(file_path).unwrap_or(SupportedLanguage::TypeScript);
             crate::resolver::ImplementorHoister::hoist_implementors_for_slice(
                 &ws_root,
                 file_path,
@@ -260,8 +260,8 @@ impl ContextSlicer {
         let mut seen_imp_keys = HashSet::new();
         if opts.include_types {
             let ws_root = find_workspace_root(file_path);
-            let lang = SupportedLanguage::from_path(file_path)
-                .unwrap_or(SupportedLanguage::TypeScript);
+            let lang =
+                SupportedLanguage::from_path(file_path).unwrap_or(SupportedLanguage::TypeScript);
             for sym in &target_symbols {
                 if let Ok(imps) = crate::resolver::ImplementorHoister::hoist_implementors_for_slice(
                     &ws_root,
@@ -334,5 +334,7 @@ fn find_workspace_root(path: &Path) -> std::path::PathBuf {
         }
         curr = dir.parent();
     }
-    path.parent().unwrap_or_else(|| Path::new(".")).to_path_buf()
+    path.parent()
+        .unwrap_or_else(|| Path::new("."))
+        .to_path_buf()
 }

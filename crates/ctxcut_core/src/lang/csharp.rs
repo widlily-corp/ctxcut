@@ -34,7 +34,9 @@ impl LanguageAdapter for CSharpAdapter {
         let (container_query, member_query) = parse_query(symbol_query);
 
         if let Some(container_name) = container_query {
-            if let Some((sym, node)) = find_in_container(root, source, container_name, member_query, file_path) {
+            if let Some((sym, node)) =
+                find_in_container(root, source, container_name, member_query, file_path)
+            {
                 return Ok((sym, node));
             }
         } else {
@@ -112,8 +114,11 @@ impl LanguageAdapter for CSharpAdapter {
             // 1. Check local file
             if let Some(extracted) = find_csharp_type_in_file(root, source, &type_name, file_path) {
                 if depth < opts.depth {
-                    if let Ok(tree) = ParserManager::parse_source(&extracted.definition, &ts_lang, file_path) {
-                        for id in AstUtils::find_descendants_by_kind(tree.root_node(), "identifier") {
+                    if let Ok(tree) =
+                        ParserManager::parse_source(&extracted.definition, &ts_lang, file_path)
+                    {
+                        for id in AstUtils::find_descendants_by_kind(tree.root_node(), "identifier")
+                        {
                             let nested = AstUtils::node_text(id, &extracted.definition);
                             if is_potential_type_name(nested)
                                 && !is_builtin_csharp_type(nested)
@@ -134,7 +139,10 @@ impl LanguageAdapter for CSharpAdapter {
                 if let Ok(entries) = fs::read_dir(dir) {
                     for entry in entries.flatten() {
                         let p = entry.path();
-                        if p.is_file() && p != file_path && p.extension().and_then(|e| e.to_str()) == Some("cs") {
+                        if p.is_file()
+                            && p != file_path
+                            && p.extension().and_then(|e| e.to_str()) == Some("cs")
+                        {
                             candidate_files.push(p);
                         }
                     }
@@ -143,10 +151,20 @@ impl LanguageAdapter for CSharpAdapter {
                 for cand_path in candidate_files {
                     if let Ok(cand_source) = fs::read_to_string(&cand_path) {
                         if cand_source.contains(&type_name) {
-                            if let Ok(tree) = ParserManager::parse_source(&cand_source, &ts_lang, &cand_path) {
-                                if let Some(extracted) = find_csharp_type_in_file(tree.root_node(), &cand_source, &type_name, &cand_path) {
+                            if let Ok(tree) =
+                                ParserManager::parse_source(&cand_source, &ts_lang, &cand_path)
+                            {
+                                if let Some(extracted) = find_csharp_type_in_file(
+                                    tree.root_node(),
+                                    &cand_source,
+                                    &type_name,
+                                    &cand_path,
+                                ) {
                                     if depth < opts.depth {
-                                        for id in AstUtils::find_descendants_by_kind(tree.root_node(), "identifier") {
+                                        for id in AstUtils::find_descendants_by_kind(
+                                            tree.root_node(),
+                                            "identifier",
+                                        ) {
                                             let nested = AstUtils::node_text(id, &cand_source);
                                             if is_potential_type_name(nested)
                                                 && !is_builtin_csharp_type(nested)
@@ -181,14 +199,19 @@ impl LanguageAdapter for CSharpAdapter {
 
         let invocations = AstUtils::find_descendants_by_kind(target_node, "invocation_expression");
         for inv in invocations {
-            if let Some(fn_node) = inv.child_by_field_name("expression").or_else(|| inv.named_child(0)) {
+            if let Some(fn_node) = inv
+                .child_by_field_name("expression")
+                .or_else(|| inv.named_child(0))
+            {
                 let (receiver, func_name) = match fn_node.kind() {
                     "identifier" => (None, AstUtils::node_text(fn_node, source).to_string()),
                     "member_access_expression" => {
                         let obj = fn_node.child_by_field_name("expression");
                         let name = fn_node.child_by_field_name("name");
                         let obj_name = obj.map(|o| AstUtils::node_text(o, source).to_string());
-                        let f_name = name.map(|n| AstUtils::node_text(n, source).to_string()).unwrap_or_default();
+                        let f_name = name
+                            .map(|n| AstUtils::node_text(n, source).to_string())
+                            .unwrap_or_default();
                         (obj_name, f_name)
                     }
                     _ => (None, AstUtils::node_text(fn_node, source).to_string()),
@@ -229,7 +252,9 @@ impl LanguageAdapter for CSharpAdapter {
             if let Some(base_list) = AstUtils::find_child_by_kind(node, "base_list") {
                 let base_text = AstUtils::node_text(base_list, source);
                 if base_text
-                    .split(|c: char| c == ',' || c == ':' || c.is_whitespace() || c == '<' || c == '>')
+                    .split(|c: char| {
+                        c == ',' || c == ':' || c.is_whitespace() || c == '<' || c == '>'
+                    })
                     .any(|part| part.trim() == interface_name)
                 {
                     if let Some(name_node) = node.child_by_field_name("name") {
@@ -277,18 +302,28 @@ fn find_symbol_recursive<'a>(
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         match child.kind() {
-            "class_declaration" | "record_declaration" | "record_struct_declaration"
-            | "struct_declaration" | "interface_declaration" | "enum_declaration" => {
+            "class_declaration"
+            | "record_declaration"
+            | "record_struct_declaration"
+            | "struct_declaration"
+            | "interface_declaration"
+            | "enum_declaration" => {
                 if let Some(name_node) = child.child_by_field_name("name") {
                     if AstUtils::node_text(name_node, source) == target_name {
-                        return Some((build_csharp_symbol(child, source, file_path, target_name), child));
+                        return Some((
+                            build_csharp_symbol(child, source, file_path, target_name),
+                            child,
+                        ));
                     }
                 }
             }
             "method_declaration" | "constructor_declaration" | "property_declaration" => {
                 if let Some(name_node) = child.child_by_field_name("name") {
                     if AstUtils::node_text(name_node, source) == target_name {
-                        return Some((build_csharp_symbol(child, source, file_path, target_name), child));
+                        return Some((
+                            build_csharp_symbol(child, source, file_path, target_name),
+                            child,
+                        ));
                     }
                 }
             }
@@ -315,16 +350,32 @@ fn find_in_container<'a>(
     let interfaces = AstUtils::find_descendants_by_kind(root, "interface_declaration");
     let structs = AstUtils::find_descendants_by_kind(root, "struct_declaration");
 
-    for node in decls.into_iter().chain(records).chain(interfaces).chain(structs) {
+    for node in decls
+        .into_iter()
+        .chain(records)
+        .chain(interfaces)
+        .chain(structs)
+    {
         if let Some(name_node) = node.child_by_field_name("name") {
             if AstUtils::node_text(name_node, source) == container_name {
-                if let Some(body) = node.child_by_field_name("body").or_else(|| AstUtils::find_child_by_kind(node, "declaration_list")) {
+                if let Some(body) = node
+                    .child_by_field_name("body")
+                    .or_else(|| AstUtils::find_child_by_kind(node, "declaration_list"))
+                {
                     for member in body.named_children(&mut body.walk()) {
-                        if matches!(member.kind(), "method_declaration" | "constructor_declaration" | "property_declaration") {
+                        if matches!(
+                            member.kind(),
+                            "method_declaration"
+                                | "constructor_declaration"
+                                | "property_declaration"
+                        ) {
                             if let Some(m_name_node) = member.child_by_field_name("name") {
                                 if AstUtils::node_text(m_name_node, source) == member_name {
                                     let full_name = format!("{container_name}.{member_name}");
-                                    return Some((build_csharp_symbol(member, source, file_path, &full_name), member));
+                                    return Some((
+                                        build_csharp_symbol(member, source, file_path, &full_name),
+                                        member,
+                                    ));
                                 }
                             }
                         }
@@ -351,7 +402,10 @@ fn find_any_method<'a>(
                     Some(c) => format!("{c}.{member_name}"),
                     None => member_name.to_string(),
                 };
-                return Some((build_csharp_symbol(method, source, file_path, &full_name), method));
+                return Some((
+                    build_csharp_symbol(method, source, file_path, &full_name),
+                    method,
+                ));
             }
         }
     }
@@ -361,7 +415,13 @@ fn find_any_method<'a>(
 fn find_enclosing_class_name(node: Node<'_>, source: &str) -> Option<String> {
     let mut current = node.parent();
     while let Some(n) = current {
-        if matches!(n.kind(), "class_declaration" | "record_declaration" | "struct_declaration" | "interface_declaration") {
+        if matches!(
+            n.kind(),
+            "class_declaration"
+                | "record_declaration"
+                | "struct_declaration"
+                | "interface_declaration"
+        ) {
             if let Some(name_node) = n.child_by_field_name("name") {
                 return Some(AstUtils::node_text(name_node, source).to_string());
             }
@@ -390,7 +450,11 @@ fn build_csharp_symbol(
         "struct_declaration" => "struct",
         "enum_declaration" => "enum",
         "method_declaration" => {
-            if name.contains('.') { "method" } else { "function" }
+            if name.contains('.') {
+                "method"
+            } else {
+                "function"
+            }
         }
         "constructor_declaration" => "constructor",
         "property_declaration" => "property",
@@ -498,8 +562,12 @@ fn collect_symbols_recursive(
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         match child.kind() {
-            "class_declaration" | "record_declaration" | "record_struct_declaration"
-            | "interface_declaration" | "struct_declaration" | "enum_declaration" => {
+            "class_declaration"
+            | "record_declaration"
+            | "record_struct_declaration"
+            | "interface_declaration"
+            | "struct_declaration"
+            | "enum_declaration" => {
                 if let Some(name_node) = child.child_by_field_name("name") {
                     let type_name = AstUtils::node_text(name_node, source).to_string();
                     let full_type = match current_container {
@@ -507,7 +575,10 @@ fn collect_symbols_recursive(
                         None => type_name.clone(),
                     };
                     symbols.push(full_type.clone());
-                    if let Some(body) = child.child_by_field_name("body").or_else(|| AstUtils::find_child_by_kind(child, "declaration_list")) {
+                    if let Some(body) = child
+                        .child_by_field_name("body")
+                        .or_else(|| AstUtils::find_child_by_kind(child, "declaration_list"))
+                    {
                         collect_symbols_recursive(body, source, symbols, Some(&full_type));
                     }
                 }
@@ -523,7 +594,10 @@ fn collect_symbols_recursive(
                 }
             }
             "namespace_declaration" | "file_scoped_namespace_declaration" => {
-                if let Some(body) = child.child_by_field_name("body").or_else(|| AstUtils::find_child_by_kind(child, "declaration_list")) {
+                if let Some(body) = child
+                    .child_by_field_name("body")
+                    .or_else(|| AstUtils::find_child_by_kind(child, "declaration_list"))
+                {
                     collect_symbols_recursive(body, source, symbols, current_container);
                 } else {
                     collect_symbols_recursive(child, source, symbols, current_container);
@@ -542,35 +616,137 @@ fn is_potential_type_name(name: &str) -> bool {
 fn is_builtin_csharp_type(name: &str) -> bool {
     matches!(
         name,
-        "int" | "string" | "bool" | "double" | "float" | "decimal" | "byte" | "sbyte"
-            | "short" | "ushort" | "uint" | "ulong" | "long" | "char" | "object" | "void"
-            | "dynamic" | "var" | "Task" | "ValueTask" | "ActionResult" | "IActionResult"
-            | "List" | "IList" | "IEnumerable" | "ICollection" | "IReadOnlyList"
-            | "IReadOnlyCollection" | "Dictionary" | "IDictionary" | "HashSet" | "ISet"
-            | "Nullable" | "Guid" | "DateTime" | "DateTimeOffset" | "TimeSpan" | "DateOnly" | "TimeOnly"
-            | "CancellationToken" | "ILogger" | "IConfiguration" | "IServiceProvider"
-            | "HttpContext" | "HttpRequest" | "HttpResponse" | "Exception"
-            | "String" | "Int32" | "Int64" | "Boolean" | "Double" | "Decimal"
-            | "FromBody" | "FromQuery" | "FromRoute" | "FromServices" | "FromHeader"
-            | "HttpGet" | "HttpPost" | "HttpPut" | "HttpDelete" | "HttpPatch"
-            | "ApiController" | "Route" | "Authorize" | "AllowAnonymous"
+        "int"
+            | "string"
+            | "bool"
+            | "double"
+            | "float"
+            | "decimal"
+            | "byte"
+            | "sbyte"
+            | "short"
+            | "ushort"
+            | "uint"
+            | "ulong"
+            | "long"
+            | "char"
+            | "object"
+            | "void"
+            | "dynamic"
+            | "var"
+            | "Task"
+            | "ValueTask"
+            | "ActionResult"
+            | "IActionResult"
+            | "List"
+            | "IList"
+            | "IEnumerable"
+            | "ICollection"
+            | "IReadOnlyList"
+            | "IReadOnlyCollection"
+            | "Dictionary"
+            | "IDictionary"
+            | "HashSet"
+            | "ISet"
+            | "Nullable"
+            | "Guid"
+            | "DateTime"
+            | "DateTimeOffset"
+            | "TimeSpan"
+            | "DateOnly"
+            | "TimeOnly"
+            | "CancellationToken"
+            | "ILogger"
+            | "IConfiguration"
+            | "IServiceProvider"
+            | "HttpContext"
+            | "HttpRequest"
+            | "HttpResponse"
+            | "Exception"
+            | "String"
+            | "Int32"
+            | "Int64"
+            | "Boolean"
+            | "Double"
+            | "Decimal"
+            | "FromBody"
+            | "FromQuery"
+            | "FromRoute"
+            | "FromServices"
+            | "FromHeader"
+            | "HttpGet"
+            | "HttpPost"
+            | "HttpPut"
+            | "HttpDelete"
+            | "HttpPatch"
+            | "ApiController"
+            | "Route"
+            | "Authorize"
+            | "AllowAnonymous"
     )
 }
 
 fn is_builtin_csharp_method(name: &str) -> bool {
     matches!(
         name,
-        "Where" | "Select" | "SelectMany" | "OrderBy" | "OrderByDescending"
-            | "ThenBy" | "ThenByDescending" | "GroupBy" | "Join" | "ToList" | "ToListAsync"
-            | "ToArray" | "ToArrayAsync" | "FirstOrDefault" | "FirstOrDefaultAsync"
-            | "SingleOrDefault" | "SingleOrDefaultAsync" | "Any" | "AnyAsync" | "All" | "AllAsync"
-            | "Count" | "CountAsync" | "Sum" | "Min" | "Max" | "Average" | "Distinct"
-            | "Ok" | "BadRequest" | "NotFound" | "Unauthorized" | "Forbid"
-            | "CreatedAtAction" | "CreatedAtRoute" | "NoContent" | "StatusCode" | "Problem"
-            | "FromResult" | "WhenAll" | "WhenAny" | "CompletedTask"
-            | "ToString" | "Equals" | "GetHashCode" | "GetType"
-            | "WriteLine" | "LogInformation" | "LogWarning" | "LogError" | "LogCritical" | "LogDebug"
-            | "Add" | "Remove" | "Clear" | "Contains" | "ContainsKey" | "TryGetValue"
+        "Where"
+            | "Select"
+            | "SelectMany"
+            | "OrderBy"
+            | "OrderByDescending"
+            | "ThenBy"
+            | "ThenByDescending"
+            | "GroupBy"
+            | "Join"
+            | "ToList"
+            | "ToListAsync"
+            | "ToArray"
+            | "ToArrayAsync"
+            | "FirstOrDefault"
+            | "FirstOrDefaultAsync"
+            | "SingleOrDefault"
+            | "SingleOrDefaultAsync"
+            | "Any"
+            | "AnyAsync"
+            | "All"
+            | "AllAsync"
+            | "Count"
+            | "CountAsync"
+            | "Sum"
+            | "Min"
+            | "Max"
+            | "Average"
+            | "Distinct"
+            | "Ok"
+            | "BadRequest"
+            | "NotFound"
+            | "Unauthorized"
+            | "Forbid"
+            | "CreatedAtAction"
+            | "CreatedAtRoute"
+            | "NoContent"
+            | "StatusCode"
+            | "Problem"
+            | "FromResult"
+            | "WhenAll"
+            | "WhenAny"
+            | "CompletedTask"
+            | "ToString"
+            | "Equals"
+            | "GetHashCode"
+            | "GetType"
+            | "WriteLine"
+            | "LogInformation"
+            | "LogWarning"
+            | "LogError"
+            | "LogCritical"
+            | "LogDebug"
+            | "Add"
+            | "Remove"
+            | "Clear"
+            | "Contains"
+            | "ContainsKey"
+            | "TryGetValue"
     )
 }
 

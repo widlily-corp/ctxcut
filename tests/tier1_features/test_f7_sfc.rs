@@ -89,7 +89,9 @@ fn test_f7_svelte_script_export_let_slice() {
 
     // Act: Stats scan on directory
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", "-f", file_path.to_str().unwrap()]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", "-f", file_path.to_str().unwrap()])
+        .expect("Command failed");
 
     // Assert: Svelte component scanned
     output.assert_success();
@@ -135,8 +137,12 @@ fn test_f7_sfc_template_collapsing() {
     // Arrange: Large template with compact script
     let dir = TempDir::new().expect("Failed to create tempdir");
     let file_path = dir.path().join("ComplexView.vue");
-    let script_part = "<script setup lang=\"ts\">\nexport interface Item { id: string }\n</script>\n";
-    let large_template = format!("<template>\n{}\n</template>\n", "<div><span>Item row</span></div>\n".repeat(50));
+    let script_part =
+        "<script setup lang=\"ts\">\nexport interface Item { id: string }\n</script>\n";
+    let large_template = format!(
+        "<template>\n{}\n</template>\n",
+        "<div><span>Item row</span></div>\n".repeat(50)
+    );
     let full_content = format!("{}{}", script_part, large_template);
     fs::write(&file_path, &full_content).unwrap();
 
@@ -153,8 +159,12 @@ fn test_f7_sfc_style_collapsing() {
     // Arrange: Component with extensive CSS styling
     let dir = TempDir::new().expect("Failed to create tempdir");
     let file_path = dir.path().join("StyledButton.svelte");
-    let script_and_markup = "<script>\nexport let label = 'Submit';\n</script>\n<button>{label}</button>\n";
-    let large_style = format!("<style>\n{}\n</style>\n", "button { margin: 4px; padding: 8px; }\n".repeat(40));
+    let script_and_markup =
+        "<script>\nexport let label = 'Submit';\n</script>\n<button>{label}</button>\n";
+    let large_style = format!(
+        "<style>\n{}\n</style>\n",
+        "button { margin: 4px; padding: 8px; }\n".repeat(40)
+    );
     let full_content = format!("{}{}", script_and_markup, large_style);
     fs::write(&file_path, &full_content).unwrap();
 

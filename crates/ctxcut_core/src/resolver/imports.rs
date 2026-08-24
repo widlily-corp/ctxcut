@@ -161,8 +161,7 @@ impl ImportResolver {
                                                         name.clone(),
                                                         ImportMapping {
                                                             local_name: name,
-                                                            imported_name: "default"
-                                                                .to_string(),
+                                                            imported_name: "default".to_string(),
                                                             specifier: specifier.to_string(),
                                                         },
                                                     );
@@ -197,10 +196,12 @@ impl ImportResolver {
                                         orig
                                     };
                                     if !orig.is_empty() && !local.is_empty() {
-                                        map.entry(local.to_string()).or_insert_with(|| ImportMapping {
-                                            local_name: local.to_string(),
-                                            imported_name: orig.to_string(),
-                                            specifier: spec.to_string(),
+                                        map.entry(local.to_string()).or_insert_with(|| {
+                                            ImportMapping {
+                                                local_name: local.to_string(),
+                                                imported_name: orig.to_string(),
+                                                specifier: spec.to_string(),
+                                            }
                                         });
                                     }
                                 }
@@ -210,21 +211,28 @@ impl ImportResolver {
                         let after = &trimmed[as_idx + 5..];
                         let ns_name = after.split_whitespace().next().unwrap_or("").trim();
                         if !ns_name.is_empty() {
-                            map.entry(ns_name.to_string()).or_insert_with(|| ImportMapping {
-                                local_name: ns_name.to_string(),
-                                imported_name: "*".to_string(),
-                                specifier: spec.to_string(),
-                            });
+                            map.entry(ns_name.to_string())
+                                .or_insert_with(|| ImportMapping {
+                                    local_name: ns_name.to_string(),
+                                    imported_name: "*".to_string(),
+                                    specifier: spec.to_string(),
+                                });
                         }
                     } else {
                         let after_import = trimmed.trim_start_matches("import ").trim();
-                        let default_name = after_import.split_whitespace().next().unwrap_or("").trim();
-                        if !default_name.is_empty() && default_name != "type" && default_name != "{" && default_name != "*" {
-                            map.entry(default_name.to_string()).or_insert_with(|| ImportMapping {
-                                local_name: default_name.to_string(),
-                                imported_name: "default".to_string(),
-                                specifier: spec.to_string(),
-                            });
+                        let default_name =
+                            after_import.split_whitespace().next().unwrap_or("").trim();
+                        if !default_name.is_empty()
+                            && default_name != "type"
+                            && default_name != "{"
+                            && default_name != "*"
+                        {
+                            map.entry(default_name.to_string())
+                                .or_insert_with(|| ImportMapping {
+                                    local_name: default_name.to_string(),
+                                    imported_name: "default".to_string(),
+                                    specifier: spec.to_string(),
+                                });
                         }
                     }
                 }
@@ -319,11 +327,7 @@ impl ImportResolver {
                     } else {
                         orig_name.clone()
                     };
-                    reexports.push((
-                        Some(exported_name),
-                        Some(orig_name),
-                        specifier.to_string(),
-                    ));
+                    reexports.push((Some(exported_name), Some(orig_name), specifier.to_string()));
                 }
             }
         }
@@ -352,9 +356,15 @@ impl ImportResolver {
                                     };
                                     if !orig.is_empty()
                                         && !exported.is_empty()
-                                        && !reexports.iter().any(|r| r.0.as_deref() == Some(exported) && r.2 == spec)
+                                        && !reexports.iter().any(|r| {
+                                            r.0.as_deref() == Some(exported) && r.2 == spec
+                                        })
                                     {
-                                        reexports.push((Some(exported.to_string()), Some(orig.to_string()), spec.to_string()));
+                                        reexports.push((
+                                            Some(exported.to_string()),
+                                            Some(orig.to_string()),
+                                            spec.to_string(),
+                                        ));
                                     }
                                 }
                             }
@@ -849,7 +859,11 @@ pub fn resolve_c_cpp_specifier(from_file: &Path, specifier: &str) -> Option<Path
 /// Resolves C# `using` namespaces and class references to candidate .cs files.
 pub fn resolve_csharp_specifier(from_file: &Path, specifier: &str) -> Option<PathBuf> {
     let current_dir = from_file.parent().unwrap_or_else(|| Path::new("."));
-    let clean = specifier.trim().trim_start_matches("using ").trim_end_matches(';').trim();
+    let clean = specifier
+        .trim()
+        .trim_start_matches("using ")
+        .trim_end_matches(';')
+        .trim();
 
     // 1. Direct sibling class file
     let candidate = current_dir.join(format!("{clean}.cs"));
@@ -884,7 +898,12 @@ pub fn resolve_csharp_specifier(from_file: &Path, specifier: &str) -> Option<Pat
 /// Resolves Java `import` statements and package declarations to candidate .java files.
 pub fn resolve_java_specifier(from_file: &Path, specifier: &str) -> Option<PathBuf> {
     let current_dir = from_file.parent().unwrap_or_else(|| Path::new("."));
-    let clean = specifier.trim().trim_start_matches("import ").trim_start_matches("static ").trim_end_matches(';').trim();
+    let clean = specifier
+        .trim()
+        .trim_start_matches("import ")
+        .trim_start_matches("static ")
+        .trim_end_matches(';')
+        .trim();
 
     let parts: Vec<&str> = clean.split('.').collect();
     if let Some(last) = parts.last() {
@@ -922,7 +941,11 @@ pub fn resolve_java_specifier(from_file: &Path, specifier: &str) -> Option<PathB
 /// Resolves Kotlin `import` statements to candidate .kt files.
 pub fn resolve_kotlin_specifier(from_file: &Path, specifier: &str) -> Option<PathBuf> {
     let current_dir = from_file.parent().unwrap_or_else(|| Path::new("."));
-    let clean = specifier.trim().trim_start_matches("import ").trim_end_matches(';').trim();
+    let clean = specifier
+        .trim()
+        .trim_start_matches("import ")
+        .trim_end_matches(';')
+        .trim();
 
     let parts: Vec<&str> = clean.split('.').collect();
     if let Some(last) = parts.last() {

@@ -45,7 +45,9 @@ export async function findUser(prisma: any, id: number) {
     // Act: Slice query service
     let runner = CliRunner::new();
     let target = format!("{}:findUser", service_path.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     // Assert: Slicing succeeds
     output.assert_success();
@@ -101,7 +103,9 @@ export class Order {
 
     // Act: Stats calculation
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", entity_path.to_str().unwrap()]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", entity_path.to_str().unwrap()])
+        .expect("Command failed");
 
     // Assert: Entity scanned
     output.assert_success();
@@ -122,7 +126,11 @@ CREATE TABLE products (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 "#;
-    fs::write(migrations_dir.join("001_create_products.sql"), migration_sql).unwrap();
+    fs::write(
+        migrations_dir.join("001_create_products.sql"),
+        migration_sql,
+    )
+    .unwrap();
 
     // Act: Calculate token metrics
     let verifier = TokenVerifier::new();
@@ -168,7 +176,9 @@ type Query {
 
     // Act: Workspace overview
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()])
+        .expect("Command failed");
 
     // Assert: Project overview handles polyglot schema files
     output.assert_success();

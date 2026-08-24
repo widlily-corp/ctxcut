@@ -101,11 +101,15 @@ fn test_c3_orm_stitching_with_verification_guard() {
 fn test_c4_semantic_diff_and_telemetry_tui() {
     // Arrange: Git sandbox
     let sandbox = GitSandbox::new().unwrap();
-    sandbox.write_file("src/math.ts", "export function calc() { return 1; }\n").unwrap();
+    sandbox
+        .write_file("src/math.ts", "export function calc() { return 1; }\n")
+        .unwrap();
     sandbox.stage_all().unwrap();
     sandbox.commit("init").unwrap();
 
-    sandbox.modify_file("src/math.ts", "export function calc() { return 2; }\n").unwrap();
+    sandbox
+        .modify_file("src/math.ts", "export function calc() { return 2; }\n")
+        .unwrap();
 
     // Act: Run diff to generate telemetry
     let runner = CliRunner::new();
@@ -121,13 +125,27 @@ fn test_c4_semantic_diff_and_telemetry_tui() {
 fn test_c5_refactor_rename_in_polyglot_workspace() {
     // Arrange: Polyglot workspace with shared schema names
     let dir = TempDir::new().unwrap();
-    fs::write(dir.path().join("types.ts"), "export interface OrderRecord { id: string; }\n").unwrap();
-    fs::write(dir.path().join("service.py"), "def process_order(record_id: str): return True\n").unwrap();
-    fs::write(dir.path().join("handler.rs"), "pub fn handle_order(id: &str) -> bool { true }\n").unwrap();
+    fs::write(
+        dir.path().join("types.ts"),
+        "export interface OrderRecord { id: string; }\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("service.py"),
+        "def process_order(record_id: str): return True\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("handler.rs"),
+        "pub fn handle_order(id: &str) -> bool { true }\n",
+    )
+    .unwrap();
 
     // Act: Overview scan on polyglot workspace
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()]).unwrap();
+    let output = runner
+        .run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()])
+        .unwrap();
 
     // Assert: Polyglot symbols indexed
     output.assert_success();
@@ -138,13 +156,21 @@ fn test_c6_sqlite_indexing_accelerates_query_engine() {
     // Arrange: Multi-file project
     let dir = TempDir::new().unwrap();
     for i in 0..10 {
-        fs::write(dir.path().join(format!("file_{i}.ts")), format!("export function queryFunc_{i}() {{ return {i}; }}\n")).unwrap();
+        fs::write(
+            dir.path().join(format!("file_{i}.ts")),
+            format!("export function queryFunc_{i}() {{ return {i}; }}\n"),
+        )
+        .unwrap();
     }
 
     // Act: Stats scan twice
     let runner = CliRunner::new();
-    let out1 = runner.run_in_dir(dir.path(), &["stats", "-f", dir.path().to_str().unwrap()]).unwrap();
-    let out2 = runner.run_in_dir(dir.path(), &["stats", "-f", dir.path().to_str().unwrap()]).unwrap();
+    let out1 = runner
+        .run_in_dir(dir.path(), &["stats", "-f", dir.path().to_str().unwrap()])
+        .unwrap();
+    let out2 = runner
+        .run_in_dir(dir.path(), &["stats", "-f", dir.path().to_str().unwrap()])
+        .unwrap();
 
     // Assert: Succeeded
     out1.assert_success();
@@ -178,8 +204,18 @@ fn test_c7_mcp_patch_with_verification_guard() {
 fn test_c8_git_diff_with_sql_migration_stitching() {
     // Arrange: Git repository with migration and modified query
     let sandbox = GitSandbox::new().unwrap();
-    sandbox.write_file("migrations/001.sql", "CREATE TABLE users (id INT, email TEXT);\n").unwrap();
-    sandbox.write_file("src/db.ts", "export function getUsers() { return 'SELECT * FROM users'; }\n").unwrap();
+    sandbox
+        .write_file(
+            "migrations/001.sql",
+            "CREATE TABLE users (id INT, email TEXT);\n",
+        )
+        .unwrap();
+    sandbox
+        .write_file(
+            "src/db.ts",
+            "export function getUsers() { return 'SELECT * FROM users'; }\n",
+        )
+        .unwrap();
     sandbox.stage_all().unwrap();
     sandbox.commit("init").unwrap();
 

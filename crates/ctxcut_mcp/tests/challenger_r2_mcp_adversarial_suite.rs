@@ -44,7 +44,8 @@ export class Handler{i} {{
 
     let json_text = response["content"][0]["text"].as_str().unwrap();
     // Validate it is valid JSON
-    let parsed: serde_json::Value = serde_json::from_str(json_text).expect("Must return valid JSON");
+    let parsed: serde_json::Value =
+        serde_json::from_str(json_text).expect("Must return valid JSON");
     assert_eq!(parsed["total_files"].as_u64(), Some(5));
     assert!(metrics.is_some());
     assert!(tokens_saved.is_some());
@@ -116,7 +117,8 @@ fn test_mcp_metrics_json_and_clear() {
 
     // 2. JSON format on clean state
     let args_json = json!({ "format": "json" });
-    let (res_json, metrics_json, err_json, _) = execute_tool_with_timeout("get_metrics", &args_json, 5000);
+    let (res_json, metrics_json, err_json, _) =
+        execute_tool_with_timeout("get_metrics", &args_json, 5000);
     assert!(err_json.is_none());
     assert_ne!(res_json.get("isError"), Some(&json!(true)));
     assert!(metrics_json.is_some());
@@ -148,12 +150,14 @@ fn test_mcp_error_handling_invalid_inputs() {
         "path": "non_existent_directory_12345/missing_file.ts",
         "symbol": "foo"
     });
-    let (res_err3, _, err3, _) = execute_tool_with_timeout("get_symbol_slice", &args_bad_file, 5000);
+    let (res_err3, _, err3, _) =
+        execute_tool_with_timeout("get_symbol_slice", &args_bad_file, 5000);
     assert_eq!(res_err3.get("isError"), Some(&json!(true)));
     assert!(err3.is_some());
 
     // 4. Unknown tool name
-    let (res_unknown, _, err_unknown, _) = execute_tool_with_timeout("unknown_tool_xyz", &json!({}), 5000);
+    let (res_unknown, _, err_unknown, _) =
+        execute_tool_with_timeout("unknown_tool_xyz", &json!({}), 5000);
     assert_eq!(res_unknown.get("isError"), Some(&json!(true)));
     assert!(err_unknown.is_some());
 }

@@ -36,9 +36,7 @@ pub use framework::{
     DjangoFastApiAnalyzer, ExpressAnalyzer, ExpressNestSpringAnalyzer, FrameworkAnalyzer,
     FrameworkRegistry, NestJsAnalyzer, ReactNextAnalyzer, SpringAnalyzer,
 };
-pub use index::{
-    IndexEngine, IndexOptions, IndexStatus, IndexSyncResult, CURRENT_SCHEMA_VERSION,
-};
+pub use index::{IndexEngine, IndexOptions, IndexStatus, IndexSyncResult, CURRENT_SCHEMA_VERSION};
 pub use lang::{
     GoAdapter, LanguageAdapter, LanguageRegistry, PythonAdapter, RustAdapter, TypeScriptAdapter,
 };
@@ -46,17 +44,16 @@ pub use model::{
     BatchSliceResult, CallSignatureStub, DiscoveredFixture, ExtractedImplementor, ExtractedSymbol,
     ExtractedType, FileOverviewItem, ImpactCallerItem, ImpactSliceResult, OverviewOptions,
     PatchResult, SliceOptions, SliceResult, SupportedLanguage, SymbolOverviewItem,
-    SyntaxErrorDetail, TestContextResult, TokenStats, TraceResult, TraceStep,
-    VerifyDiagnostic, VerifyPatchResult, WorkspaceOverviewReport,
+    SyntaxErrorDetail, TestContextResult, TokenStats, TraceResult, TraceStep, VerifyDiagnostic,
+    VerifyPatchResult, WorkspaceOverviewReport,
 };
 pub use overview::{format_overview_markdown, WorkspaceOverviewGenerator};
 pub use parser::{AstUtils, ParserManager};
 pub use patch::AstPatcher;
-pub use query::{
-    AstQueryEngine, AstQueryReport, MatchCapture, PresetRegistry, QueryMatchResult,
-};
+pub use query::{AstQueryEngine, AstQueryReport, MatchCapture, PresetRegistry, QueryMatchResult};
 pub use refactor::{
-    FileRenameResult, MultiFileRenameResult, RenameTargetKind, SymbolRenameOccurrence, SymbolRenamer,
+    FileRenameResult, MultiFileRenameResult, RenameTargetKind, SymbolRenameOccurrence,
+    SymbolRenamer,
 };
 pub use resolver::{
     DefaultForeignSymbolLocator, ExecutionTracer, ForeignSymbolLocator, ImpactAnalyzer,
@@ -83,4 +80,3 @@ pub use verify::{
     DiagnosticParser, PatchVerifier, RollbackGuard, TypecheckExecutionResult, TypecheckerDetector,
     TypecheckerRunner, VerifyPatchOptions,
 };
-

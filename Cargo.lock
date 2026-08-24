@@ -468,10 +468,12 @@ version = "2.0.0"
 dependencies = [
  "anyhow",
  "criterion",
+ "crossterm",
  "ctxcut_cli",
  "ctxcut_core",
  "ctxcut_mcp",
  "insta",
+ "ratatui",
  "serde",
  "serde_json",
  "streaming-iterator",

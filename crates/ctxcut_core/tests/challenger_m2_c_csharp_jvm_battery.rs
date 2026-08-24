@@ -124,10 +124,17 @@ AccountEntity AccountManager::TransferFunds(uint64_t from_id, uint64_t to_id, do
     assert_eq!(slice.target_symbol.name, "AccountManager::TransferFunds");
     assert_eq!(slice.target_symbol.kind, "method");
     assert_eq!(slice.target_symbol.language, "cpp");
-    assert!(slice.target_symbol.body.contains("AccountEntity AccountManager::TransferFunds"));
+    assert!(slice
+        .target_symbol
+        .body
+        .contains("AccountEntity AccountManager::TransferFunds"));
 
     // Check transitive type hoisting for AccountEntity from included header
-    let hoisted_names: Vec<&str> = slice.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted_names: Vec<&str> = slice
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted_names.contains(&"AccountEntity"),
         "Must hoist AccountEntity type from header includes: {:?}",
@@ -197,11 +204,18 @@ Numeric FastCompute(Numeric a, Numeric b, Vector3D offset) {
         .expect("Should locate template function FastCompute");
 
     assert_eq!(slice_fn.target_symbol.name, "FastCompute");
-    assert!(slice_fn.target_symbol.body.contains("template <typename Numeric>"));
+    assert!(slice_fn
+        .target_symbol
+        .body
+        .contains("template <typename Numeric>"));
     assert!(slice_fn.target_symbol.body.contains("Vector3D offset"));
 
     // Check Vector3D typedef struct hoisting
-    let hoisted: Vec<&str> = slice_fn.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted: Vec<&str> = slice_fn
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted.contains(&"Vector3D"),
         "Must hoist Vector3D typedef struct: {:?}",
@@ -213,7 +227,10 @@ Numeric FastCompute(Numeric a, Numeric b, Vector3D offset) {
         .slice_symbol(&file_path, "RingBuffer::Push", &opts)
         .expect("Should locate template method RingBuffer::Push");
     assert_eq!(slice_push.target_symbol.name, "RingBuffer::Push");
-    assert!(slice_push.target_symbol.body.contains("buffer_[head_] = item"));
+    assert!(slice_push
+        .target_symbol
+        .body
+        .contains("buffer_[head_] = item"));
 }
 
 // =========================================================================
@@ -327,13 +344,23 @@ public class CustomersController : ControllerBase
         .slice_symbol(&controller_cs, "CustomersController.GetCustomerById", &opts)
         .expect("Should slice CustomersController.GetCustomerById");
 
-    assert_eq!(slice_get.target_symbol.name, "CustomersController.GetCustomerById");
+    assert_eq!(
+        slice_get.target_symbol.name,
+        "CustomersController.GetCustomerById"
+    );
     assert_eq!(slice_get.target_symbol.kind, "method");
     assert_eq!(slice_get.target_symbol.language, "csharp");
-    assert!(slice_get.target_symbol.body.contains("repository.GetByIdAsync(id)"));
+    assert!(slice_get
+        .target_symbol
+        .body
+        .contains("repository.GetByIdAsync(id)"));
 
     // Check DTO hoisting (CustomerDto) from sibling CustomerDtos.cs
-    let hoisted: Vec<&str> = slice_get.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted: Vec<&str> = slice_get
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted.contains(&"CustomerDto"),
         "Must hoist CustomerDto from sibling file: {:?}",
@@ -341,7 +368,11 @@ public class CustomersController : ControllerBase
     );
 
     // Check AspNetCore DI constructor injection stub
-    let calls: Vec<&str> = slice_get.stripped_calls.iter().map(|c| c.name.as_str()).collect();
+    let calls: Vec<&str> = slice_get
+        .stripped_calls
+        .iter()
+        .map(|c| c.name.as_str())
+        .collect();
     assert!(
         calls.contains(&"DI: ICustomerRepository"),
         "Must capture DI constructor dependency ICustomerRepository: {:?}",
@@ -357,7 +388,9 @@ public class CustomersController : ControllerBase
     )
     .expect("Find C# implementors");
     assert!(
-        implementors.iter().any(|i| i.implementor_name == "SqlCustomerRepository"),
+        implementors
+            .iter()
+            .any(|i| i.implementor_name == "SqlCustomerRepository"),
         "Must discover SqlCustomerRepository implementor: {:?}",
         implementors
     );
@@ -515,13 +548,23 @@ public class ProductController {
         .slice_symbol(&controller_java, "ProductController.getProduct", &opts)
         .expect("Should slice ProductController.getProduct");
 
-    assert_eq!(slice_ctrl.target_symbol.name, "ProductController.getProduct");
+    assert_eq!(
+        slice_ctrl.target_symbol.name,
+        "ProductController.getProduct"
+    );
     assert_eq!(slice_ctrl.target_symbol.kind, "method");
     assert_eq!(slice_ctrl.target_symbol.language, "java");
-    assert!(slice_ctrl.target_symbol.body.contains("productService.findProductById(id)"));
+    assert!(slice_ctrl
+        .target_symbol
+        .body
+        .contains("productService.findProductById(id)"));
 
     // Check ProductDto record hoisting
-    let hoisted: Vec<&str> = slice_ctrl.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted: Vec<&str> = slice_ctrl
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted.contains(&"ProductDto"),
         "Must hoist ProductDto record: {:?}",
@@ -532,7 +575,10 @@ public class ProductController {
     let slice_impl = slicer
         .slice_symbol(&impl_java, "ProductServiceImpl.findProductById", &opts)
         .expect("Should slice ProductServiceImpl.findProductById");
-    assert_eq!(slice_impl.target_symbol.name, "ProductServiceImpl.findProductById");
+    assert_eq!(
+        slice_impl.target_symbol.name,
+        "ProductServiceImpl.findProductById"
+    );
 
     // 3. Find implementors for ProductService interface
     let implementors = ImplementorHoister::find_implementors(
@@ -543,7 +589,9 @@ public class ProductController {
     )
     .expect("Find Java implementors");
     assert!(
-        implementors.iter().any(|i| i.implementor_name == "ProductServiceImpl"),
+        implementors
+            .iter()
+            .any(|i| i.implementor_name == "ProductServiceImpl"),
         "Must discover ProductServiceImpl implementor: {:?}",
         implementors
     );
@@ -628,13 +676,23 @@ class UserServiceImpl(private val userStore: Map<String, User>) : IUserService {
         .slice_symbol(&service_kt, "UserServiceImpl.authenticate", &opts)
         .expect("Should slice UserServiceImpl.authenticate");
 
-    assert_eq!(slice_auth.target_symbol.name, "UserServiceImpl.authenticate");
+    assert_eq!(
+        slice_auth.target_symbol.name,
+        "UserServiceImpl.authenticate"
+    );
     assert_eq!(slice_auth.target_symbol.kind, "method");
     assert_eq!(slice_auth.target_symbol.language, "kotlin");
-    assert!(slice_auth.target_symbol.body.contains("suspend fun authenticate"));
+    assert!(slice_auth
+        .target_symbol
+        .body
+        .contains("suspend fun authenticate"));
 
     // Check AuthToken data class hoisting
-    let hoisted: Vec<&str> = slice_auth.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted: Vec<&str> = slice_auth
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted.contains(&"AuthToken"),
         "Must hoist AuthToken data class: {:?}",
@@ -668,7 +726,9 @@ class UserServiceImpl(private val userStore: Map<String, User>) : IUserService {
     )
     .expect("Find Kotlin implementors");
     assert!(
-        implementors.iter().any(|i| i.implementor_name == "UserServiceImpl"),
+        implementors
+            .iter()
+            .any(|i| i.implementor_name == "UserServiceImpl"),
         "Must discover UserServiceImpl implementor: {:?}",
         implementors
     );
@@ -767,7 +827,10 @@ public class Circle(double radius) : IShape
         .slice_symbol(&file_path, "Circle.CalculateArea", &opts)
         .expect("Should slice Circle.CalculateArea");
     assert_eq!(slice_area.target_symbol.name, "Circle.CalculateArea");
-    assert!(slice_area.target_symbol.body.contains("Math.PI * Radius * Radius"));
+    assert!(slice_area
+        .target_symbol
+        .body
+        .contains("Math.PI * Radius * Radius"));
 }
 
 #[test]
@@ -810,6 +873,8 @@ public enum Currency {
         .slice_symbol(&file_path, "convertToUsd", &opts)
         .expect("Should slice convertToUsd in enum via method locator");
     assert_eq!(slice_method.target_symbol.name, "Currency.convertToUsd");
-    assert!(slice_method.target_symbol.body.contains("amount / rateToUsd"));
+    assert!(slice_method
+        .target_symbol
+        .body
+        .contains("amount / rateToUsd"));
 }
-

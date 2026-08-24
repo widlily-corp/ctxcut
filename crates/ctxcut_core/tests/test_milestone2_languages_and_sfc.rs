@@ -64,13 +64,27 @@ public:
 
     // 2. Transitive type hoisting
     let hoisted = adapter
-        .hoist_types(node, tree.root_node(), cpp_src, &cpp_path, &SliceOptions::default())
+        .hoist_types(
+            node,
+            tree.root_node(),
+            cpp_src,
+            &cpp_path,
+            &SliceOptions::default(),
+        )
         .unwrap();
     assert!(hoisted.iter().any(|t| t.name == "UserDto"));
 
     // 3. Implementor discovery
-    let implementors = ImplementorHoister::find_implementors(root, &header_path, "IUserService", SupportedLanguage::Cpp).unwrap();
-    assert!(implementors.iter().any(|imp| imp.implementor_name.contains("UserService")));
+    let implementors = ImplementorHoister::find_implementors(
+        root,
+        &header_path,
+        "IUserService",
+        SupportedLanguage::Cpp,
+    )
+    .unwrap();
+    assert!(implementors
+        .iter()
+        .any(|imp| imp.implementor_name.contains("UserService")));
 }
 
 #[test]
@@ -121,14 +135,25 @@ public class OrdersController : ControllerBase {
 
     // 1. Locate action
     let (sym, node) = adapter
-        .locate_symbol(tree.root_node(), controller_src, "OrdersController.CreateOrder", &controller_path)
+        .locate_symbol(
+            tree.root_node(),
+            controller_src,
+            "OrdersController.CreateOrder",
+            &controller_path,
+        )
         .unwrap();
     assert_eq!(sym.name, "OrdersController.CreateOrder");
     assert_eq!(sym.language, "csharp");
 
     // 2. Hoist DTO type
     let hoisted = adapter
-        .hoist_types(node, tree.root_node(), controller_src, &controller_path, &SliceOptions::default())
+        .hoist_types(
+            node,
+            tree.root_node(),
+            controller_src,
+            &controller_path,
+            &SliceOptions::default(),
+        )
         .unwrap();
     assert!(hoisted.iter().any(|t| t.name == "OrderDto"));
 
@@ -173,14 +198,27 @@ public class StripeGateway implements PaymentGateway {
 
     // 1. Locate method
     let (sym, _node) = adapter
-        .locate_symbol(tree.root_node(), impl_src, "StripeGateway.process", &impl_path)
+        .locate_symbol(
+            tree.root_node(),
+            impl_src,
+            "StripeGateway.process",
+            &impl_path,
+        )
         .unwrap();
     assert_eq!(sym.name, "StripeGateway.process");
     assert_eq!(sym.language, "java");
 
     // 2. Find implementor
-    let implementors = ImplementorHoister::find_implementors(root, &interface_path, "PaymentGateway", SupportedLanguage::Java).unwrap();
-    assert!(implementors.iter().any(|imp| imp.implementor_name == "StripeGateway"));
+    let implementors = ImplementorHoister::find_implementors(
+        root,
+        &interface_path,
+        "PaymentGateway",
+        SupportedLanguage::Java,
+    )
+    .unwrap();
+    assert!(implementors
+        .iter()
+        .any(|imp| imp.implementor_name == "StripeGateway"));
 }
 
 #[test]
@@ -222,20 +260,39 @@ class DefaultAuthService(private val repo: AuthRepository) : AuthRepository {
 
     // 1. Locate method
     let (sym, node) = adapter
-        .locate_symbol(tree.root_node(), service_src, "DefaultAuthService.authenticate", &service_path)
+        .locate_symbol(
+            tree.root_node(),
+            service_src,
+            "DefaultAuthService.authenticate",
+            &service_path,
+        )
         .unwrap();
     assert_eq!(sym.name, "DefaultAuthService.authenticate");
     assert_eq!(sym.language, "kotlin");
 
     // 2. Hoist UserSession
     let hoisted = adapter
-        .hoist_types(node, tree.root_node(), service_src, &service_path, &SliceOptions::default())
+        .hoist_types(
+            node,
+            tree.root_node(),
+            service_src,
+            &service_path,
+            &SliceOptions::default(),
+        )
         .unwrap();
     assert!(hoisted.iter().any(|t| t.name == "UserSession"));
 
     // 3. Find implementors
-    let implementors = ImplementorHoister::find_implementors(root, &models_path, "AuthRepository", SupportedLanguage::Kotlin).unwrap();
-    assert!(implementors.iter().any(|imp| imp.implementor_name == "DefaultAuthService"));
+    let implementors = ImplementorHoister::find_implementors(
+        root,
+        &models_path,
+        "AuthRepository",
+        SupportedLanguage::Kotlin,
+    )
+    .unwrap();
+    assert!(implementors
+        .iter()
+        .any(|imp| imp.implementor_name == "DefaultAuthService"));
 }
 
 #[test]
@@ -278,7 +335,10 @@ function formatName(name: string): string {
 "#;
 
     let doc = SfcDocument::parse_vue(vue_src);
-    assert!(doc.blocks.iter().any(|b| b.kind == SfcBlockKind::ScriptSetup));
+    assert!(doc
+        .blocks
+        .iter()
+        .any(|b| b.kind == SfcBlockKind::ScriptSetup));
     assert!(doc.blocks.iter().any(|b| b.kind == SfcBlockKind::Template));
     assert!(doc.blocks.iter().any(|b| b.kind == SfcBlockKind::Style));
 
@@ -291,12 +351,20 @@ function formatName(name: string): string {
     let ts_lang = adapter.tree_sitter_language(temp_path);
     let tree = ParserManager::parse_source(vue_src, &ts_lang, temp_path).unwrap();
 
-    let (sym, _) = adapter.locate_symbol(tree.root_node(), vue_src, "formatName", temp_path).unwrap();
+    let (sym, _) = adapter
+        .locate_symbol(tree.root_node(), vue_src, "formatName", temp_path)
+        .unwrap();
     assert_eq!(sym.name, "formatName");
     assert_eq!(sym.language, "vue");
 
-    let (props_sym, _) = adapter.locate_symbol(tree.root_node(), vue_src, "Props", temp_path).unwrap();
-    assert!(props_sym.name.contains("Props") || props_sym.name == "UserProps" || props_sym.body.contains("defineProps"));
+    let (props_sym, _) = adapter
+        .locate_symbol(tree.root_node(), vue_src, "Props", temp_path)
+        .unwrap();
+    assert!(
+        props_sym.name.contains("Props")
+            || props_sym.name == "UserProps"
+            || props_sym.body.contains("defineProps")
+    );
 }
 
 #[test]
@@ -335,11 +403,15 @@ fn test_svelte_sfc_segmentation_and_props_slicing() {
     let ts_lang = adapter.tree_sitter_language(temp_path);
     let tree = ParserManager::parse_source(svelte_src, &ts_lang, temp_path).unwrap();
 
-    let (sym, _) = adapter.locate_symbol(tree.root_node(), svelte_src, "increment", temp_path).unwrap();
+    let (sym, _) = adapter
+        .locate_symbol(tree.root_node(), svelte_src, "increment", temp_path)
+        .unwrap();
     assert_eq!(sym.name, "increment");
     assert_eq!(sym.language, "svelte");
 
-    let (prop_sym, _) = adapter.locate_symbol(tree.root_node(), svelte_src, "count", temp_path).unwrap();
+    let (prop_sym, _) = adapter
+        .locate_symbol(tree.root_node(), svelte_src, "count", temp_path)
+        .unwrap();
     assert_eq!(prop_sym.name, "count");
 }
 
@@ -372,7 +444,10 @@ function getPageMetadata(): { title: string; desc: string } {
 
     let doc = SfcDocument::parse_astro(astro_src);
     assert!(!doc.combined_script.is_empty());
-    assert!(doc.blocks.iter().any(|b| b.kind == SfcBlockKind::Frontmatter));
+    assert!(doc
+        .blocks
+        .iter()
+        .any(|b| b.kind == SfcBlockKind::Frontmatter));
     assert!(doc.blocks.iter().any(|b| b.kind == SfcBlockKind::Markup));
 
     let summaries = doc.collapse_summaries();
@@ -383,10 +458,14 @@ function getPageMetadata(): { title: string; desc: string } {
     let ts_lang = adapter.tree_sitter_language(temp_path);
     let tree = ParserManager::parse_source(astro_src, &ts_lang, temp_path).unwrap();
 
-    let (sym, _) = adapter.locate_symbol(tree.root_node(), astro_src, "getPageMetadata", temp_path).unwrap();
+    let (sym, _) = adapter
+        .locate_symbol(tree.root_node(), astro_src, "getPageMetadata", temp_path)
+        .unwrap();
     assert_eq!(sym.name, "getPageMetadata");
     assert_eq!(sym.language, "astro");
 
-    let (props_sym, _) = adapter.locate_symbol(tree.root_node(), astro_src, "Props", temp_path).unwrap();
+    let (props_sym, _) = adapter
+        .locate_symbol(tree.root_node(), astro_src, "Props", temp_path)
+        .unwrap();
     assert_eq!(props_sym.name, "Props");
 }

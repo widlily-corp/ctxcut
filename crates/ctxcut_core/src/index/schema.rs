@@ -130,7 +130,9 @@ pub fn apply_schema(conn: &Connection) -> Result<()> {
         "INSERT OR REPLACE INTO index_meta (key, value) VALUES ('schema_version', ?1)",
         rusqlite::params![CURRENT_SCHEMA_VERSION.to_string()],
     )
-    .map_err(|e| CoreError::DatabaseError(format!("Failed to write schema version to index_meta: {e}")))?;
+    .map_err(|e| {
+        CoreError::DatabaseError(format!("Failed to write schema version to index_meta: {e}"))
+    })?;
 
     Ok(())
 }

@@ -11,25 +11,38 @@ fn test_workspace_overview_multilingual_extraction() {
 
     // 1. Create a TypeScript file with substantial bodies
     let ts_path = root.join("auth.ts");
-    let mut ts_code = String::from("/** Service for managing user authentication. */\nexport class AuthService {\n");
+    let mut ts_code = String::from(
+        "/** Service for managing user authentication. */\nexport class AuthService {\n",
+    );
     ts_code.push_str("    public login(user: string, pass: string): boolean {\n");
     for i in 0..20 {
-        ts_code.push_str(&format!("        console.log('Validating user step {i}', user);\n"));
+        ts_code.push_str(&format!(
+            "        console.log('Validating user step {i}', user);\n"
+        ));
     }
     ts_code.push_str("        return user === 'admin' && pass === 'secret';\n    }\n\n");
     ts_code.push_str("    public logout(token: string): void {\n");
     for i in 0..20 {
-        ts_code.push_str(&format!("        console.log('Revoking session step {i}', token);\n"));
+        ts_code.push_str(&format!(
+            "        console.log('Revoking session step {i}', token);\n"
+        ));
     }
     ts_code.push_str("    }\n}\n\n");
-    ts_code.push_str("export interface UserSession {\n    token: string;\n    expiresAt: number;\n}\n\n");
-    ts_code.push_str("export function createToken(userId: string): string {\n    return 'token_' + userId;\n}\n");
+    ts_code.push_str(
+        "export interface UserSession {\n    token: string;\n    expiresAt: number;\n}\n\n",
+    );
+    ts_code.push_str(
+        "export function createToken(userId: string): string {\n    return 'token_' + userId;\n}\n",
+    );
     fs::write(&ts_path, &ts_code).unwrap();
 
     // 2. Create a Rust file with substantial bodies
     let rs_path = root.join("calc.rs");
-    let mut rs_code = String::from("/// Math calculator struct.\npub struct Calculator;\n\nimpl Calculator {\n");
-    rs_code.push_str("    /// Adds two numbers together.\n    pub fn add(&self, a: i32, b: i32) -> i32 {\n");
+    let mut rs_code =
+        String::from("/// Math calculator struct.\npub struct Calculator;\n\nimpl Calculator {\n");
+    rs_code.push_str(
+        "    /// Adds two numbers together.\n    pub fn add(&self, a: i32, b: i32) -> i32 {\n",
+    );
     for i in 0..20 {
         rs_code.push_str(&format!("        let _step_{i} = a + {i};\n"));
     }
@@ -40,7 +53,9 @@ fn test_workspace_overview_multilingual_extraction() {
     let py_path = root.join("service.py");
     let mut py_code = String::from("class PaymentProcessor:\n    \"\"\"Processes online payments.\"\"\"\n    def charge(self, amount: float) -> bool:\n        \"\"\"Charges a card.\"\"\"\n");
     for i in 0..20 {
-        py_code.push_str(&format!("        print(f'Checking fraud step {i}', amount)\n"));
+        py_code.push_str(&format!(
+            "        print(f'Checking fraud step {i}', amount)\n"
+        ));
     }
     py_code.push_str("        return amount > 0\n\ndef format_currency(val: float) -> str:\n    \"\"\"Formats money.\"\"\"\n    return f'${val:.2f}'\n");
     fs::write(&py_path, &py_code).unwrap();

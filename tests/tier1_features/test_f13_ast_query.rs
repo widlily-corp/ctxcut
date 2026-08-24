@@ -28,7 +28,9 @@ export function calculateTwo() { return 2; }
     // Act: Slice specific symbol
     let runner = CliRunner::new();
     let target = format!("{}:calculateOne", file_path.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     // Assert: AST pattern extraction succeeds
     output.assert_success();
@@ -56,7 +58,9 @@ export function UserDashboard() {
     // Act: Slice React component
     let runner = CliRunner::new();
     let target = format!("{}:UserDashboard", file_path.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     // Assert: Captures hook usages
     output.assert_success();
@@ -78,7 +82,9 @@ export async function fetchRemoteData(): Promise<string> {
     // Act: Slice async function
     let runner = CliRunner::new();
     let target = format!("{}:fetchRemoteData", file_path.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     // Assert: Successfully extracted
     output.assert_success();
@@ -89,12 +95,22 @@ export async function fetchRemoteData(): Promise<string> {
 fn test_f13_query_language_filter() {
     // Arrange: Mixed language workspace
     let dir = TempDir::new().expect("Failed to create tempdir");
-    fs::write(dir.path().join("worker.py"), "def process_data(): return 1\n").unwrap();
-    fs::write(dir.path().join("worker.ts"), "export function processData() { return 1; }\n").unwrap();
+    fs::write(
+        dir.path().join("worker.py"),
+        "def process_data(): return 1\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("worker.ts"),
+        "export function processData() { return 1; }\n",
+    )
+    .unwrap();
 
     // Act: Run stats on directory
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", "-f", dir.path().to_str().unwrap()]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", "-f", dir.path().to_str().unwrap()])
+        .expect("Command failed");
 
     // Assert: Succeeded
     output.assert_success();
@@ -110,10 +126,13 @@ fn test_f13_query_json_output_format() {
     // Act: Query slice in JSON
     let runner = CliRunner::new();
     let target = format!("{}:queryData", file_path.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target, "--format", "json"]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target, "--format", "json"])
+        .expect("Command failed");
 
     // Assert: Valid JSON output
     output.assert_success();
-    let json: serde_json::Value = serde_json::from_str(&output.stdout).expect("Failed to parse JSON");
+    let json: serde_json::Value =
+        serde_json::from_str(&output.stdout).expect("Failed to parse JSON");
     assert!(json.is_object());
 }

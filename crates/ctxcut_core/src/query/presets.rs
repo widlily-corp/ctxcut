@@ -21,7 +21,9 @@ impl PresetRegistry {
             "interfaces" | "interface" | "traits" | "trait" => Self::interfaces_query(language),
             "enums" | "enum" => Self::enums_query(language),
             "exports" | "export" => Self::exports_query(language),
-            "async_fns" | "async_functions" | "async_fn" | "async" => Self::async_fns_query(language),
+            "async_fns" | "async_functions" | "async_fn" | "async" => {
+                Self::async_fns_query(language)
+            }
             "api_routes" | "routes" | "route" | "endpoints" => Self::api_routes_query(language),
             "errors" | "exceptions" | "error" | "exception" => Self::errors_query(language),
             "react_hooks" | "hooks" | "hook" => Self::react_hooks_query(language),
@@ -67,7 +69,9 @@ impl PresetRegistry {
 
     fn structs_query(lang: SupportedLanguage) -> Option<&'static str> {
         match lang {
-            SupportedLanguage::Rust => Some("(struct_item name: (type_identifier) @name) @definition"),
+            SupportedLanguage::Rust => {
+                Some("(struct_item name: (type_identifier) @name) @definition")
+            }
             SupportedLanguage::TypeScript
             | SupportedLanguage::JavaScript
             | SupportedLanguage::Vue
@@ -78,8 +82,12 @@ impl PresetRegistry {
                 (type_alias_declaration name: (type_identifier) @name) @definition
                 "#,
             ),
-            SupportedLanguage::Python => Some("(class_definition name: (identifier) @name) @definition"),
-            SupportedLanguage::Go => Some("(type_spec name: (type_identifier) @name type: (struct_type)) @definition"),
+            SupportedLanguage::Python => {
+                Some("(class_definition name: (identifier) @name) @definition")
+            }
+            SupportedLanguage::Go => {
+                Some("(type_spec name: (type_identifier) @name type: (struct_type)) @definition")
+            }
             SupportedLanguage::C | SupportedLanguage::Cpp => {
                 Some("(struct_specifier name: (type_identifier) @name) @definition")
             }
@@ -89,14 +97,20 @@ impl PresetRegistry {
                 (record_declaration name: (identifier) @name) @definition
                 "#,
             ),
-            SupportedLanguage::Java => Some("(record_declaration name: (identifier) @name) @definition"),
-            SupportedLanguage::Kotlin => Some("(class_declaration (type_identifier) @name) @definition"),
+            SupportedLanguage::Java => {
+                Some("(record_declaration name: (identifier) @name) @definition")
+            }
+            SupportedLanguage::Kotlin => {
+                Some("(class_declaration (type_identifier) @name) @definition")
+            }
         }
     }
 
     fn classes_query(lang: SupportedLanguage) -> Option<&'static str> {
         match lang {
-            SupportedLanguage::Rust => Some("(struct_item name: (type_identifier) @name) @definition"),
+            SupportedLanguage::Rust => {
+                Some("(struct_item name: (type_identifier) @name) @definition")
+            }
             SupportedLanguage::TypeScript
             | SupportedLanguage::JavaScript
             | SupportedLanguage::Vue
@@ -106,52 +120,90 @@ impl PresetRegistry {
                 (class_declaration name: (type_identifier) @name) @definition
                 "#,
             ),
-            SupportedLanguage::Python => Some("(class_definition name: (identifier) @name) @definition"),
-            SupportedLanguage::Go => Some("(type_spec name: (type_identifier) @name type: (struct_type)) @definition"),
+            SupportedLanguage::Python => {
+                Some("(class_definition name: (identifier) @name) @definition")
+            }
+            SupportedLanguage::Go => {
+                Some("(type_spec name: (type_identifier) @name type: (struct_type)) @definition")
+            }
             SupportedLanguage::C | SupportedLanguage::Cpp => {
                 Some("(class_specifier name: (type_identifier) @name) @definition")
             }
-            SupportedLanguage::CSharp => Some("(class_declaration name: (identifier) @name) @definition"),
-            SupportedLanguage::Java => Some("(class_declaration name: (identifier) @name) @definition"),
-            SupportedLanguage::Kotlin => Some("(class_declaration (type_identifier) @name) @definition"),
+            SupportedLanguage::CSharp => {
+                Some("(class_declaration name: (identifier) @name) @definition")
+            }
+            SupportedLanguage::Java => {
+                Some("(class_declaration name: (identifier) @name) @definition")
+            }
+            SupportedLanguage::Kotlin => {
+                Some("(class_declaration (type_identifier) @name) @definition")
+            }
         }
     }
 
     fn interfaces_query(lang: SupportedLanguage) -> Option<&'static str> {
         match lang {
-            SupportedLanguage::Rust => Some("(trait_item name: (type_identifier) @name) @definition"),
+            SupportedLanguage::Rust => {
+                Some("(trait_item name: (type_identifier) @name) @definition")
+            }
             SupportedLanguage::TypeScript
             | SupportedLanguage::JavaScript
             | SupportedLanguage::Vue
             | SupportedLanguage::Svelte
-            | SupportedLanguage::Astro => Some("(interface_declaration name: (type_identifier) @name) @definition"),
-            SupportedLanguage::Python => Some("(class_definition name: (identifier) @name) @definition"),
-            SupportedLanguage::Go => Some("(type_spec name: (type_identifier) @name type: (interface_type)) @definition"),
+            | SupportedLanguage::Astro => {
+                Some("(interface_declaration name: (type_identifier) @name) @definition")
+            }
+            SupportedLanguage::Python => {
+                Some("(class_definition name: (identifier) @name) @definition")
+            }
+            SupportedLanguage::Go => {
+                Some("(type_spec name: (type_identifier) @name type: (interface_type)) @definition")
+            }
             SupportedLanguage::C | SupportedLanguage::Cpp => {
                 Some("(class_specifier name: (type_identifier) @name) @definition")
             }
-            SupportedLanguage::CSharp => Some("(interface_declaration name: (identifier) @name) @definition"),
-            SupportedLanguage::Java => Some("(interface_declaration name: (identifier) @name) @definition"),
-            SupportedLanguage::Kotlin => Some("(class_declaration (type_identifier) @name) @definition"),
+            SupportedLanguage::CSharp => {
+                Some("(interface_declaration name: (identifier) @name) @definition")
+            }
+            SupportedLanguage::Java => {
+                Some("(interface_declaration name: (identifier) @name) @definition")
+            }
+            SupportedLanguage::Kotlin => {
+                Some("(class_declaration (type_identifier) @name) @definition")
+            }
         }
     }
 
     fn enums_query(lang: SupportedLanguage) -> Option<&'static str> {
         match lang {
-            SupportedLanguage::Rust => Some("(enum_item name: (type_identifier) @name) @definition"),
+            SupportedLanguage::Rust => {
+                Some("(enum_item name: (type_identifier) @name) @definition")
+            }
             SupportedLanguage::TypeScript
             | SupportedLanguage::JavaScript
             | SupportedLanguage::Vue
             | SupportedLanguage::Svelte
-            | SupportedLanguage::Astro => Some("(enum_declaration name: (identifier) @name) @definition"),
-            SupportedLanguage::Python => Some("(class_definition name: (identifier) @name) @definition"),
-            SupportedLanguage::Go => Some("(const_declaration (const_spec name: (identifier) @name)) @definition"),
+            | SupportedLanguage::Astro => {
+                Some("(enum_declaration name: (identifier) @name) @definition")
+            }
+            SupportedLanguage::Python => {
+                Some("(class_definition name: (identifier) @name) @definition")
+            }
+            SupportedLanguage::Go => {
+                Some("(const_declaration (const_spec name: (identifier) @name)) @definition")
+            }
             SupportedLanguage::C | SupportedLanguage::Cpp => {
                 Some("(enum_specifier name: (type_identifier) @name) @definition")
             }
-            SupportedLanguage::CSharp => Some("(enum_declaration name: (identifier) @name) @definition"),
-            SupportedLanguage::Java => Some("(enum_declaration name: (identifier) @name) @definition"),
-            SupportedLanguage::Kotlin => Some("(class_declaration (type_identifier) @name) @definition"),
+            SupportedLanguage::CSharp => {
+                Some("(enum_declaration name: (identifier) @name) @definition")
+            }
+            SupportedLanguage::Java => {
+                Some("(enum_declaration name: (identifier) @name) @definition")
+            }
+            SupportedLanguage::Kotlin => {
+                Some("(class_declaration (type_identifier) @name) @definition")
+            }
         }
     }
 
@@ -250,13 +302,25 @@ impl PresetRegistry {
             | SupportedLanguage::JavaScript
             | SupportedLanguage::Vue
             | SupportedLanguage::Svelte
-            | SupportedLanguage::Astro => Some("(class_declaration name: (type_identifier) @name) @definition"),
-            SupportedLanguage::Python => Some("(class_definition name: (identifier) @name) @definition"),
+            | SupportedLanguage::Astro => {
+                Some("(class_declaration name: (type_identifier) @name) @definition")
+            }
+            SupportedLanguage::Python => {
+                Some("(class_definition name: (identifier) @name) @definition")
+            }
             SupportedLanguage::Go => Some("(type_spec name: (type_identifier) @name) @definition"),
-            SupportedLanguage::C | SupportedLanguage::Cpp => Some("(class_specifier name: (type_identifier) @name) @definition"),
-            SupportedLanguage::CSharp => Some("(class_declaration name: (identifier) @name) @definition"),
-            SupportedLanguage::Java => Some("(class_declaration name: (identifier) @name) @definition"),
-            SupportedLanguage::Kotlin => Some("(class_declaration (type_identifier) @name) @definition"),
+            SupportedLanguage::C | SupportedLanguage::Cpp => {
+                Some("(class_specifier name: (type_identifier) @name) @definition")
+            }
+            SupportedLanguage::CSharp => {
+                Some("(class_declaration name: (identifier) @name) @definition")
+            }
+            SupportedLanguage::Java => {
+                Some("(class_declaration name: (identifier) @name) @definition")
+            }
+            SupportedLanguage::Kotlin => {
+                Some("(class_declaration (type_identifier) @name) @definition")
+            }
         }
     }
 

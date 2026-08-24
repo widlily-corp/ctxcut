@@ -73,33 +73,47 @@ impl SfcDocument {
                 if let Some(tag_end) = source[abs_tag_start..].find('>') {
                     let abs_tag_end = abs_tag_start + tag_end;
                     let tag_header = &source[abs_tag_start + 1..abs_tag_end];
-                    let tag_name = tag_header.split_whitespace().next().unwrap_or("").trim_start_matches('/');
+                    let tag_name = tag_header
+                        .split_whitespace()
+                        .next()
+                        .unwrap_or("")
+                        .trim_start_matches('/');
 
                     if tag_name == "script" {
                         let is_setup = tag_header.contains("setup");
-                        let is_ts = tag_header.contains("lang=\"ts\"") || tag_header.contains("lang='ts'");
+                        let is_ts =
+                            tag_header.contains("lang=\"ts\"") || tag_header.contains("lang='ts'");
                         if is_ts {
                             is_typescript = true;
                         }
 
                         let close_tag = "</script>";
                         let content_start = abs_tag_end + 1;
-                        let (content, content_end) = if let Some(close_idx) = source[content_start..].find(close_tag) {
-                            let end = content_start + close_idx;
-                            (&source[content_start..end], end + close_tag.len())
-                        } else {
-                            (&source[content_start..], source_len)
-                        };
+                        let (content, content_end) =
+                            if let Some(close_idx) = source[content_start..].find(close_tag) {
+                                let end = content_start + close_idx;
+                                (&source[content_start..end], end + close_tag.len())
+                            } else {
+                                (&source[content_start..], source_len)
+                            };
 
                         let start_line = source[..abs_tag_start].lines().count().max(1);
                         let end_line = source[..content_end].lines().count().max(start_line);
 
                         let mut attributes = HashMap::new();
-                        if is_setup { attributes.insert("setup".to_string(), "true".to_string()); }
-                        if is_ts { attributes.insert("lang".to_string(), "ts".to_string()); }
+                        if is_setup {
+                            attributes.insert("setup".to_string(), "true".to_string());
+                        }
+                        if is_ts {
+                            attributes.insert("lang".to_string(), "ts".to_string());
+                        }
 
                         blocks.push(SfcBlock {
-                            kind: if is_setup { SfcBlockKind::ScriptSetup } else { SfcBlockKind::Script },
+                            kind: if is_setup {
+                                SfcBlockKind::ScriptSetup
+                            } else {
+                                SfcBlockKind::Script
+                            },
                             attributes,
                             content: content.to_string(),
                             start_line,
@@ -116,12 +130,13 @@ impl SfcDocument {
                     } else if tag_name == "template" {
                         let close_tag = "</template>";
                         let content_start = abs_tag_end + 1;
-                        let (content, content_end) = if let Some(close_idx) = source[content_start..].find(close_tag) {
-                            let end = content_start + close_idx;
-                            (&source[content_start..end], end + close_tag.len())
-                        } else {
-                            (&source[content_start..], source_len)
-                        };
+                        let (content, content_end) =
+                            if let Some(close_idx) = source[content_start..].find(close_tag) {
+                                let end = content_start + close_idx;
+                                (&source[content_start..end], end + close_tag.len())
+                            } else {
+                                (&source[content_start..], source_len)
+                            };
 
                         let start_line = source[..abs_tag_start].lines().count().max(1);
                         let end_line = source[..content_end].lines().count().max(start_line);
@@ -142,18 +157,21 @@ impl SfcDocument {
                         let is_scoped = tag_header.contains("scoped");
                         let close_tag = "</style>";
                         let content_start = abs_tag_end + 1;
-                        let (content, content_end) = if let Some(close_idx) = source[content_start..].find(close_tag) {
-                            let end = content_start + close_idx;
-                            (&source[content_start..end], end + close_tag.len())
-                        } else {
-                            (&source[content_start..], source_len)
-                        };
+                        let (content, content_end) =
+                            if let Some(close_idx) = source[content_start..].find(close_tag) {
+                                let end = content_start + close_idx;
+                                (&source[content_start..end], end + close_tag.len())
+                            } else {
+                                (&source[content_start..], source_len)
+                            };
 
                         let start_line = source[..abs_tag_start].lines().count().max(1);
                         let end_line = source[..content_end].lines().count().max(start_line);
 
                         let mut attributes = HashMap::new();
-                        if is_scoped { attributes.insert("scoped".to_string(), "true".to_string()); }
+                        if is_scoped {
+                            attributes.insert("scoped".to_string(), "true".to_string());
+                        }
 
                         blocks.push(SfcBlock {
                             kind: SfcBlockKind::Style,
@@ -199,7 +217,11 @@ impl SfcDocument {
                 if let Some(tag_end) = source[abs_tag_start..].find('>') {
                     let abs_tag_end = abs_tag_start + tag_end;
                     let tag_header = &source[abs_tag_start + 1..abs_tag_end];
-                    let tag_name = tag_header.split_whitespace().next().unwrap_or("").trim_start_matches('/');
+                    let tag_name = tag_header
+                        .split_whitespace()
+                        .next()
+                        .unwrap_or("")
+                        .trim_start_matches('/');
 
                     if tag_name == "script" {
                         if abs_tag_start > last_markup_start {
@@ -209,7 +231,8 @@ impl SfcDocument {
                             }
                         }
 
-                        let is_ts = tag_header.contains("lang=\"ts\"") || tag_header.contains("lang='ts'");
+                        let is_ts =
+                            tag_header.contains("lang=\"ts\"") || tag_header.contains("lang='ts'");
                         if is_ts {
                             is_typescript = true;
                         }
@@ -217,19 +240,24 @@ impl SfcDocument {
 
                         let close_tag = "</script>";
                         let content_start = abs_tag_end + 1;
-                        let (content, content_end) = if let Some(close_idx) = source[content_start..].find(close_tag) {
-                            let end = content_start + close_idx;
-                            (&source[content_start..end], end + close_tag.len())
-                        } else {
-                            (&source[content_start..], source_len)
-                        };
+                        let (content, content_end) =
+                            if let Some(close_idx) = source[content_start..].find(close_tag) {
+                                let end = content_start + close_idx;
+                                (&source[content_start..end], end + close_tag.len())
+                            } else {
+                                (&source[content_start..], source_len)
+                            };
 
                         let start_line = source[..abs_tag_start].lines().count().max(1);
                         let end_line = source[..content_end].lines().count().max(start_line);
 
                         let mut attributes = HashMap::new();
-                        if is_ts { attributes.insert("lang".to_string(), "ts".to_string()); }
-                        if is_module { attributes.insert("context".to_string(), "module".to_string()); }
+                        if is_ts {
+                            attributes.insert("lang".to_string(), "ts".to_string());
+                        }
+                        if is_module {
+                            attributes.insert("context".to_string(), "module".to_string());
+                        }
 
                         blocks.push(SfcBlock {
                             kind: SfcBlockKind::Script,
@@ -257,12 +285,13 @@ impl SfcDocument {
 
                         let close_tag = "</style>";
                         let content_start = abs_tag_end + 1;
-                        let (content, content_end) = if let Some(close_idx) = source[content_start..].find(close_tag) {
-                            let end = content_start + close_idx;
-                            (&source[content_start..end], end + close_tag.len())
-                        } else {
-                            (&source[content_start..], source_len)
-                        };
+                        let (content, content_end) =
+                            if let Some(close_idx) = source[content_start..].find(close_tag) {
+                                let end = content_start + close_idx;
+                                (&source[content_start..end], end + close_tag.len())
+                            } else {
+                                (&source[content_start..], source_len)
+                            };
 
                         let start_line = source[..abs_tag_start].lines().count().max(1);
                         let end_line = source[..content_end].lines().count().max(start_line);
@@ -400,17 +429,27 @@ impl SfcDocument {
                 SfcBlockKind::Template => {
                     let line_count = block.content.lines().count();
                     let tags = extract_html_tag_summary(&block.content);
-                    summaries.push(format!("<!-- <template> ({line_count} lines collapsed: {tags}) -->"));
+                    summaries.push(format!(
+                        "<!-- <template> ({line_count} lines collapsed: {tags}) -->"
+                    ));
                 }
                 SfcBlockKind::Style => {
                     let line_count = block.content.lines().count();
-                    let scoped_attr = if block.attributes.contains_key("scoped") { " scoped" } else { "" };
-                    summaries.push(format!("/* <style{scoped_attr}> ({line_count} lines collapsed) */"));
+                    let scoped_attr = if block.attributes.contains_key("scoped") {
+                        " scoped"
+                    } else {
+                        ""
+                    };
+                    summaries.push(format!(
+                        "/* <style{scoped_attr}> ({line_count} lines collapsed) */"
+                    ));
                 }
                 SfcBlockKind::Markup => {
                     let line_count = block.content.lines().count();
                     let tags = extract_html_tag_summary(&block.content);
-                    summaries.push(format!("<!-- Template Markup ({line_count} lines collapsed: {tags}) -->"));
+                    summaries.push(format!(
+                        "<!-- Template Markup ({line_count} lines collapsed: {tags}) -->"
+                    ));
                 }
                 _ => {}
             }
@@ -422,8 +461,16 @@ impl SfcDocument {
 fn extract_html_tag_summary(content: &str) -> String {
     let mut tags = Vec::new();
     for word in content.split('<') {
-        let tag = word.split_whitespace().next().unwrap_or("").trim_matches(['>', '/']);
-        if !tag.is_empty() && !tag.starts_with('!') && !tag.starts_with('/') && !tags.contains(&tag.to_string()) {
+        let tag = word
+            .split_whitespace()
+            .next()
+            .unwrap_or("")
+            .trim_matches(['>', '/']);
+        if !tag.is_empty()
+            && !tag.starts_with('!')
+            && !tag.starts_with('/')
+            && !tags.contains(&tag.to_string())
+        {
             tags.push(tag.to_string());
             if tags.len() >= 5 {
                 break;

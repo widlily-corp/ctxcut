@@ -27,7 +27,12 @@ fn test_f9_verify_patch_success_rust() {
     // Act: Patch with dry-run
     let runner = CliRunner::new();
     let target = format!("{}:compute", file_path.display());
-    let output = runner.run_in_dir(dir.path(), &["patch", &target, "--code", replacement, "--dry-run"]).expect("Command failed");
+    let output = runner
+        .run_in_dir(
+            dir.path(),
+            &["patch", &target, "--code", replacement, "--dry-run"],
+        )
+        .expect("Command failed");
 
     // Assert: Dry run produces unified diff without modifying original file
     output.assert_success();
@@ -48,7 +53,12 @@ fn test_f9_verify_patch_type_error_rollback() {
     let replacement = "export function getNumber(): number {\n    return 100;\n}\n";
     let runner = CliRunner::new();
     let target = format!("{}:getNumber", file_path.display());
-    let output = runner.run_in_dir(dir.path(), &["patch", &target, "--code", replacement, "--dry-run"]).expect("Command failed");
+    let output = runner
+        .run_in_dir(
+            dir.path(),
+            &["patch", &target, "--code", replacement, "--dry-run"],
+        )
+        .expect("Command failed");
 
     // Assert: Success
     output.assert_success();
@@ -71,7 +81,11 @@ fn test_f9_verify_patch_syntax_error_rejection() {
     // Assert: Handled safely (command reports error or rejects malformed AST)
     if let Ok(res) = output {
         if !res.success {
-            assert!(res.stderr.contains("Syntax error") || res.stderr.contains("error") || res.stdout.contains("error"));
+            assert!(
+                res.stderr.contains("Syntax error")
+                    || res.stderr.contains("error")
+                    || res.stdout.contains("error")
+            );
         }
     }
 }
@@ -80,25 +94,38 @@ fn test_f9_verify_patch_syntax_error_rejection() {
 fn test_f9_verify_patch_dry_run_mode() {
     // Arrange: Git sandbox
     let sandbox = GitSandbox::new().expect("Failed sandbox");
-    let file_path = sandbox.write_file("src/math.ts", "export function mul(a: number, b: number): number {\n    return a * b;\n}\n").unwrap();
+    let file_path = sandbox
+        .write_file(
+            "src/math.ts",
+            "export function mul(a: number, b: number): number {\n    return a * b;\n}\n",
+        )
+        .unwrap();
     sandbox.stage_all().unwrap();
     sandbox.commit("init").unwrap();
 
     // Act: Patch with dry-run
     let runner = CliRunner::new();
     let target = format!("{}:mul", file_path.display());
-    let output = runner.run_in_dir(sandbox.path(), &[
-        "patch",
-        &target,
-        "--code",
-        "export function mul(a: number, b: number): number {\n    return a * b * 2;\n}\n",
-        "--dry-run",
-    ]).expect("Command failed");
+    let output = runner
+        .run_in_dir(
+            sandbox.path(),
+            &[
+                "patch",
+                &target,
+                "--code",
+                "export function mul(a: number, b: number): number {\n    return a * b * 2;\n}\n",
+                "--dry-run",
+            ],
+        )
+        .expect("Command failed");
 
     // Assert: Diff reported and git status is clean
     output.assert_success();
     let diff = sandbox.get_diff(false).unwrap();
-    assert!(diff.is_empty(), "Dry-run should not modify git working tree");
+    assert!(
+        diff.is_empty(),
+        "Dry-run should not modify git working tree"
+    );
 }
 
 #[test]
@@ -114,7 +141,9 @@ fn test_f9_verify_patch_json_output() {
     // Act: Execute patch
     let runner = CliRunner::new();
     let target = format!("{}:check", file_path.display());
-    let output = runner.run_in_dir(dir.path(), &["patch", &target, "--code", replacement]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["patch", &target, "--code", replacement])
+        .expect("Command failed");
 
     // Assert: Patch succeeded
     output.assert_success();

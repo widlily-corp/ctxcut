@@ -62,7 +62,11 @@ impl SqlMigrationStitcher {
     }
 
     /// Discovers all SQL migration files in the workspace in chronological order.
-    pub fn discover_migration_files(&self, workspace_root: &Path, current_file: &Path) -> Vec<PathBuf> {
+    pub fn discover_migration_files(
+        &self,
+        workspace_root: &Path,
+        current_file: &Path,
+    ) -> Vec<PathBuf> {
         let mut candidates = Vec::new();
 
         // 1. Check directories ascending from current_file to workspace_root
@@ -82,7 +86,13 @@ impl SqlMigrationStitcher {
                 }
             }
 
-            for sname in &["schema.sql", "init.sql", "tables.sql", "structure.sql", "db.sql"] {
+            for sname in &[
+                "schema.sql",
+                "init.sql",
+                "tables.sql",
+                "structure.sql",
+                "db.sql",
+            ] {
                 let sfile = dir.join(sname);
                 if sfile.is_file() {
                     candidates.push(sfile);
@@ -110,7 +120,13 @@ impl SqlMigrationStitcher {
             }
         }
 
-        for sname in &["schema.sql", "init.sql", "tables.sql", "structure.sql", "db.sql"] {
+        for sname in &[
+            "schema.sql",
+            "init.sql",
+            "tables.sql",
+            "structure.sql",
+            "db.sql",
+        ] {
             let sfile = workspace_root.join(sname);
             if sfile.is_file() {
                 candidates.push(sfile);
@@ -159,7 +175,9 @@ impl SqlMigrationStitcher {
                 }
             } else if upper.starts_with("CREATE TYPE") && upper.contains("AS ENUM") {
                 if let Some(sql_enum) = parse_create_type_enum(trimmed, file_path) {
-                    snapshot.enums.insert(sql_enum.name.to_lowercase(), sql_enum);
+                    snapshot
+                        .enums
+                        .insert(sql_enum.name.to_lowercase(), sql_enum);
                 }
             } else if upper.starts_with("ALTER TABLE") && upper.contains("ADD") {
                 if let Some((tbl_name, col)) = parse_alter_table_add_column(trimmed) {
@@ -171,7 +189,9 @@ impl SqlMigrationStitcher {
             } else if upper.starts_with("ALTER TABLE") && upper.contains("DROP") {
                 if let Some((tbl_name, col_name)) = parse_alter_table_drop_column(trimmed) {
                     if let Some(table) = snapshot.tables.get_mut(&tbl_name.to_lowercase()) {
-                        table.columns.retain(|c| !c.name.eq_ignore_ascii_case(&col_name));
+                        table
+                            .columns
+                            .retain(|c| !c.name.eq_ignore_ascii_case(&col_name));
                         table.ddl = synthesize_table_ddl(table);
                     }
                 }
@@ -262,7 +282,11 @@ fn split_sql_statements(content: &str) -> Vec<String> {
 
     while i < bytes.len() {
         let b = bytes[i];
-        let next_b = if i + 1 < bytes.len() { Some(bytes[i + 1]) } else { None };
+        let next_b = if i + 1 < bytes.len() {
+            Some(bytes[i + 1])
+        } else {
+            None
+        };
 
         if in_line_comment {
             current.push(b as char);
@@ -448,7 +472,9 @@ fn parse_alter_table_drop_column(stmt: &str) -> Option<(String, String)> {
 
 fn parse_column_definitions(paren_body: &str) -> Vec<SqlColumnDef> {
     let mut columns = Vec::new();
-    let trimmed = paren_body.trim_start_matches('(').trim_end_matches([')', ';', '\n', ' ']);
+    let trimmed = paren_body
+        .trim_start_matches('(')
+        .trim_end_matches([')', ';', '\n', ' ']);
 
     let mut parts = Vec::new();
     let mut current = String::new();
@@ -519,7 +545,10 @@ fn synthesize_table_ddl(table: &SqlTableDef) -> String {
             format!(" {}", col.constraints.join(" "))
         };
         let comma = if is_last { "" } else { "," };
-        ddl.push_str(&format!("    {} {}{}{}\n", col.name, col.data_type, constr, comma));
+        ddl.push_str(&format!(
+            "    {} {}{}{}\n",
+            col.name, col.data_type, constr, comma
+        ));
     }
     ddl.push_str(");");
     ddl
@@ -529,7 +558,13 @@ fn extract_sql_query_strings(source: &str) -> Vec<String> {
     let mut queries = Vec::new();
     let mut search = 0;
 
-    let sql_keywords = ["SELECT", "INSERT INTO", "UPDATE", "DELETE FROM", "CREATE TABLE"];
+    let sql_keywords = [
+        "SELECT",
+        "INSERT INTO",
+        "UPDATE",
+        "DELETE FROM",
+        "CREATE TABLE",
+    ];
 
     while search < source.len() {
         let next_delim = source[search..].find(['`', '"', '\'']);
@@ -624,9 +659,16 @@ fn sanitize_table_ident(raw: &str) -> String {
         trimmed
     };
 
-    let first_word = without_schema.split_whitespace().next().unwrap_or(without_schema);
+    let first_word = without_schema
+        .split_whitespace()
+        .next()
+        .unwrap_or(without_schema);
 
-    if first_word.contains("${") || first_word.starts_with('$') || first_word.starts_with('?') || first_word.starts_with('{') {
+    if first_word.contains("${")
+        || first_word.starts_with('$')
+        || first_word.starts_with('?')
+        || first_word.starts_with('{')
+    {
         return String::new();
     }
 
@@ -763,7 +805,11 @@ CREATE TABLE orders (
 
         let stitched = stitcher.stitch(temp_dir.path(), &file_path, source);
         assert_eq!(stitched.len(), 2);
-        assert!(stitched.iter().any(|t| t.name == "users" && t.kind == "sql_table"));
-        assert!(stitched.iter().any(|t| t.name == "orders" && t.kind == "sql_table"));
+        assert!(stitched
+            .iter()
+            .any(|t| t.name == "users" && t.kind == "sql_table"));
+        assert!(stitched
+            .iter()
+            .any(|t| t.name == "orders" && t.kind == "sql_table"));
     }
 }

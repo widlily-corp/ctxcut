@@ -154,19 +154,36 @@ fn locate_c_cpp_symbol<'a>(
     let (container_query, member_query) = parse_query(symbol_query);
 
     if let Some(container_name) = container_query {
-        if let Some((sym, node)) = find_in_container(root, source, container_name, member_query, file_path, lang_name) {
+        if let Some((sym, node)) = find_in_container(
+            root,
+            source,
+            container_name,
+            member_query,
+            file_path,
+            lang_name,
+        ) {
             return Ok((sym, node));
         }
         // Also check out-of-class definition: Type Container::method(...)
-        if let Some((sym, node)) = find_qualified_method(root, source, container_name, member_query, file_path, lang_name) {
+        if let Some((sym, node)) = find_qualified_method(
+            root,
+            source,
+            container_name,
+            member_query,
+            file_path,
+            lang_name,
+        ) {
             return Ok((sym, node));
         }
     } else {
-        if let Some((sym, node)) = find_top_level(root, source, member_query, file_path, lang_name) {
+        if let Some((sym, node)) = find_top_level(root, source, member_query, file_path, lang_name)
+        {
             return Ok((sym, node));
         }
         if is_cpp {
-            if let Some((sym, node)) = find_any_method(root, source, member_query, file_path, lang_name) {
+            if let Some((sym, node)) =
+                find_any_method(root, source, member_query, file_path, lang_name)
+            {
                 return Ok((sym, node));
             }
         }
@@ -207,7 +224,10 @@ fn find_symbol_recursive<'a>(
                 if let Some(inner) = child.named_children(&mut child.walk()).last() {
                     if let Some(name) = extract_c_cpp_node_name(inner, source) {
                         if name == target_name {
-                            return Some((build_c_cpp_symbol(child, source, file_path, lang_name, &name), child));
+                            return Some((
+                                build_c_cpp_symbol(child, source, file_path, lang_name, &name),
+                                child,
+                            ));
                         }
                     }
                 }
@@ -215,7 +235,10 @@ fn find_symbol_recursive<'a>(
             "function_definition" => {
                 if let Some(name) = extract_c_cpp_function_name(child, source) {
                     if name == target_name || name.ends_with(&format!("::{target_name}")) {
-                        return Some((build_c_cpp_symbol(child, source, file_path, lang_name, &name), child));
+                        return Some((
+                            build_c_cpp_symbol(child, source, file_path, lang_name, &name),
+                            child,
+                        ));
                     }
                 }
             }
@@ -224,15 +247,27 @@ fn find_symbol_recursive<'a>(
                     let name = AstUtils::node_text(name_node, source);
                     if name == target_name {
                         let parent = child.parent().unwrap_or(child);
-                        let target = if parent.kind() == "type_definition" || parent.kind() == "declaration" { parent } else { child };
-                        return Some((build_c_cpp_symbol(target, source, file_path, lang_name, name), target));
+                        let target = if parent.kind() == "type_definition"
+                            || parent.kind() == "declaration"
+                        {
+                            parent
+                        } else {
+                            child
+                        };
+                        return Some((
+                            build_c_cpp_symbol(target, source, file_path, lang_name, name),
+                            target,
+                        ));
                     }
                 }
             }
             "type_definition" => {
                 if let Some(name) = extract_typedef_name(child, source) {
                     if name == target_name {
-                        return Some((build_c_cpp_symbol(child, source, file_path, lang_name, &name), child));
+                        return Some((
+                            build_c_cpp_symbol(child, source, file_path, lang_name, &name),
+                            child,
+                        ));
                     }
                 }
             }
@@ -241,14 +276,28 @@ fn find_symbol_recursive<'a>(
                     let name = AstUtils::node_text(name_node, source);
                     if name == target_name {
                         let parent = child.parent().unwrap_or(child);
-                        let target = if parent.kind() == "type_definition" || parent.kind() == "declaration" { parent } else { child };
-                        return Some((build_c_cpp_symbol(target, source, file_path, lang_name, name), target));
+                        let target = if parent.kind() == "type_definition"
+                            || parent.kind() == "declaration"
+                        {
+                            parent
+                        } else {
+                            child
+                        };
+                        return Some((
+                            build_c_cpp_symbol(target, source, file_path, lang_name, name),
+                            target,
+                        ));
                     }
                 }
             }
             "namespace_definition" | "linkage_specification" => {
-                if let Some(body) = child.child_by_field_name("body").or_else(|| AstUtils::find_child_by_kind(child, "declaration_list")) {
-                    if let Some(found) = find_symbol_recursive(body, source, target_name, file_path, lang_name) {
+                if let Some(body) = child
+                    .child_by_field_name("body")
+                    .or_else(|| AstUtils::find_child_by_kind(child, "declaration_list"))
+                {
+                    if let Some(found) =
+                        find_symbol_recursive(body, source, target_name, file_path, lang_name)
+                    {
                         return Some(found);
                     }
                 }
@@ -275,18 +324,30 @@ fn find_in_container<'a>(
             if AstUtils::node_text(name_node, source) == container_name {
                 if let Some(body) = node.child_by_field_name("body") {
                     for member in body.named_children(&mut body.walk()) {
-                        let (target_node, effective_member) = if member.kind() == "template_declaration" {
-                            let last = member.named_children(&mut member.walk()).last();
-                            (member, last.unwrap_or(member))
-                        } else {
-                            (member, member)
-                        };
+                        let (target_node, effective_member) =
+                            if member.kind() == "template_declaration" {
+                                let last = member.named_children(&mut member.walk()).last();
+                                (member, last.unwrap_or(member))
+                            } else {
+                                (member, member)
+                            };
 
                         if effective_member.kind() == "function_definition" {
-                            if let Some(name) = extract_c_cpp_function_name(effective_member, source) {
+                            if let Some(name) =
+                                extract_c_cpp_function_name(effective_member, source)
+                            {
                                 if name == member_name {
                                     let full_name = format!("{container_name}::{member_name}");
-                                    return Some((build_c_cpp_symbol(target_node, source, file_path, lang_name, &full_name), target_node));
+                                    return Some((
+                                        build_c_cpp_symbol(
+                                            target_node,
+                                            source,
+                                            file_path,
+                                            lang_name,
+                                            &full_name,
+                                        ),
+                                        target_node,
+                                    ));
                                 }
                             }
                         }
@@ -311,14 +372,21 @@ fn find_qualified_method<'a>(
     for fn_node in functions {
         let parent = fn_node.parent();
         let target = if let Some(p) = parent {
-            if p.kind() == "template_declaration" { p } else { fn_node }
+            if p.kind() == "template_declaration" {
+                p
+            } else {
+                fn_node
+            }
         } else {
             fn_node
         };
 
         if let Some(name) = extract_c_cpp_function_name(fn_node, source) {
             if name == qualified_target {
-                return Some((build_c_cpp_symbol(target, source, file_path, lang_name, &qualified_target), target));
+                return Some((
+                    build_c_cpp_symbol(target, source, file_path, lang_name, &qualified_target),
+                    target,
+                ));
             }
         }
     }
@@ -354,7 +422,16 @@ fn find_any_method<'a>(
                     if let Some(name) = extract_c_cpp_function_name(effective_member, source) {
                         if name == member_name {
                             let full_name = format!("{container_name}::{member_name}");
-                            return Some((build_c_cpp_symbol(target_node, source, file_path, lang_name, &full_name), target_node));
+                            return Some((
+                                build_c_cpp_symbol(
+                                    target_node,
+                                    source,
+                                    file_path,
+                                    lang_name,
+                                    &full_name,
+                                ),
+                                target_node,
+                            ));
                         }
                     }
                 }
@@ -367,9 +444,9 @@ fn find_any_method<'a>(
 fn extract_c_cpp_node_name(node: Node<'_>, source: &str) -> Option<String> {
     match node.kind() {
         "function_definition" => extract_c_cpp_function_name(node, source),
-        "class_specifier" | "struct_specifier" | "enum_specifier" => {
-            node.child_by_field_name("name").map(|n| AstUtils::node_text(n, source).to_string())
-        }
+        "class_specifier" | "struct_specifier" | "enum_specifier" => node
+            .child_by_field_name("name")
+            .map(|n| AstUtils::node_text(n, source).to_string()),
         "type_definition" => extract_typedef_name(node, source),
         _ => None,
     }
@@ -382,10 +459,15 @@ fn extract_c_cpp_function_name(node: Node<'_>, source: &str) -> Option<String> {
 
 fn find_function_name_in_declarator(node: Node<'_>, source: &str) -> Option<String> {
     match node.kind() {
-        "identifier" | "field_identifier" | "qualified_identifier" | "destructor_name" | "operator_name" => {
-            Some(AstUtils::node_text(node, source).to_string())
-        }
-        "function_declarator" | "pointer_declarator" | "reference_declarator" | "parenthesized_declarator" => {
+        "identifier"
+        | "field_identifier"
+        | "qualified_identifier"
+        | "destructor_name"
+        | "operator_name" => Some(AstUtils::node_text(node, source).to_string()),
+        "function_declarator"
+        | "pointer_declarator"
+        | "reference_declarator"
+        | "parenthesized_declarator" => {
             if let Some(inner) = node.child_by_field_name("declarator") {
                 find_function_name_in_declarator(inner, source)
             } else if let Some(first) = node.named_child(0) {
@@ -436,14 +518,24 @@ fn build_c_cpp_symbol(
         "enum_specifier" => "enum",
         "type_definition" => "type",
         "function_definition" => {
-            if name.contains("::") { "method" } else { "function" }
+            if name.contains("::") {
+                "method"
+            } else {
+                "function"
+            }
         }
         "template_declaration" => {
             if let Some(last) = node.named_children(&mut node.walk()).last() {
                 match last.kind() {
                     "class_specifier" => "class",
                     "struct_specifier" => "struct",
-                    _ => if name.contains("::") { "method" } else { "function" },
+                    _ => {
+                        if name.contains("::") {
+                            "method"
+                        } else {
+                            "function"
+                        }
+                    }
                 }
             } else {
                 "template"
@@ -599,7 +691,13 @@ fn collect_symbols_recursive(
                     symbols.push(full_class.clone());
                     if is_cpp {
                         if let Some(body) = child.child_by_field_name("body") {
-                            collect_symbols_recursive(body, source, symbols, Some(&full_class), is_cpp);
+                            collect_symbols_recursive(
+                                body,
+                                source,
+                                symbols,
+                                Some(&full_class),
+                                is_cpp,
+                            );
                         }
                     }
                 }
@@ -633,24 +731,80 @@ fn collect_symbols_recursive(
 }
 
 fn is_builtin_c_cpp_type(name: &str) -> bool {
-    let clean = name.trim().trim_start_matches("struct ").trim_start_matches("class ").trim();
+    let clean = name
+        .trim()
+        .trim_start_matches("struct ")
+        .trim_start_matches("class ")
+        .trim();
     matches!(
         clean,
-        "int" | "char" | "float" | "double" | "void" | "size_t" | "ssize_t"
-            | "uint8_t" | "uint16_t" | "uint32_t" | "uint64_t"
-            | "int8_t" | "int16_t" | "int32_t" | "int64_t"
-            | "bool" | "long" | "short" | "unsigned" | "signed" | "auto"
-            | "nullptr_t" | "ptrdiff_t" | "intptr_t" | "uintptr_t"
-            | "string" | "std::string" | "vector" | "std::vector"
-            | "map" | "std::map" | "unordered_map" | "std::unordered_map"
-            | "set" | "std::set" | "unordered_set" | "std::unordered_set"
-            | "unique_ptr" | "std::unique_ptr" | "shared_ptr" | "std::shared_ptr"
-            | "weak_ptr" | "std::weak_ptr" | "optional" | "std::optional"
-            | "pair" | "std::pair" | "tuple" | "std::tuple"
-            | "array" | "std::array" | "deque" | "std::deque"
-            | "list" | "std::list" | "queue" | "std::queue" | "stack" | "std::stack"
-            | "ostream" | "istream" | "iostream" | "stringstream"
-            | "cin" | "cout" | "cerr" | "FILE"
+        "int"
+            | "char"
+            | "float"
+            | "double"
+            | "void"
+            | "size_t"
+            | "ssize_t"
+            | "uint8_t"
+            | "uint16_t"
+            | "uint32_t"
+            | "uint64_t"
+            | "int8_t"
+            | "int16_t"
+            | "int32_t"
+            | "int64_t"
+            | "bool"
+            | "long"
+            | "short"
+            | "unsigned"
+            | "signed"
+            | "auto"
+            | "nullptr_t"
+            | "ptrdiff_t"
+            | "intptr_t"
+            | "uintptr_t"
+            | "string"
+            | "std::string"
+            | "vector"
+            | "std::vector"
+            | "map"
+            | "std::map"
+            | "unordered_map"
+            | "std::unordered_map"
+            | "set"
+            | "std::set"
+            | "unordered_set"
+            | "std::unordered_set"
+            | "unique_ptr"
+            | "std::unique_ptr"
+            | "shared_ptr"
+            | "std::shared_ptr"
+            | "weak_ptr"
+            | "std::weak_ptr"
+            | "optional"
+            | "std::optional"
+            | "pair"
+            | "std::pair"
+            | "tuple"
+            | "std::tuple"
+            | "array"
+            | "std::array"
+            | "deque"
+            | "std::deque"
+            | "list"
+            | "std::list"
+            | "queue"
+            | "std::queue"
+            | "stack"
+            | "std::stack"
+            | "ostream"
+            | "istream"
+            | "iostream"
+            | "stringstream"
+            | "cin"
+            | "cout"
+            | "cerr"
+            | "FILE"
     )
 }
 
@@ -712,8 +866,12 @@ fn hoist_c_cpp_types<'a>(
         // Check local file
         if let Some(extracted) = find_c_cpp_type_in_file(root, source, &type_name, file_path) {
             if depth < opts.depth {
-                if let Ok(tree) = ParserManager::parse_source(&extracted.definition, ts_lang, file_path) {
-                    for id in AstUtils::find_descendants_by_kind(tree.root_node(), "type_identifier") {
+                if let Ok(tree) =
+                    ParserManager::parse_source(&extracted.definition, ts_lang, file_path)
+                {
+                    for id in
+                        AstUtils::find_descendants_by_kind(tree.root_node(), "type_identifier")
+                    {
                         let nested = AstUtils::node_text(id, &extracted.definition);
                         if !is_builtin_c_cpp_type(nested) && visited.insert(nested.to_string()) {
                             queue.push_back((nested.to_string(), depth + 1));
@@ -740,8 +898,15 @@ fn hoist_c_cpp_types<'a>(
                 if let Ok(entries) = fs::read_dir(dir) {
                     for entry in entries.flatten() {
                         let p = entry.path();
-                        let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
-                        if p.is_file() && p != file_path && matches!(ext.as_str(), "h" | "hpp" | "hh" | "hxx") {
+                        let ext = p
+                            .extension()
+                            .and_then(|e| e.to_str())
+                            .unwrap_or("")
+                            .to_lowercase();
+                        if p.is_file()
+                            && p != file_path
+                            && matches!(ext.as_str(), "h" | "hpp" | "hh" | "hxx")
+                        {
                             candidate_files.push(p);
                         }
                     }
@@ -750,12 +915,23 @@ fn hoist_c_cpp_types<'a>(
 
             for cand_path in candidate_files {
                 if let Ok(cand_source) = fs::read_to_string(&cand_path) {
-                    if let Ok(tree) = ParserManager::parse_source(&cand_source, ts_lang, &cand_path) {
-                        if let Some(extracted) = find_c_cpp_type_in_file(tree.root_node(), &cand_source, &type_name, &cand_path) {
+                    if let Ok(tree) = ParserManager::parse_source(&cand_source, ts_lang, &cand_path)
+                    {
+                        if let Some(extracted) = find_c_cpp_type_in_file(
+                            tree.root_node(),
+                            &cand_source,
+                            &type_name,
+                            &cand_path,
+                        ) {
                             if depth < opts.depth {
-                                for id in AstUtils::find_descendants_by_kind(tree.root_node(), "type_identifier") {
+                                for id in AstUtils::find_descendants_by_kind(
+                                    tree.root_node(),
+                                    "type_identifier",
+                                ) {
                                     let nested = AstUtils::node_text(id, &cand_source);
-                                    if !is_builtin_c_cpp_type(nested) && visited.insert(nested.to_string()) {
+                                    if !is_builtin_c_cpp_type(nested)
+                                        && visited.insert(nested.to_string())
+                                    {
                                         queue.push_back((nested.to_string(), depth + 1));
                                     }
                                 }
@@ -794,9 +970,16 @@ fn find_c_cpp_type_in_file(
         if let Some(name_node) = child.child_by_field_name("name") {
             if AstUtils::node_text(name_node, source) == target_name {
                 let parent = child.parent().unwrap_or(child);
-                let target = if parent.kind() == "type_definition" || parent.kind() == "declaration" { parent } else { child };
+                let target = if parent.kind() == "type_definition" || parent.kind() == "declaration"
+                {
+                    parent
+                } else {
+                    child
+                };
                 let mut def = AstUtils::node_text(target, source).to_string();
-                if !def.ends_with(';') { def.push(';'); }
+                if !def.ends_with(';') {
+                    def.push(';');
+                }
                 return Some(ExtractedType {
                     name: target_name.to_string(),
                     kind: "class".to_string(),
@@ -811,9 +994,16 @@ fn find_c_cpp_type_in_file(
         if let Some(name_node) = child.child_by_field_name("name") {
             if AstUtils::node_text(name_node, source) == target_name {
                 let parent = child.parent().unwrap_or(child);
-                let target = if parent.kind() == "type_definition" || parent.kind() == "declaration" { parent } else { child };
+                let target = if parent.kind() == "type_definition" || parent.kind() == "declaration"
+                {
+                    parent
+                } else {
+                    child
+                };
                 let mut def = AstUtils::node_text(target, source).to_string();
-                if !def.ends_with(';') { def.push(';'); }
+                if !def.ends_with(';') {
+                    def.push(';');
+                }
                 return Some(ExtractedType {
                     name: target_name.to_string(),
                     kind: "struct".to_string(),
@@ -828,7 +1018,9 @@ fn find_c_cpp_type_in_file(
         if let Some(name) = extract_typedef_name(child, source) {
             if name == target_name {
                 let mut def = AstUtils::node_text(child, source).to_string();
-                if !def.ends_with(';') { def.push(';'); }
+                if !def.ends_with(';') {
+                    def.push(';');
+                }
                 return Some(ExtractedType {
                     name: target_name.to_string(),
                     kind: "type_alias".to_string(),
@@ -843,9 +1035,16 @@ fn find_c_cpp_type_in_file(
         if let Some(name_node) = child.child_by_field_name("name") {
             if AstUtils::node_text(name_node, source) == target_name {
                 let parent = child.parent().unwrap_or(child);
-                let target = if parent.kind() == "type_definition" || parent.kind() == "declaration" { parent } else { child };
+                let target = if parent.kind() == "type_definition" || parent.kind() == "declaration"
+                {
+                    parent
+                } else {
+                    child
+                };
                 let mut def = AstUtils::node_text(target, source).to_string();
-                if !def.ends_with(';') { def.push(';'); }
+                if !def.ends_with(';') {
+                    def.push(';');
+                }
                 return Some(ExtractedType {
                     name: target_name.to_string(),
                     kind: "enum".to_string(),
@@ -873,19 +1072,25 @@ fn strip_c_cpp_calls<'a>(
     for call in calls {
         if let Some(fn_node) = call.child_by_field_name("function") {
             let (receiver, func_name) = match fn_node.kind() {
-                "identifier" | "type_identifier" => (None, AstUtils::node_text(fn_node, source).to_string()),
+                "identifier" | "type_identifier" => {
+                    (None, AstUtils::node_text(fn_node, source).to_string())
+                }
                 "field_expression" => {
                     let obj = fn_node.child_by_field_name("argument");
                     let field = fn_node.child_by_field_name("field");
                     let obj_name = obj.map(|o| AstUtils::node_text(o, source).to_string());
-                    let f_name = field.map(|f| AstUtils::node_text(f, source).to_string()).unwrap_or_default();
+                    let f_name = field
+                        .map(|f| AstUtils::node_text(f, source).to_string())
+                        .unwrap_or_default();
                     (obj_name, f_name)
                 }
                 "qualified_identifier" => {
                     let scope = fn_node.child_by_field_name("scope");
                     let name = fn_node.child_by_field_name("name");
                     let scope_name = scope.map(|s| AstUtils::node_text(s, source).to_string());
-                    let n_name = name.map(|n| AstUtils::node_text(n, source).to_string()).unwrap_or_default();
+                    let n_name = name
+                        .map(|n| AstUtils::node_text(n, source).to_string())
+                        .unwrap_or_default();
                     (scope_name, n_name)
                 }
                 _ => (None, AstUtils::node_text(fn_node, source).to_string()),
@@ -914,21 +1119,65 @@ fn strip_c_cpp_calls<'a>(
 fn is_builtin_c_cpp_function(name: &str) -> bool {
     matches!(
         name,
-        "printf" | "sprintf" | "snprintf" | "fprintf" | "scanf" | "sscanf"
-            | "malloc" | "calloc" | "realloc" | "free"
-            | "memcpy" | "memset" | "memmove" | "memcmp"
-            | "strlen" | "strcpy" | "strncpy" | "strcmp" | "strncmp"
-            | "strcat" | "strncat" | "strchr" | "strstr"
-            | "abs" | "min" | "max" | "exit" | "abort" | "assert"
-            | "sizeof" | "alignof" | "move" | "forward"
-            | "make_unique" | "make_shared"
-            | "push_back" | "emplace_back" | "pop_back" | "insert" | "erase"
-            | "clear" | "size" | "empty" | "begin" | "end" | "c_str"
-            | "data" | "find" | "substr" | "reserve" | "resize"
+        "printf"
+            | "sprintf"
+            | "snprintf"
+            | "fprintf"
+            | "scanf"
+            | "sscanf"
+            | "malloc"
+            | "calloc"
+            | "realloc"
+            | "free"
+            | "memcpy"
+            | "memset"
+            | "memmove"
+            | "memcmp"
+            | "strlen"
+            | "strcpy"
+            | "strncpy"
+            | "strcmp"
+            | "strncmp"
+            | "strcat"
+            | "strncat"
+            | "strchr"
+            | "strstr"
+            | "abs"
+            | "min"
+            | "max"
+            | "exit"
+            | "abort"
+            | "assert"
+            | "sizeof"
+            | "alignof"
+            | "move"
+            | "forward"
+            | "make_unique"
+            | "make_shared"
+            | "push_back"
+            | "emplace_back"
+            | "pop_back"
+            | "insert"
+            | "erase"
+            | "clear"
+            | "size"
+            | "empty"
+            | "begin"
+            | "end"
+            | "c_str"
+            | "data"
+            | "find"
+            | "substr"
+            | "reserve"
+            | "resize"
     )
 }
 
-fn find_c_cpp_function_signature(root: Node<'_>, source: &str, target_name: &str) -> Option<String> {
+fn find_c_cpp_function_signature(
+    root: Node<'_>,
+    source: &str,
+    target_name: &str,
+) -> Option<String> {
     for fn_node in AstUtils::find_descendants_by_kind(root, "function_definition") {
         if let Some(name) = extract_c_cpp_function_name(fn_node, source) {
             if name == target_name || name.ends_with(&format!("::{target_name}")) {
@@ -940,7 +1189,12 @@ fn find_c_cpp_function_signature(root: Node<'_>, source: &str, target_name: &str
         if let Some(declarator) = decl_node.child_by_field_name("declarator") {
             if let Some(name) = find_function_name_in_declarator(declarator, source) {
                 if name == target_name {
-                    return Some(AstUtils::node_text(decl_node, source).trim_end_matches(';').trim().to_string());
+                    return Some(
+                        AstUtils::node_text(decl_node, source)
+                            .trim_end_matches(';')
+                            .trim()
+                            .to_string(),
+                    );
                 }
             }
         }
@@ -961,7 +1215,10 @@ fn find_cpp_implementors(
     for node in classes.into_iter().chain(structs) {
         if let Some(base_clause) = AstUtils::find_child_by_kind(node, "base_class_clause") {
             let base_text = AstUtils::node_text(base_clause, source);
-            if base_text.split(|c: char| c == ',' || c.is_whitespace() || c == ':').any(|part| part.trim() == interface_name) {
+            if base_text
+                .split(|c: char| c == ',' || c.is_whitespace() || c == ':')
+                .any(|part| part.trim() == interface_name)
+            {
                 if let Some(name_node) = node.child_by_field_name("name") {
                     let class_name = AstUtils::node_text(name_node, source).to_string();
                     let stub = extract_cpp_class_stub(node, source);

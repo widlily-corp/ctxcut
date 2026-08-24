@@ -37,7 +37,9 @@ impl LanguageAdapter for AstroAdapter {
         }
 
         // 2. TypeScript AST lookup
-        if let Ok((mut sym, node)) = SymbolLocator::locate(root, source, symbol_query, file_path, "astro") {
+        if let Ok((mut sym, node)) =
+            SymbolLocator::locate(root, source, symbol_query, file_path, "astro")
+        {
             sym.language = "astro".to_string();
             Ok((sym, node))
         } else {

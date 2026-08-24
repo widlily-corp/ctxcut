@@ -527,7 +527,10 @@ class DatadogCollector(MetricCollector):
 
     // Structural duck-typing in sibling files:
     // This demonstrates the Python sibling protocol method extraction limitation.
-    println!("Discovered Python cross-file implementors: {:?}", impl_names);
+    println!(
+        "Discovered Python cross-file implementors: {:?}",
+        impl_names
+    );
 }
 
 /// Adversarial Scenario 6: Non-interface symbols and zero-implementor interfaces.
@@ -610,4 +613,3 @@ pub trait ServiceHandler {
     let result = slicer.slice_symbol(&rust_file, "ServiceHandler", &opts);
     println!("Direct Rust trait slice result: {:?}", result.is_ok());
 }
-

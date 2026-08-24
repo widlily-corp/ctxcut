@@ -190,8 +190,7 @@ fn test_mcp_get_trace_slice_execution_and_formats() {
 #[test]
 fn test_mcp_impact_and_trace_missing_parameters() {
     // 1. Missing target in get_impact_slice
-    let (resp_imp, _, err_imp, _) =
-        execute_tool_with_timeout("get_impact_slice", &json!({}), 5000);
+    let (resp_imp, _, err_imp, _) = execute_tool_with_timeout("get_impact_slice", &json!({}), 5000);
     assert_eq!(resp_imp.get("isError"), Some(&json!(true)));
     assert!(err_imp.is_some());
     assert!(resp_imp["content"][0]["text"]
@@ -283,8 +282,14 @@ fn test_mcp_concurrency_stress_20_threads_simultaneous_calls() {
                     "root_dir": root_clone.as_str(),
                     "format": "json"
                 });
-                let (resp, _, err, _) = execute_tool_with_timeout("get_impact_slice", &args, 10_000);
-                assert_eq!(resp.get("isError"), None, "Thread {i} impact failed: {:?}", err);
+                let (resp, _, err, _) =
+                    execute_tool_with_timeout("get_impact_slice", &args, 10_000);
+                assert_eq!(
+                    resp.get("isError"),
+                    None,
+                    "Thread {i} impact failed: {:?}",
+                    err
+                );
                 assert!(resp.get("impact").is_some());
             } else {
                 let args = json!({
@@ -293,7 +298,12 @@ fn test_mcp_concurrency_stress_20_threads_simultaneous_calls() {
                     "format": "json"
                 });
                 let (resp, _, err, _) = execute_tool_with_timeout("get_trace_slice", &args, 10_000);
-                assert_eq!(resp.get("isError"), None, "Thread {i} trace failed: {:?}", err);
+                assert_eq!(
+                    resp.get("isError"),
+                    None,
+                    "Thread {i} trace failed: {:?}",
+                    err
+                );
                 assert!(resp.get("trace").is_some());
             }
         });
@@ -301,6 +311,8 @@ fn test_mcp_concurrency_stress_20_threads_simultaneous_calls() {
     }
 
     for handle in handles {
-        handle.join().expect("Worker thread panicked under concurrency");
+        handle
+            .join()
+            .expect("Worker thread panicked under concurrency");
     }
 }

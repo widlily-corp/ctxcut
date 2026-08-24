@@ -97,28 +97,44 @@ service PaymentGatewayService {
     assert_eq!(service.rpcs.len(), 4);
 
     // Unary
-    let unary = service.rpcs.iter().find(|r| r.name == "ProcessCharge").unwrap();
+    let unary = service
+        .rpcs
+        .iter()
+        .find(|r| r.name == "ProcessCharge")
+        .unwrap();
     assert_eq!(unary.request_type, "ChargeRequest");
     assert_eq!(unary.response_type, "ChargeResponse");
     assert!(!unary.client_streaming);
     assert!(!unary.server_streaming);
 
     // Server Streaming
-    let s_stream = service.rpcs.iter().find(|r| r.name == "StreamLiveTransactions").unwrap();
+    let s_stream = service
+        .rpcs
+        .iter()
+        .find(|r| r.name == "StreamLiveTransactions")
+        .unwrap();
     assert_eq!(s_stream.request_type, "ChargeRequest");
     assert_eq!(s_stream.response_type, "ChargeResponse");
     assert!(!s_stream.client_streaming);
     assert!(s_stream.server_streaming);
 
     // Client Streaming
-    let c_stream = service.rpcs.iter().find(|r| r.name == "UploadAuditLogs").unwrap();
+    let c_stream = service
+        .rpcs
+        .iter()
+        .find(|r| r.name == "UploadAuditLogs")
+        .unwrap();
     assert_eq!(c_stream.request_type, "AuditChunk");
     assert_eq!(c_stream.response_type, "AuditSummary");
     assert!(c_stream.client_streaming);
     assert!(!c_stream.server_streaming);
 
     // BiDi Streaming
-    let b_stream = service.rpcs.iter().find(|r| r.name == "LiveTelemetrySync").unwrap();
+    let b_stream = service
+        .rpcs
+        .iter()
+        .find(|r| r.name == "LiveTelemetrySync")
+        .unwrap();
     assert_eq!(b_stream.request_type, "AuditChunk");
     assert_eq!(b_stream.response_type, "AuditChunk");
     assert!(b_stream.client_streaming);
@@ -127,10 +143,18 @@ service PaymentGatewayService {
     // Verify message parsing & oneof referenced types extraction
     assert!(parsed.messages.contains_key("chargerequest"));
     let charge_msg = parsed.messages.get("chargerequest").unwrap();
-    assert!(charge_msg.referenced_types.contains(&"SecurityContext".to_string()));
-    assert!(charge_msg.referenced_types.contains(&"ServiceStatus".to_string()));
-    assert!(charge_msg.referenced_types.contains(&"CreditCardInfo".to_string()));
-    assert!(charge_msg.referenced_types.contains(&"CryptoWalletInfo".to_string()));
+    assert!(charge_msg
+        .referenced_types
+        .contains(&"SecurityContext".to_string()));
+    assert!(charge_msg
+        .referenced_types
+        .contains(&"ServiceStatus".to_string()));
+    assert!(charge_msg
+        .referenced_types
+        .contains(&"CreditCardInfo".to_string()));
+    assert!(charge_msg
+        .referenced_types
+        .contains(&"CryptoWalletInfo".to_string()));
 }
 
 #[test]
@@ -250,7 +274,9 @@ type Mutation {
 
     let input = parsed.types.get("createaccountinput").unwrap();
     assert_eq!(input.kind, "graphql_input");
-    assert!(input.referenced_types.contains(&"AccountStatus".to_string()));
+    assert!(input
+        .referenced_types
+        .contains(&"AccountStatus".to_string()));
 
     let query = parsed.types.get("query").unwrap();
     assert_eq!(query.fields[0].name, "getAccount");
@@ -259,7 +285,9 @@ type Mutation {
     let mutation = parsed.types.get("mutation").unwrap();
     assert_eq!(mutation.fields[0].name, "createAccount");
     assert_eq!(mutation.fields[0].return_type, "Account");
-    assert!(mutation.fields[0].arg_types.contains(&"CreateAccountInput".to_string()));
+    assert!(mutation.fields[0]
+        .arg_types
+        .contains(&"CreateAccountInput".to_string()));
 }
 
 #[test]
@@ -300,7 +328,9 @@ type Mutation {
     let ts_src = "const resolvers = { Mutation: { publishArticle: async (_: any, { input }: { input: PublishArticleInput }) => { return { id: '1', title: input.title }; } } };";
     let ts_file = dir.path().join("resolvers.ts");
     let ts_stitched = stitcher.stitch(dir.path(), &ts_file, ts_src);
-    assert!(ts_stitched.iter().any(|t| t.name == "Mutation.publishArticle"));
+    assert!(ts_stitched
+        .iter()
+        .any(|t| t.name == "Mutation.publishArticle"));
     assert!(ts_stitched.iter().any(|t| t.name == "Article"));
     assert!(ts_stitched.iter().any(|t| t.name == "PublishArticleInput"));
 
@@ -370,7 +400,10 @@ service BillingService {
     let auth_stitched = stitcher.stitch(dir.path(), &auth_handler, auth_src);
 
     assert!(auth_stitched.iter().any(|t| t.name == "AuthService"));
-    let user_session = auth_stitched.iter().find(|t| t.name == "UserSession").unwrap();
+    let user_session = auth_stitched
+        .iter()
+        .find(|t| t.name == "UserSession")
+        .unwrap();
     assert!(user_session.definition.contains("session_token"));
     assert!(!user_session.definition.contains("billing_account_id"));
 
@@ -380,8 +413,13 @@ service BillingService {
     let billing_stitched = stitcher.stitch(dir.path(), &billing_handler, billing_src);
 
     assert!(billing_stitched.iter().any(|t| t.name == "BillingService"));
-    let billing_user_session = billing_stitched.iter().find(|t| t.name == "UserSession").unwrap();
-    assert!(billing_user_session.definition.contains("billing_account_id"));
+    let billing_user_session = billing_stitched
+        .iter()
+        .find(|t| t.name == "UserSession")
+        .unwrap();
+    assert!(billing_user_session
+        .definition
+        .contains("billing_account_id"));
     assert!(!billing_user_session.definition.contains("session_token"));
 }
 
@@ -454,7 +492,11 @@ fn test_m3_adv_malformed_unbalanced_proto_graphql() {
 
     // Unbalanced braces, unclosed quotes, broken syntax
     fs::write(&bad_proto, "syntax = \"proto3\";\nmessage Broken {\n  string val = 1;\n// unclosed\nservice BadService {\n").unwrap();
-    fs::write(&bad_gql, "type Broken {\n  id: ID!\n# unclosed type\ntype Query {\n  test: String\n").unwrap();
+    fs::write(
+        &bad_gql,
+        "type Broken {\n  id: ID!\n# unclosed type\ntype Query {\n  test: String\n",
+    )
+    .unwrap();
 
     let proto_stitcher = ProtoStitcher::new();
     let gql_stitcher = GraphqlStitcher::new();
@@ -506,27 +548,43 @@ fn test_m3_adv_schema_stitcher_unified_polyglot_e2e() {
     let dir = TempDir::new().expect("TempDir failed");
 
     // 1. Proto
-    fs::write(dir.path().join("api.proto"), r#"
+    fs::write(
+        dir.path().join("api.proto"),
+        r#"
 syntax = "proto3";
 message MetricPacket { int64 count = 1; }
 service Telemetry { rpc PushMetric(MetricPacket) returns (MetricPacket); }
-"#).unwrap();
+"#,
+    )
+    .unwrap();
 
     // 2. GraphQL
-    fs::write(dir.path().join("schema.graphql"), r#"
+    fs::write(
+        dir.path().join("schema.graphql"),
+        r#"
 type UserProfile { id: ID!, name: String! }
 type Query { getUserProfile(id: ID!): UserProfile }
-"#).unwrap();
+"#,
+    )
+    .unwrap();
 
     // 3. Prisma
-    fs::write(dir.path().join("schema.prisma"), r#"
+    fs::write(
+        dir.path().join("schema.prisma"),
+        r#"
 model Session { id String @id, userId String }
-"#).unwrap();
+"#,
+    )
+    .unwrap();
 
     // 4. SQL migration
     let mig = dir.path().join("migrations");
     fs::create_dir_all(&mig).unwrap();
-    fs::write(mig.join("001.sql"), "CREATE TABLE audit_logs (id INT, event TEXT);\n").unwrap();
+    fs::write(
+        mig.join("001.sql"),
+        "CREATE TABLE audit_logs (id INT, event TEXT);\n",
+    )
+    .unwrap();
 
     let orchestrator = SchemaStitcher::new();
     let multi_source = r#"
@@ -538,13 +596,27 @@ export async function compositeHandler(prisma: any, db: any) {
 }
 "#;
     let service_file = dir.path().join("src/composite.ts");
-    let stitched = orchestrator.stitch_schemas(dir.path(), &service_file, multi_source).unwrap();
+    let stitched = orchestrator
+        .stitch_schemas(dir.path(), &service_file, multi_source)
+        .unwrap();
 
     // Verify all 4 schema sources are seamlessly unified without collision
-    assert!(stitched.iter().any(|t| t.name == "Session" && t.kind == "prisma_model"));
-    assert!(stitched.iter().any(|t| t.name == "audit_logs" && t.kind == "sql_table"));
-    assert!(stitched.iter().any(|t| t.name == "Query.getUserProfile" && t.kind == "graphql_query"));
-    assert!(stitched.iter().any(|t| t.name == "UserProfile" && t.kind == "graphql_type"));
-    assert!(stitched.iter().any(|t| t.name == "Telemetry" && t.kind == "protobuf_service"));
-    assert!(stitched.iter().any(|t| t.name == "MetricPacket" && t.kind == "protobuf_message"));
+    assert!(stitched
+        .iter()
+        .any(|t| t.name == "Session" && t.kind == "prisma_model"));
+    assert!(stitched
+        .iter()
+        .any(|t| t.name == "audit_logs" && t.kind == "sql_table"));
+    assert!(stitched
+        .iter()
+        .any(|t| t.name == "Query.getUserProfile" && t.kind == "graphql_query"));
+    assert!(stitched
+        .iter()
+        .any(|t| t.name == "UserProfile" && t.kind == "graphql_type"));
+    assert!(stitched
+        .iter()
+        .any(|t| t.name == "Telemetry" && t.kind == "protobuf_service"));
+    assert!(stitched
+        .iter()
+        .any(|t| t.name == "MetricPacket" && t.kind == "protobuf_message"));
 }

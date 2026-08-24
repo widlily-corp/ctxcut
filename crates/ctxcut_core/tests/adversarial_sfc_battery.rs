@@ -97,9 +97,16 @@ export function formatUserHeader(u: UserDto): string {
 
     // 1. SfcDocument segmentation
     let doc = SfcDocument::parse_vue(vue_src);
-    assert_eq!(doc.blocks.len(), 4, "Must detect 2 script blocks, 1 template, 1 style");
+    assert_eq!(
+        doc.blocks.len(),
+        4,
+        "Must detect 2 script blocks, 1 template, 1 style"
+    );
     assert!(doc.blocks.iter().any(|b| b.kind == SfcBlockKind::Script));
-    assert!(doc.blocks.iter().any(|b| b.kind == SfcBlockKind::ScriptSetup));
+    assert!(doc
+        .blocks
+        .iter()
+        .any(|b| b.kind == SfcBlockKind::ScriptSetup));
     assert!(doc.blocks.iter().any(|b| b.kind == SfcBlockKind::Template));
     assert!(doc.blocks.iter().any(|b| b.kind == SfcBlockKind::Style));
     assert!(doc.is_typescript);
@@ -126,7 +133,11 @@ export function formatUserHeader(u: UserDto): string {
     assert!(slice.target_symbol.body.contains("formatUserHeader"));
 
     // Type hoisting must find UserDto
-    let hoisted: Vec<&str> = slice.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted: Vec<&str> = slice
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted.contains(&"UserDto"),
         "Must hoist UserDto type from Vue script, found: {:?}",
@@ -137,7 +148,9 @@ export function formatUserHeader(u: UserDto): string {
     let adapter = LanguageRegistry::for_language(SupportedLanguage::Vue).unwrap();
     let ts_lang = adapter.tree_sitter_language(&vue_file);
     let tree = ParserManager::parse_source(vue_src, &ts_lang, &vue_file).unwrap();
-    let (props_sym, _) = adapter.locate_symbol(tree.root_node(), vue_src, "defineProps", &vue_file).unwrap();
+    let (props_sym, _) = adapter
+        .locate_symbol(tree.root_node(), vue_src, "defineProps", &vue_file)
+        .unwrap();
     assert_eq!(props_sym.name, "defineProps");
     assert!(props_sym.body.contains("defineProps"));
 }
@@ -199,14 +212,22 @@ export async function submitLogin(): Promise<boolean> {
         .slice_symbol(&vue_file, "submitLogin", &opts)
         .expect("Should slice submitLogin from Vue SFC with external import");
 
-    let hoisted: Vec<&str> = slice.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted: Vec<&str> = slice
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted.contains(&"SessionToken"),
         "Must hoist SessionToken from external auth_service.ts, found: {:?}",
         hoisted
     );
 
-    let calls: Vec<&str> = slice.stripped_calls.iter().map(|c| c.name.as_str()).collect();
+    let calls: Vec<&str> = slice
+        .stripped_calls
+        .iter()
+        .map(|c| c.name.as_str())
+        .collect();
     assert!(
         calls.contains(&"loginUser"),
         "Must strip loginUser call from external auth_service.ts, found: {:?}",
@@ -360,12 +381,16 @@ button {
     let ts_lang = adapter.tree_sitter_language(&svelte_file);
     let tree = ParserManager::parse_source(svelte_src, &ts_lang, &svelte_file).unwrap();
 
-    let (label_sym, _) = adapter.locate_symbol(tree.root_node(), svelte_src, "label", &svelte_file).unwrap();
+    let (label_sym, _) = adapter
+        .locate_symbol(tree.root_node(), svelte_src, "label", &svelte_file)
+        .unwrap();
     assert_eq!(label_sym.name, "label");
     assert_eq!(label_sym.kind, "property");
     assert!(label_sym.signature.contains("export let label"));
 
-    let (theme_sym, _) = adapter.locate_symbol(tree.root_node(), svelte_src, "theme", &svelte_file).unwrap();
+    let (theme_sym, _) = adapter
+        .locate_symbol(tree.root_node(), svelte_src, "theme", &svelte_file)
+        .unwrap();
     assert_eq!(theme_sym.name, "theme");
     assert!(theme_sym.signature.contains("export let theme"));
 }
@@ -413,7 +438,11 @@ export function getUserDisplayName(u: SvelteUser): string {
         .slice_symbol(&svelte_file, "getUserDisplayName", &opts)
         .expect("Should slice getUserDisplayName from Svelte SFC");
 
-    let hoisted: Vec<&str> = slice.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted: Vec<&str> = slice
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     println!("Svelte external import hoisted types: {:?}", hoisted);
     assert!(
         hoisted.contains(&"SvelteUser"),
@@ -508,7 +537,11 @@ export function buildPageTitle(p: BlogPost): string {
     assert_eq!(slice.target_symbol.name, "buildPageTitle");
     assert_eq!(slice.target_symbol.language, "astro");
 
-    let hoisted: Vec<&str> = slice.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted: Vec<&str> = slice
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted.contains(&"BlogPost"),
         "Must hoist BlogPost type from external content_loader.ts, found: {:?}",
@@ -520,7 +553,9 @@ export function buildPageTitle(p: BlogPost): string {
     let ts_lang = adapter.tree_sitter_language(&astro_file);
     let tree = ParserManager::parse_source(astro_src, &ts_lang, &astro_file).unwrap();
 
-    let (props_sym, _) = adapter.locate_symbol(tree.root_node(), astro_src, "Props", &astro_file).unwrap();
+    let (props_sym, _) = adapter
+        .locate_symbol(tree.root_node(), astro_src, "Props", &astro_file)
+        .unwrap();
     assert_eq!(props_sym.name, "Props");
     assert_eq!(props_sym.kind, "interface");
 }
@@ -770,8 +805,14 @@ fn test_adversarial_sfc_edge_cases_and_graceful_degradation() {
 
     // 4. Astro unclosed frontmatter
     let broken_astro = root.join("Broken.astro");
-    fs::write(&broken_astro, "---\nexport const x = 100;\n// missing second fence\n<h1>Broken</h1>").expect("write broken astro");
-    let doc = SfcDocument::parse_astro("---\nexport const x = 100;\n// missing second fence\n<h1>Broken</h1>");
+    fs::write(
+        &broken_astro,
+        "---\nexport const x = 100;\n// missing second fence\n<h1>Broken</h1>",
+    )
+    .expect("write broken astro");
+    let doc = SfcDocument::parse_astro(
+        "---\nexport const x = 100;\n// missing second fence\n<h1>Broken</h1>",
+    );
     assert_eq!(doc.blocks.len(), 1);
     assert_eq!(doc.blocks[0].kind, SfcBlockKind::Markup);
 }
@@ -856,7 +897,11 @@ export function selectItem(item: NavigationItem): void {
         .expect("Should slice selectItem from NavBar.vue with cross-file types.ts hoisting");
 
     assert_eq!(slice.target_symbol.name, "selectItem");
-    let hoisted: Vec<&str> = slice.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted: Vec<&str> = slice
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(
         hoisted.contains(&"NavigationItem"),
         "Must hoist NavigationItem from types.ts, found: {:?}",

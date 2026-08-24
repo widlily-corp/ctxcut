@@ -22,7 +22,9 @@ fn test_f1_boundary_no_callers_found() {
 
     let runner = CliRunner::new();
     let target = format!("{}:unusedHelper", file.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     output.assert_success();
     assert!(output.stdout.contains("unusedHelper"));
@@ -36,7 +38,9 @@ fn test_f1_boundary_recursive_self_caller() {
 
     let runner = CliRunner::new();
     let target = format!("{}:factorial", file.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     output.assert_success();
     assert!(output.stdout.contains("factorial"));
@@ -59,7 +63,9 @@ export function save(): boolean { return true; }
 
     let runner = CliRunner::new();
     let target = format!("{}:save", file.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     output.assert_success();
     assert!(output.stdout.contains("save"));
@@ -71,13 +77,17 @@ fn test_f1_boundary_deep_call_hierarchy() {
     let file = dir.path().join("deep.ts");
     let mut code = "export function rootBase(): number { return 1; }\n".to_string();
     for i in 1..=15 {
-        code.push_str(&format!("export function level{i}(): number {{ return rootBase() + {i}; }}\n"));
+        code.push_str(&format!(
+            "export function level{i}(): number {{ return rootBase() + {i}; }}\n"
+        ));
     }
     fs::write(&file, &code).unwrap();
 
     let runner = CliRunner::new();
     let target = format!("{}:rootBase", file.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     output.assert_success();
     assert!(output.stdout.contains("rootBase"));
@@ -94,7 +104,12 @@ fn test_f1_boundary_nonexistent_symbol_callers() {
     let output = runner.run_in_dir(dir.path(), &["slice", &target]);
 
     if let Ok(res) = output {
-        assert!(!res.success || res.stdout.is_empty() || res.stderr.contains("not found") || res.stdout.contains("not found"));
+        assert!(
+            !res.success
+                || res.stdout.is_empty()
+                || res.stderr.contains("not found")
+                || res.stdout.contains("not found")
+        );
     }
 }
 
@@ -112,7 +127,9 @@ export function funcB(): number { return funcA(); }
 
     let runner = CliRunner::new();
     let target = format!("{}:funcA", file.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     output.assert_success();
     assert!(output.stdout.contains("funcA"));
@@ -122,11 +139,17 @@ export function funcB(): number { return funcA(); }
 fn test_f2_boundary_leaf_function_no_calls() {
     let dir = TempDir::new().unwrap();
     let file = dir.path().join("leaf.ts");
-    fs::write(&file, "export function getConstant(): number { return 100; }\n").unwrap();
+    fs::write(
+        &file,
+        "export function getConstant(): number { return 100; }\n",
+    )
+    .unwrap();
 
     let runner = CliRunner::new();
     let target = format!("{}:getConstant", file.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     output.assert_success();
     assert!(output.stdout.contains("getConstant"));
@@ -148,7 +171,9 @@ fn test_f2_boundary_wide_branching_pruning() {
 
     let runner = CliRunner::new();
     let target = format!("{}:mainFlow", file.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target, "--budget", "150"]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target, "--budget", "150"])
+        .expect("Command failed");
 
     output.assert_success();
     assert!(output.stdout.contains("mainFlow"));
@@ -167,7 +192,9 @@ export function computeHash(data: string): string {
 
     let runner = CliRunner::new();
     let target = format!("{}:computeHash", file.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     output.assert_success();
     assert!(output.stdout.contains("computeHash"));
@@ -181,7 +208,9 @@ fn test_f2_boundary_deep_nesting_depth_limit() {
 
     let runner = CliRunner::new();
     let target = format!("{}:deepEntry", file.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target, "--depth", "5"]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target, "--depth", "5"])
+        .expect("Command failed");
 
     output.assert_success();
     assert!(output.stdout.contains("deepEntry"));
@@ -205,7 +234,9 @@ pub fn execute(s: &dyn UnimplementedService) {
 
     let runner = CliRunner::new();
     let target = format!("{}:execute", file.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     output.assert_success();
     assert!(output.stdout.contains("execute"));
@@ -228,7 +259,9 @@ export function writeLog(l: Logger, msg: string) { l.log(msg); }
 
     let runner = CliRunner::new();
     let target = format!("{}:writeLog", file.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     output.assert_success();
     assert!(output.stdout.contains("writeLog"));
@@ -250,7 +283,9 @@ pub fn do_serialize<T, S: Serializer<T>>(s: &S, val: T) -> String {
 
     let runner = CliRunner::new();
     let target = format!("{}:do_serialize", file.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     output.assert_success();
     assert!(output.stdout.contains("do_serialize"));
@@ -277,7 +312,9 @@ func Consume(f FullInterface) { f.MethodA(); f.MethodB() }
 
     let runner = CliRunner::new();
     let target = format!("{}:Consume", file.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     output.assert_success();
     assert!(output.stdout.contains("Consume"));
@@ -301,7 +338,9 @@ pub fn init_driver(d: &dyn Driver) { d.init(); }
 
     let runner = CliRunner::new();
     let target = format!("{}:init_driver", file.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     output.assert_success();
     assert!(output.stdout.contains("init_driver"));

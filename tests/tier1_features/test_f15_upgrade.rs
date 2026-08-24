@@ -45,7 +45,9 @@ fn test_f15_install_ps1_conformance_v2() {
 
     // Assert: Contains required PowerShell installation functions
     assert!(content.contains("ctxcut"));
-    assert!(content.contains("GitHub") || content.contains("widlily-corp") || content.contains("cargo"));
+    assert!(
+        content.contains("GitHub") || content.contains("widlily-corp") || content.contains("cargo")
+    );
 }
 
 #[test]
@@ -64,7 +66,9 @@ fn test_f15_github_actions_release_matrix() {
     let runner = CliRunner::new();
 
     // Act: Run setup-mcp --dry-run
-    let output = runner.run(&["setup-mcp", "--dry-run"]).expect("Command failed");
+    let output = runner
+        .run(&["setup-mcp", "--dry-run"])
+        .expect("Command failed");
 
     // Assert: Succeeded
     output.assert_success();

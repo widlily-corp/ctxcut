@@ -37,12 +37,17 @@ impl LanguageAdapter for VueAdapter {
         }
 
         // 2. Locate symbol directly in root/source
-        if let Ok((mut sym, node)) = SymbolLocator::locate(root, source, symbol_query, file_path, "vue") {
+        if let Ok((mut sym, node)) =
+            SymbolLocator::locate(root, source, symbol_query, file_path, "vue")
+        {
             sym.language = "vue".to_string();
             Ok((sym, node))
         } else {
             if let Some(props_sym) = find_vue_props_symbol(source, file_path) {
-                if props_sym.name == symbol_query || symbol_query.contains("props") || symbol_query.contains("Props") {
+                if props_sym.name == symbol_query
+                    || symbol_query.contains("props")
+                    || symbol_query.contains("Props")
+                {
                     return Ok((props_sym, root));
                 }
             }
@@ -75,14 +80,17 @@ impl LanguageAdapter for VueAdapter {
         opts: &SliceOptions,
     ) -> Result<Vec<ExtractedType>> {
         let ts_lang = self.tree_sitter_language(file_path);
-        let mut types = TypeHoister::hoist_types(target_node, root, source, file_path, opts, &ts_lang)?;
+        let mut types =
+            TypeHoister::hoist_types(target_node, root, source, file_path, opts, &ts_lang)?;
 
         if let Some(start_idx) = source.find("defineProps<") {
             let after = &source[start_idx + 12..];
             if let Some(end_idx) = after.find('>') {
                 let type_param = after[..end_idx].trim();
                 if !types.iter().any(|t| t.name == type_param) {
-                    if let Ok(mut prop_types) = TypeHoister::hoist_types(root, root, source, file_path, opts, &ts_lang) {
+                    if let Ok(mut prop_types) =
+                        TypeHoister::hoist_types(root, root, source, file_path, opts, &ts_lang)
+                    {
                         for pt in prop_types.drain(..) {
                             if !types.iter().any(|t| t.name == pt.name) {
                                 types.push(pt);
@@ -103,10 +111,18 @@ impl LanguageAdapter for VueAdapter {
                     if trimmed.contains(imported_name) && !trimmed.starts_with("import ") {
                         let var_name = trimmed
                             .split(|c: char| c == '=' || c == ':' || c.is_whitespace())
-                            .find(|s| !s.is_empty() && *s != "const" && *s != "let" && *s != "var" && *s != "ref")
+                            .find(|s| {
+                                !s.is_empty()
+                                    && *s != "const"
+                                    && *s != "let"
+                                    && *s != "var"
+                                    && *s != "ref"
+                            })
                             .unwrap_or("");
                         if !var_name.is_empty() && target_text.contains(var_name) {
-                            if let Ok(mut resolved) = TypeHoister::resolve_foreign_types(file_path, &[imported_name]) {
+                            if let Ok(mut resolved) =
+                                TypeHoister::resolve_foreign_types(file_path, &[imported_name])
+                            {
                                 for t in resolved.drain(..) {
                                     if !types.iter().any(|existing| existing.name == t.name) {
                                         types.push(t);

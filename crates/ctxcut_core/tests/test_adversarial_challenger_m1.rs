@@ -258,9 +258,8 @@ export function chargeAccount(payload: any) {
     let opts = SliceOptions::default();
 
     // Query for UserValidator.validate
-    let user_res =
-        ImpactAnalyzer::find_callers(ws, "UserValidator.validate", None, &opts)
-            .expect("user callers");
+    let user_res = ImpactAnalyzer::find_callers(ws, "UserValidator.validate", None, &opts)
+        .expect("user callers");
 
     let user_caller_names: Vec<&str> = user_res
         .callers
@@ -278,9 +277,8 @@ export function chargeAccount(payload: any) {
     );
 
     // Query for BillingValidator.validate
-    let billing_res =
-        ImpactAnalyzer::find_callers(ws, "BillingValidator.validate", None, &opts)
-            .expect("billing callers");
+    let billing_res = ImpactAnalyzer::find_callers(ws, "BillingValidator.validate", None, &opts)
+        .expect("billing callers");
 
     let billing_caller_names: Vec<&str> = billing_res
         .callers
@@ -375,8 +373,8 @@ export class Step10DbSink {
         budget: None,
     };
 
-    let trace = ExecutionTracer::trace(ws, "Step1Controller.handleEntry", &opts)
-        .expect("trace 10 hops");
+    let trace =
+        ExecutionTracer::trace(ws, "Step1Controller.handleEntry", &opts).expect("trace 10 hops");
 
     assert_eq!(
         trace.total_steps, 10,
@@ -489,8 +487,7 @@ export class Hop{i}Service {{
         budget: None,
     };
 
-    let trace =
-        ExecutionTracer::trace(ws, "Hop1Controller.runHop1", &opts).expect("trace cycle");
+    let trace = ExecutionTracer::trace(ws, "Hop1Controller.runHop1", &opts).expect("trace cycle");
 
     // Traversal should traverse 9 steps and terminate with cycle detected
     assert_eq!(
@@ -500,7 +497,10 @@ export class Hop{i}Service {{
     );
     let step9 = &trace.steps[8];
     assert!(
-        step9.next_target.as_ref().is_some_and(|t| t.contains("cycle detected")),
+        step9
+            .next_target
+            .as_ref()
+            .is_some_and(|t| t.contains("cycle detected")),
         "Step 9 next target must indicate cycle detected, got: {:?}",
         step9.next_target
     );
@@ -570,7 +570,10 @@ export class PipelineB {
         trace.total_steps
     );
     for s in &trace.steps {
-        println!("  Step {}: {} (next: {:?})", s.step_number, s.symbol_name, s.next_target);
+        println!(
+            "  Step {}: {} (next: {:?})",
+            s.step_number, s.symbol_name, s.next_target
+        );
     }
 
     assert!(
@@ -613,7 +616,10 @@ def parse_terms(terms):
         "Mutual recursion must terminate at 2 steps"
     );
     assert!(
-        trace.steps[1].next_target.as_ref().is_some_and(|t| t.contains("cycle detected")),
+        trace.steps[1]
+            .next_target
+            .as_ref()
+            .is_some_and(|t| t.contains("cycle detected")),
         "Step 2 must flag cycle detected"
     );
 }
@@ -707,7 +713,10 @@ export class HeavyStep8DbSink {{
         ExecutionTracer::trace(ws, "HeavyStep1Controller.handleMassiveRequest", &opts_2000)
             .expect("trace 2000 budget");
     let tokens_2000 = count_tokens(&trace_2000.to_markdown());
-    println!("Budget 2000 tokens result: {tokens_2000} (raw: {})", trace_2000.stats.raw_file_tokens);
+    println!(
+        "Budget 2000 tokens result: {tokens_2000} (raw: {})",
+        trace_2000.stats.raw_file_tokens
+    );
     assert!(
         tokens_2000 <= 2000,
         "Output markdown slice tokens MUST be <= 2,000, got {tokens_2000}"
@@ -725,7 +734,10 @@ export class HeavyStep8DbSink {{
         ExecutionTracer::trace(ws, "HeavyStep1Controller.handleMassiveRequest", &opts_1500)
             .expect("trace 1500 budget");
     let tokens_1500 = count_tokens(&trace_1500.to_markdown());
-    println!("Budget 1500 tokens result: {tokens_1500} (raw: {})", trace_1500.stats.raw_file_tokens);
+    println!(
+        "Budget 1500 tokens result: {tokens_1500} (raw: {})",
+        trace_1500.stats.raw_file_tokens
+    );
     assert!(
         tokens_1500 <= 1500,
         "Output markdown slice tokens MUST be <= 1,500, got {tokens_1500}"
@@ -743,7 +755,10 @@ export class HeavyStep8DbSink {{
         ExecutionTracer::trace(ws, "HeavyStep1Controller.handleMassiveRequest", &opts_1100)
             .expect("trace 1100 budget");
     let tokens_1100 = count_tokens(&trace_1100.to_markdown());
-    println!("Budget 1100 tokens result: {tokens_1100} (raw: {})", trace_1100.stats.raw_file_tokens);
+    println!(
+        "Budget 1100 tokens result: {tokens_1100} (raw: {})",
+        trace_1100.stats.raw_file_tokens
+    );
     assert!(
         tokens_1100 <= 1100,
         "Output markdown slice tokens MUST be <= 1,100, got {tokens_1100}"

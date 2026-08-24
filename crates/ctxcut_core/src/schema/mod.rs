@@ -88,7 +88,10 @@ impl SchemaStitcher {
         }
 
         // 4. SQL migrations & raw SQL
-        for ty in self.sql_migrations.stitch(workspace_root, current_file, source) {
+        for ty in self
+            .sql_migrations
+            .stitch(workspace_root, current_file, source)
+        {
             if seen.insert(ty.name.clone()) {
                 results.push(ty);
             }
@@ -139,34 +142,61 @@ mod tests {
 
         // 2. Drizzle schema
         let drizzle_path = temp_dir.path().join("schema.ts");
-        fs::write(&drizzle_path, "export const products = pgTable('products', { id: serial('id').primaryKey() });\n").unwrap();
+        fs::write(
+            &drizzle_path,
+            "export const products = pgTable('products', { id: serial('id').primaryKey() });\n",
+        )
+        .unwrap();
 
         // 3. SQL migration
         let mig_dir = temp_dir.path().join("migrations");
         fs::create_dir_all(&mig_dir).unwrap();
-        fs::write(mig_dir.join("001.sql"), "CREATE TABLE orders (id INT, total DECIMAL);\n").unwrap();
+        fs::write(
+            mig_dir.join("001.sql"),
+            "CREATE TABLE orders (id INT, total DECIMAL);\n",
+        )
+        .unwrap();
 
         let stitcher = SchemaStitcher::new();
 
         // Test Prisma call
         let source_prisma = "export function getUser(prisma: any, id: number) { return prisma.user.findUnique({ where: { id } }); }";
         let stitched_prisma = stitcher
-            .stitch_schemas(temp_dir.path(), &temp_dir.path().join("src/service.ts"), source_prisma)
+            .stitch_schemas(
+                temp_dir.path(),
+                &temp_dir.path().join("src/service.ts"),
+                source_prisma,
+            )
             .unwrap();
-        assert!(stitched_prisma.iter().any(|t| t.name == "User" && t.kind == "prisma_model"));
+        assert!(stitched_prisma
+            .iter()
+            .any(|t| t.name == "User" && t.kind == "prisma_model"));
 
         // Test Drizzle call
-        let source_drizzle = "export function getProducts(db: any) { return db.select().from(products); }";
+        let source_drizzle =
+            "export function getProducts(db: any) { return db.select().from(products); }";
         let stitched_drizzle = stitcher
-            .stitch_schemas(temp_dir.path(), &temp_dir.path().join("src/service.ts"), source_drizzle)
+            .stitch_schemas(
+                temp_dir.path(),
+                &temp_dir.path().join("src/service.ts"),
+                source_drizzle,
+            )
             .unwrap();
-        assert!(stitched_drizzle.iter().any(|t| t.name == "products" && t.kind == "drizzle_table"));
+        assert!(stitched_drizzle
+            .iter()
+            .any(|t| t.name == "products" && t.kind == "drizzle_table"));
 
         // Test SQL query call
         let source_sql = "export function getOrders() { return 'SELECT * FROM orders'; }";
         let stitched_sql = stitcher
-            .stitch_schemas(temp_dir.path(), &temp_dir.path().join("src/service.ts"), source_sql)
+            .stitch_schemas(
+                temp_dir.path(),
+                &temp_dir.path().join("src/service.ts"),
+                source_sql,
+            )
             .unwrap();
-        assert!(stitched_sql.iter().any(|t| t.name == "orders" && t.kind == "sql_table"));
+        assert!(stitched_sql
+            .iter()
+            .any(|t| t.name == "orders" && t.kind == "sql_table"));
     }
 }

@@ -27,7 +27,9 @@ export const carts = pgTable('carts', {
     updatedAt: timestamp('updated_at').defaultNow(),
 });
 "#;
-    sandbox.write_file("server/db/schema.ts", schema_content).unwrap();
+    sandbox
+        .write_file("server/db/schema.ts", schema_content)
+        .unwrap();
 
     // 2. Pinia Cart Store
     let store_content = r#"
@@ -49,7 +51,9 @@ export class CartStore {
 }
 export const useCartStore = () => new CartStore();
 "#;
-    let store_path = sandbox.write_file("src/stores/cart.ts", store_content).unwrap();
+    let store_path = sandbox
+        .write_file("src/stores/cart.ts", store_content)
+        .unwrap();
 
     // 3. Vue 3 Checkout Component
     let vue_component = r#"
@@ -89,7 +93,9 @@ async function submitOrder() {
 }
 </style>
 "#;
-    sandbox.write_file("src/views/CheckoutView.vue", vue_component).unwrap();
+    sandbox
+        .write_file("src/views/CheckoutView.vue", vue_component)
+        .unwrap();
 
     sandbox.stage_all().unwrap();
     sandbox.commit("Initial checkout workflow").unwrap();
@@ -97,7 +103,9 @@ async function submitOrder() {
     // Act: Slice CartStore.totalAmount
     let runner = CliRunner::new();
     let target = format!("{}:CartStore.totalAmount", store_path.display());
-    let output = runner.run_in_dir(sandbox.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(sandbox.path(), &["slice", &target])
+        .expect("Command failed");
 
     // Assert: Slicing succeeds
     output.assert_success();

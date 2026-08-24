@@ -588,7 +588,6 @@ pub enum RefactorSubcommands {
     },
 }
 
-
 /// Executes the CLI application with a custom MCP server runner.
 pub fn run_cli_handler<F>(mcp_runner: F) -> Result<()>
 where
@@ -655,8 +654,9 @@ where
             };
 
             if let Some(out_file) = output.as_deref() {
-                fs::write(out_file, &rendered)
-                    .with_context(|| format!("Failed to write overview to `{}`", out_file.display()))?;
+                fs::write(out_file, &rendered).with_context(|| {
+                    format!("Failed to write overview to `{}`", out_file.display())
+                })?;
                 println!(
                     "{} Workspace overview saved to `{}`",
                     "✔".green(),
@@ -1025,9 +1025,7 @@ where
             run_query_command(&opts)
         }
 
-        Some(Commands::Tui { path } | Commands::Dashboard { path }) => {
-            run_tui(path)
-        }
+        Some(Commands::Tui { path } | Commands::Dashboard { path }) => run_tui(path),
 
         Some(Commands::Upgrade {
             check,

@@ -53,7 +53,11 @@ impl GraphqlStitcher {
     }
 
     /// Discovers `.graphql` and `.gql` schema files in the workspace.
-    pub fn discover_graphql_files(&self, workspace_root: &Path, current_file: &Path) -> Vec<PathBuf> {
+    pub fn discover_graphql_files(
+        &self,
+        workspace_root: &Path,
+        current_file: &Path,
+    ) -> Vec<PathBuf> {
         let mut candidates = Vec::new();
 
         // 1. Check current directory parent
@@ -233,7 +237,9 @@ impl GraphqlStitcher {
 
             // 2. Check direct type name matching in source
             for (t_key, type_def) in &parsed.types {
-                if !matches!(t_key.as_str(), "query" | "mutation" | "subscription") && source.contains(&type_def.name) {
+                if !matches!(t_key.as_str(), "query" | "mutation" | "subscription")
+                    && source.contains(&type_def.name)
+                {
                     hoist_gql_type_recursive(
                         &type_def.name,
                         &parsed,
@@ -584,7 +590,11 @@ type Query {
         let file_path = temp_dir.path().join("src/resolvers.ts");
 
         let stitched = stitcher.stitch(temp_dir.path(), &file_path, source);
-        assert!(stitched.iter().any(|t| t.name == "Query.getProduct" && t.kind == "graphql_query"));
-        assert!(stitched.iter().any(|t| t.name == "Product" && t.kind == "graphql_type"));
+        assert!(stitched
+            .iter()
+            .any(|t| t.name == "Query.getProduct" && t.kind == "graphql_query"));
+        assert!(stitched
+            .iter()
+            .any(|t| t.name == "Product" && t.kind == "graphql_type"));
     }
 }

@@ -43,8 +43,13 @@ pub fn get_total(amount: f64) -> f64 {
 "##;
     fs::write(&file, initial_code).unwrap();
 
-    let res = SymbolRenamer::rename_symbol(dir.path(), "calculator.rs:calculate_tax", "compute_tax", false)
-        .expect("Renaming failed");
+    let res = SymbolRenamer::rename_symbol(
+        dir.path(),
+        "calculator.rs:calculate_tax",
+        "compute_tax",
+        false,
+    )
+    .expect("Renaming failed");
 
     assert_eq!(res.total_files_modified, 1);
     assert_eq!(res.total_occurrences, 2); // declaration + call site in get_total
@@ -84,8 +89,13 @@ export function run(id: string): boolean {
 "#;
     fs::write(&file, initial_code).unwrap();
 
-    let res = SymbolRenamer::rename_symbol(dir.path(), "service.ts:processPayment", "executePayment", false)
-        .expect("Renaming failed");
+    let res = SymbolRenamer::rename_symbol(
+        dir.path(),
+        "service.ts:processPayment",
+        "executePayment",
+        false,
+    )
+    .expect("Renaming failed");
 
     assert_eq!(res.total_files_modified, 1);
     assert_eq!(res.total_occurrences, 2); // declaration + run() call
@@ -114,10 +124,18 @@ export function formatMessage(id: string): string {
 "#;
     fs::write(&file, initial_code).unwrap();
 
-    let res = SymbolRenamer::rename_symbol(dir.path(), "template.ts:processPayment", "executePayment", false)
-        .expect("Renaming failed");
+    let res = SymbolRenamer::rename_symbol(
+        dir.path(),
+        "template.ts:processPayment",
+        "executePayment",
+        false,
+    )
+    .expect("Renaming failed");
 
-    println!("Template substitution occurrences: {}", res.total_occurrences);
+    println!(
+        "Template substitution occurrences: {}",
+        res.total_occurrences
+    );
     let modified = fs::read_to_string(&file).unwrap();
     println!("Modified template file:\n{}", modified);
 }
@@ -141,8 +159,13 @@ def checkout(price: float) -> float:
 "#;
     fs::write(&file, initial_code).unwrap();
 
-    let res = SymbolRenamer::rename_symbol(dir.path(), "billing.py:calculate_discount", "apply_discount", false)
-        .expect("Renaming failed");
+    let res = SymbolRenamer::rename_symbol(
+        dir.path(),
+        "billing.py:calculate_discount",
+        "apply_discount",
+        false,
+    )
+    .expect("Renaming failed");
 
     assert_eq!(res.total_files_modified, 1);
     assert_eq!(res.total_occurrences, 2); // def + checkout call
@@ -180,8 +203,13 @@ func MainDispatcher(p string) bool {
 "#;
     fs::write(&file, initial_code).unwrap();
 
-    let res = SymbolRenamer::rename_symbol(dir.path(), "handler.go:HandleRequest", "ProcessRequest", false)
-        .expect("Renaming failed");
+    let res = SymbolRenamer::rename_symbol(
+        dir.path(),
+        "handler.go:HandleRequest",
+        "ProcessRequest",
+        false,
+    )
+    .expect("Renaming failed");
 
     assert_eq!(res.total_files_modified, 1);
     assert_eq!(res.total_occurrences, 2); // declaration + MainDispatcher call
@@ -211,14 +239,21 @@ fn test_adv_rename_multi_occurrence_offset_invariance_expansion() {
     fs::write(&file, &code).unwrap();
 
     // Rename short 'fn' to much longer 'computeTransformedCoordinateValue'
-    let res = SymbolRenamer::rename_symbol(dir.path(), "dense.ts:fn", "computeTransformedCoordinateValue", false)
-        .expect("Renaming failed");
+    let res = SymbolRenamer::rename_symbol(
+        dir.path(),
+        "dense.ts:fn",
+        "computeTransformedCoordinateValue",
+        false,
+    )
+    .expect("Renaming failed");
 
     // 1 declaration + 25 * 2 calls = 51 occurrences
     assert_eq!(res.total_occurrences, 51);
 
     let modified = fs::read_to_string(&file).unwrap();
-    assert!(modified.contains("export function computeTransformedCoordinateValue(x: number): number"));
+    assert!(
+        modified.contains("export function computeTransformedCoordinateValue(x: number): number")
+    );
     for i in 0..25 {
         assert!(modified.contains(&format!(
             "export const val{i} = computeTransformedCoordinateValue(computeTransformedCoordinateValue({i}));"
@@ -232,9 +267,12 @@ fn test_adv_rename_multi_occurrence_offset_invariance_expansion() {
 fn test_adv_rename_multi_occurrence_offset_invariance_contraction() {
     let dir = TempDir::new().unwrap();
     let file = dir.path().join("contraction.rs");
-    let mut code = String::from("pub fn very_long_descriptive_function_name(x: i32) -> i32 { x * 2 }\n");
+    let mut code =
+        String::from("pub fn very_long_descriptive_function_name(x: i32) -> i32 { x * 2 }\n");
     for i in 0..20 {
-        code.push_str(&format!("pub fn test_{i}() -> i32 {{ very_long_descriptive_function_name({i}) }}\n"));
+        code.push_str(&format!(
+            "pub fn test_{i}() -> i32 {{ very_long_descriptive_function_name({i}) }}\n"
+        ));
     }
     fs::write(&file, &code).unwrap();
 
@@ -267,7 +305,11 @@ fn test_adv_rename_multi_file_imports_and_reexports() {
     let file_b = dir.path().join("b.ts");
     let file_c = dir.path().join("c.ts");
 
-    fs::write(&file_a, "export function originalTask(): boolean {\n    return true;\n}\n").unwrap();
+    fs::write(
+        &file_a,
+        "export function originalTask(): boolean {\n    return true;\n}\n",
+    )
+    .unwrap();
     fs::write(&file_b, "export { originalTask } from './a';\n").unwrap();
     fs::write(
         &file_c,
@@ -299,7 +341,8 @@ fn test_adv_rename_multi_file_imports_and_reexports() {
 fn test_adv_rename_dry_run_zero_disk_mutation() {
     let dir = TempDir::new().unwrap();
     let file = dir.path().join("immutable.ts");
-    let content = "export function transform(data: string): string { return data.toUpperCase(); }\n";
+    let content =
+        "export function transform(data: string): string { return data.toUpperCase(); }\n";
     fs::write(&file, content).unwrap();
 
     let res = SymbolRenamer::rename_symbol(dir.path(), "immutable.ts:transform", "mutate", true)
@@ -329,9 +372,17 @@ fn test_adv_rename_syntax_validation_blocks_invalid_identifiers() {
     fs::write(&file, content).unwrap();
 
     // Attempting to rename to an invalid identifier (e.g. invalid operators / malformed syntax)
-    let res = SymbolRenamer::rename_symbol(dir.path(), "syntax.rs:valid_func", "invalid+syntax!!!", false);
+    let res = SymbolRenamer::rename_symbol(
+        dir.path(),
+        "syntax.rs:valid_func",
+        "invalid+syntax!!!",
+        false,
+    );
 
-    assert!(res.is_err(), "Expected syntax validation error for invalid identifier");
+    assert!(
+        res.is_err(),
+        "Expected syntax validation error for invalid identifier"
+    );
 
     // Verify disk file is preserved intact
     let disk_content = fs::read_to_string(&file).unwrap();
@@ -366,9 +417,13 @@ fn test_adv_rename_cli_markdown_format() {
         .expect("CLI refactor rename failed");
 
     output.assert_success();
-    assert!(output.stdout.contains("# AST Symbol Rename: `executeJob` -> `performJob` (Dry Run (Preview))"));
+    assert!(output
+        .stdout
+        .contains("# AST Symbol Rename: `executeJob` -> `performJob` (Dry Run (Preview))"));
     assert!(output.stdout.contains("- **Total Files Modified:** `1`"));
-    assert!(output.stdout.contains("- **Total Occurrences Renamed:** `1`"));
+    assert!(output
+        .stdout
+        .contains("- **Total Occurrences Renamed:** `1`"));
 }
 
 #[test]
@@ -395,7 +450,8 @@ fn test_adv_rename_cli_json_format() {
         .expect("CLI refactor rename failed");
 
     output.assert_success();
-    let parsed: serde_json::Value = serde_json::from_str(&output.stdout).expect("Valid JSON expected");
+    let parsed: serde_json::Value =
+        serde_json::from_str(&output.stdout).expect("Valid JSON expected");
     assert_eq!(parsed["total_occurrences"], 1);
     assert_eq!(parsed["dry_run"], true);
 }
@@ -431,8 +487,9 @@ fn test_adv_rename_unrelated_file_workspace_scope() {
     fs::write(&file_a, "export function executeTask() { return 'A'; }\n").unwrap();
     fs::write(&file_b, "export function executeTask() { return 'B'; }\n").unwrap();
 
-    let res = SymbolRenamer::rename_symbol(dir.path(), "module_a.ts:executeTask", "performTask", false)
-        .expect("Renaming failed");
+    let res =
+        SymbolRenamer::rename_symbol(dir.path(), "module_a.ts:executeTask", "performTask", false)
+            .expect("Renaming failed");
 
     // SymbolRenamer operates on matching AST identifier nodes across workspace files
     assert!(res.total_files_modified >= 1);

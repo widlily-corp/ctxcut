@@ -36,7 +36,9 @@ impl ImpactAnalyzer {
         // Canonical target file relative to workspace root if provided
         let canonical_target_file = target_file.and_then(|tf| {
             if tf.is_absolute() {
-                tf.strip_prefix(workspace_root).ok().map(|p| p.to_path_buf())
+                tf.strip_prefix(workspace_root)
+                    .ok()
+                    .map(|p| p.to_path_buf())
             } else {
                 Some(tf.to_path_buf())
             }
@@ -94,7 +96,10 @@ impl ImpactAnalyzer {
         // Deduplicate callers by (file_path, caller_symbol, line_number)
         let mut seen = HashSet::new();
         discovered_callers.retain(|c| {
-            seen.insert(format!("{}:{}:{}", c.file_path, c.caller_symbol, c.line_number))
+            seen.insert(format!(
+                "{}:{}:{}",
+                c.file_path, c.caller_symbol, c.line_number
+            ))
         });
 
         let total_callers_count = discovered_callers.len();
@@ -143,9 +148,15 @@ impl ImpactAnalyzer {
 /// Handles: "AuthService.validate", "AuthService::validate", "validate".
 fn parse_target_symbol(query: &str) -> (Option<String>, String) {
     if let Some((container, member)) = query.split_once("::") {
-        (Some(container.trim().to_string()), member.trim().to_string())
+        (
+            Some(container.trim().to_string()),
+            member.trim().to_string(),
+        )
     } else if let Some((container, member)) = query.split_once('.') {
-        (Some(container.trim().to_string()), member.trim().to_string())
+        (
+            Some(container.trim().to_string()),
+            member.trim().to_string(),
+        )
     } else {
         (None, query.trim().to_string())
     }
@@ -196,7 +207,9 @@ fn scan_file_for_callers(
                     if let Some(ref rec) = receiver {
                         let matches_rec = rec == expected_container
                             || rec.ends_with(expected_container)
-                            || rec.to_lowercase().contains(&expected_container.to_lowercase());
+                            || rec
+                                .to_lowercase()
+                                .contains(&expected_container.to_lowercase());
                         if !matches_rec {
                             continue;
                         }
@@ -234,8 +247,14 @@ fn collect_call_nodes(root: Node<'_>, lang: SupportedLanguage) -> Vec<Node<'_>> 
         | SupportedLanguage::Astro => {
             let mut calls = AstUtils::find_descendants_by_kind(root, "call_expression");
             calls.extend(AstUtils::find_descendants_by_kind(root, "new_expression"));
-            calls.extend(AstUtils::find_descendants_by_kind(root, "jsx_self_closing_element"));
-            calls.extend(AstUtils::find_descendants_by_kind(root, "jsx_opening_element"));
+            calls.extend(AstUtils::find_descendants_by_kind(
+                root,
+                "jsx_self_closing_element",
+            ));
+            calls.extend(AstUtils::find_descendants_by_kind(
+                root,
+                "jsx_opening_element",
+            ));
             calls
         }
         SupportedLanguage::Python => AstUtils::find_descendants_by_kind(root, "call"),
@@ -250,17 +269,26 @@ fn collect_call_nodes(root: Node<'_>, lang: SupportedLanguage) -> Vec<Node<'_>> 
         }
         SupportedLanguage::CSharp => {
             let mut calls = AstUtils::find_descendants_by_kind(root, "invocation_expression");
-            calls.extend(AstUtils::find_descendants_by_kind(root, "object_creation_expression"));
+            calls.extend(AstUtils::find_descendants_by_kind(
+                root,
+                "object_creation_expression",
+            ));
             calls
         }
         SupportedLanguage::Java => {
             let mut calls = AstUtils::find_descendants_by_kind(root, "method_invocation");
-            calls.extend(AstUtils::find_descendants_by_kind(root, "object_creation_expression"));
+            calls.extend(AstUtils::find_descendants_by_kind(
+                root,
+                "object_creation_expression",
+            ));
             calls
         }
         SupportedLanguage::Kotlin => {
             let mut calls = AstUtils::find_descendants_by_kind(root, "call_expression");
-            calls.extend(AstUtils::find_descendants_by_kind(root, "navigation_expression"));
+            calls.extend(AstUtils::find_descendants_by_kind(
+                root,
+                "navigation_expression",
+            ));
             calls
         }
     }
@@ -295,7 +323,10 @@ fn extract_call_name(
             } else if node.kind() == "new_expression" {
                 let ctor = node.child_by_field_name("constructor")?;
                 Some((None, AstUtils::node_text(ctor, source).to_string()))
-            } else if matches!(node.kind(), "jsx_self_closing_element" | "jsx_opening_element") {
+            } else if matches!(
+                node.kind(),
+                "jsx_self_closing_element" | "jsx_opening_element"
+            ) {
                 let name_node = node.child_by_field_name("name")?;
                 Some((None, AstUtils::node_text(name_node, source).to_string()))
             } else {
@@ -390,7 +421,9 @@ fn extract_call_name(
         }
         SupportedLanguage::CSharp => {
             if node.kind() == "invocation_expression" {
-                let fn_node = node.child_by_field_name("expression").or_else(|| node.named_child(0))?;
+                let fn_node = node
+                    .child_by_field_name("expression")
+                    .or_else(|| node.named_child(0))?;
                 if fn_node.kind() == "identifier" {
                     Some((None, AstUtils::node_text(fn_node, source).to_string()))
                 } else if fn_node.kind() == "member_access_expression" {
@@ -480,7 +513,10 @@ fn find_enclosing_caller(
             }
             "variable_declarator" => {
                 if let Some(val) = parent.child_by_field_name("value") {
-                    if matches!(val.kind(), "arrow_function" | "function_expression" | "function") {
+                    if matches!(
+                        val.kind(),
+                        "arrow_function" | "function_expression" | "function"
+                    ) {
                         let name = parent
                             .child_by_field_name("name")
                             .map(|n| AstUtils::node_text(n, source).to_string())
@@ -505,7 +541,11 @@ fn find_enclosing_caller(
                     None => fn_name,
                 };
                 let sig = extract_python_signature(parent, source);
-                let kind = if class_name.is_some() { "method" } else { "function" };
+                let kind = if class_name.is_some() {
+                    "method"
+                } else {
+                    "function"
+                };
                 return (full_name, kind.to_string(), Some(sig));
             }
 
@@ -552,7 +592,11 @@ fn find_enclosing_caller(
                     None => name,
                 };
                 let sig = extract_rust_signature_header(parent, source);
-                let kind = if impl_type.is_some() { "method" } else { "function" };
+                let kind = if impl_type.is_some() {
+                    "method"
+                } else {
+                    "function"
+                };
                 return (full_name, kind.to_string(), Some(sig));
             }
 
@@ -656,7 +700,12 @@ fn apply_impact_budget(
 
     // Level 1: Fold snippets to 1 line
     for c in callers.iter_mut() {
-        let first = c.call_snippet.lines().next().unwrap_or(&c.call_snippet).trim();
+        let first = c
+            .call_snippet
+            .lines()
+            .next()
+            .unwrap_or(&c.call_snippet)
+            .trim();
         c.call_snippet = first.to_string();
     }
     check_res.callers.clone_from(callers);

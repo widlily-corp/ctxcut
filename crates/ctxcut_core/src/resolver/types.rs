@@ -328,9 +328,13 @@ fn extract_types_from_single_file(
             }
             SupportedLanguage::C | SupportedLanguage::Cpp => {
                 let adapter = crate::lang::c_cpp::CppAdapter;
-                if let Ok(types) = adapter.hoist_types(root, root, &source, file_path, &SliceOptions::default()) {
+                if let Ok(types) =
+                    adapter.hoist_types(root, root, &source, file_path, &SliceOptions::default())
+                {
                     for t in types {
-                        if t.name == name && !extracted.iter().any(|e: &ExtractedType| e.name == name) {
+                        if t.name == name
+                            && !extracted.iter().any(|e: &ExtractedType| e.name == name)
+                        {
                             extracted.push(t);
                         }
                     }
@@ -338,9 +342,13 @@ fn extract_types_from_single_file(
             }
             SupportedLanguage::CSharp => {
                 let adapter = crate::lang::csharp::CSharpAdapter;
-                if let Ok(types) = adapter.hoist_types(root, root, &source, file_path, &SliceOptions::default()) {
+                if let Ok(types) =
+                    adapter.hoist_types(root, root, &source, file_path, &SliceOptions::default())
+                {
                     for t in types {
-                        if t.name == name && !extracted.iter().any(|e: &ExtractedType| e.name == name) {
+                        if t.name == name
+                            && !extracted.iter().any(|e: &ExtractedType| e.name == name)
+                        {
                             extracted.push(t);
                         }
                     }
@@ -348,9 +356,13 @@ fn extract_types_from_single_file(
             }
             SupportedLanguage::Java => {
                 let adapter = crate::lang::java_lang::JavaAdapter;
-                if let Ok(types) = adapter.hoist_types(root, root, &source, file_path, &SliceOptions::default()) {
+                if let Ok(types) =
+                    adapter.hoist_types(root, root, &source, file_path, &SliceOptions::default())
+                {
                     for t in types {
-                        if t.name == name && !extracted.iter().any(|e: &ExtractedType| e.name == name) {
+                        if t.name == name
+                            && !extracted.iter().any(|e: &ExtractedType| e.name == name)
+                        {
                             extracted.push(t);
                         }
                     }
@@ -358,9 +370,13 @@ fn extract_types_from_single_file(
             }
             SupportedLanguage::Kotlin => {
                 let adapter = crate::lang::kotlin_lang::KotlinAdapter;
-                if let Ok(types) = adapter.hoist_types(root, root, &source, file_path, &SliceOptions::default()) {
+                if let Ok(types) =
+                    adapter.hoist_types(root, root, &source, file_path, &SliceOptions::default())
+                {
                     for t in types {
-                        if t.name == name && !extracted.iter().any(|e: &ExtractedType| e.name == name) {
+                        if t.name == name
+                            && !extracted.iter().any(|e: &ExtractedType| e.name == name)
+                        {
                             extracted.push(t);
                         }
                     }

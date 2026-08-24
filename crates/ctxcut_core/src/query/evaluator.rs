@@ -28,7 +28,8 @@ impl AstQueryEngine {
     ) -> Result<AstQueryReport> {
         if pattern.is_none() && preset_name.is_none() {
             return Err(CoreError::InvalidQuery(
-                "Either a custom S-expression pattern or a preset name must be provided".to_string(),
+                "Either a custom S-expression pattern or a preset name must be provided"
+                    .to_string(),
             ));
         }
 
@@ -214,9 +215,8 @@ impl AstQueryEngine {
                 });
             }
 
-            let main_node = def_node.unwrap_or_else(|| {
-                m.captures.first().map(|c| c.node).unwrap_or(root)
-            });
+            let main_node =
+                def_node.unwrap_or_else(|| m.captures.first().map(|c| c.node).unwrap_or(root));
 
             let start_line = main_node.start_position().row + 1;
             let end_line = main_node.end_position().row + 1;
@@ -353,9 +353,8 @@ impl AstQueryEngine {
                     });
                 }
 
-                let main_node = def_node.unwrap_or_else(|| {
-                    m.captures.first().map(|c| c.node).unwrap_or(root)
-                });
+                let main_node =
+                    def_node.unwrap_or_else(|| m.captures.first().map(|c| c.node).unwrap_or(root));
 
                 let start_line = block.start_line + main_node.start_position().row;
                 let end_line = block.start_line + main_node.end_position().row;

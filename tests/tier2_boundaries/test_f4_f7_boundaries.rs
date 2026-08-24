@@ -27,7 +27,9 @@ int get_id() { return Traits<int>::id; }
     fs::write(&file, content).unwrap();
 
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", "-f", file.to_str().unwrap()]).unwrap();
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", "-f", file.to_str().unwrap()])
+        .unwrap();
     output.assert_success();
 }
 
@@ -50,7 +52,9 @@ fn test_f4_boundary_c_function_pointer_types() {
     fs::write(&file, content).unwrap();
 
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", file.to_str().unwrap()]).unwrap();
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", file.to_str().unwrap()])
+        .unwrap();
     output.assert_success();
 }
 
@@ -62,7 +66,9 @@ fn test_f4_boundary_malformed_c_syntax_recovery() {
     fs::write(&file, content).unwrap();
 
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", "-f", file.to_str().unwrap()]).unwrap();
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", "-f", file.to_str().unwrap()])
+        .unwrap();
     output.assert_success();
 }
 
@@ -82,11 +88,21 @@ fn test_f4_boundary_c_extern_linkage() {
 #[test]
 fn test_f5_boundary_csharp_partial_classes() {
     let dir = TempDir::new().unwrap();
-    fs::write(dir.path().join("Part1.cs"), "namespace App; public partial class Service { public void A() {} }\n").unwrap();
-    fs::write(dir.path().join("Part2.cs"), "namespace App; public partial class Service { public void B() {} }\n").unwrap();
+    fs::write(
+        dir.path().join("Part1.cs"),
+        "namespace App; public partial class Service { public void A() {} }\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("Part2.cs"),
+        "namespace App; public partial class Service { public void B() {} }\n",
+    )
+    .unwrap();
 
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()]).unwrap();
+    let output = runner
+        .run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()])
+        .unwrap();
     output.assert_success();
 }
 
@@ -98,7 +114,9 @@ fn test_f5_boundary_csharp_extension_methods() {
     fs::write(&file, content).unwrap();
 
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", file.to_str().unwrap()]).unwrap();
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", file.to_str().unwrap()])
+        .unwrap();
     output.assert_success();
 }
 
@@ -130,7 +148,9 @@ fn test_f5_boundary_csharp_nullability_annotations() {
     fs::write(&file, content).unwrap();
 
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", "-f", file.to_str().unwrap()]).unwrap();
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", "-f", file.to_str().unwrap()])
+        .unwrap();
     output.assert_success();
 }
 
@@ -151,11 +171,14 @@ fn test_f5_boundary_csharp_dependency_injection_constructors() {
 fn test_f6_boundary_java_lombok_annotations() {
     let dir = TempDir::new().unwrap();
     let file = dir.path().join("Model.java");
-    let content = "package app; import lombok.Data; @Data public class Model { private String name; }\n";
+    let content =
+        "package app; import lombok.Data; @Data public class Model { private String name; }\n";
     fs::write(&file, content).unwrap();
 
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", file.to_str().unwrap()]).unwrap();
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", file.to_str().unwrap()])
+        .unwrap();
     output.assert_success();
 }
 
@@ -163,7 +186,8 @@ fn test_f6_boundary_java_lombok_annotations() {
 fn test_f6_boundary_kotlin_companion_objects() {
     let dir = TempDir::new().unwrap();
     let file = dir.path().join("Factory.kt");
-    let content = "package app\nclass Factory { companion object { fun create(): Factory = Factory() } }\n";
+    let content =
+        "package app\nclass Factory { companion object { fun create(): Factory = Factory() } }\n";
     fs::write(&file, content).unwrap();
 
     let verifier = TokenVerifier::new();
@@ -178,7 +202,9 @@ fn test_f6_boundary_java_anonymous_inner_classes() {
     fs::write(&file, content).unwrap();
 
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", "-f", file.to_str().unwrap()]).unwrap();
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", "-f", file.to_str().unwrap()])
+        .unwrap();
     output.assert_success();
 }
 
@@ -201,7 +227,9 @@ fn test_f6_boundary_java_wildcard_generics() {
     fs::write(&file, content).unwrap();
 
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", file.to_str().unwrap()]).unwrap();
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", file.to_str().unwrap()])
+        .unwrap();
     output.assert_success();
 }
 
@@ -234,7 +262,9 @@ const count = 0;
     fs::write(&file, content).unwrap();
 
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", file.to_str().unwrap()]).unwrap();
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", file.to_str().unwrap()])
+        .unwrap();
     output.assert_success();
 }
 
@@ -268,6 +298,8 @@ fn test_f7_boundary_malformed_sfc_unclosed_tags() {
     fs::write(&file, content).unwrap();
 
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", "-f", file.to_str().unwrap()]).unwrap();
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", "-f", file.to_str().unwrap()])
+        .unwrap();
     output.assert_success();
 }

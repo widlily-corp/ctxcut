@@ -33,7 +33,9 @@ export function checkoutController(amount: number): string {
     // Act: Slice entry point
     let runner = CliRunner::new();
     let target = format!("{}:checkoutController", file_path.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     // Assert: Invocation pathway dependencies are captured
     output.assert_success();
@@ -48,13 +50,19 @@ fn test_f2_trace_multi_file_resolution() {
     let repo_file = dir.path().join("repo.ts");
     let ctrl_file = dir.path().join("controller.ts");
 
-    fs::write(&repo_file, "export function saveOrder(id: string) { return true; }\n").unwrap();
+    fs::write(
+        &repo_file,
+        "export function saveOrder(id: string) { return true; }\n",
+    )
+    .unwrap();
     fs::write(&ctrl_file, "import { saveOrder } from './repo';\nexport function handleCheckout(id: string) { return saveOrder(id); }\n").unwrap();
 
     // Act: Trace entry point
     let runner = CliRunner::new();
     let target = format!("{}:handleCheckout", ctrl_file.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     // Assert: Cross-file dependency stubbed and preserved
     output.assert_success();
@@ -88,7 +96,9 @@ export function entryHandler(): number {
     // Act: Slice with explicit token budget
     let runner = CliRunner::new();
     let target = format!("{}:entryHandler", file_path.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target, "--budget", "100"]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target, "--budget", "100"])
+        .expect("Command failed");
 
     // Assert: Sliced context satisfies token budget
     output.assert_success();
@@ -102,13 +112,19 @@ fn test_f2_trace_mcp_get_trace_slice() {
     // Arrange: Setup MCP client
     let dir = TempDir::new().expect("Failed to create tempdir");
     let file_path = dir.path().join("entry.ts");
-    fs::write(&file_path, "export function executeFlow() { return 100; }\n").unwrap();
+    fs::write(
+        &file_path,
+        "export function executeFlow() { return 100; }\n",
+    )
+    .unwrap();
 
     let mut client = McpClient::start_in_dir(dir.path()).expect("Failed to start MCP server");
     let _ = client.initialize().expect("MCP init failed");
 
     // Act: Request symbol context
-    let slice = client.get_symbol_slice(file_path.to_str().unwrap(), "executeFlow").expect("MCP failed");
+    let slice = client
+        .get_symbol_slice(file_path.to_str().unwrap(), "executeFlow")
+        .expect("MCP failed");
 
     // Assert: Flow execution symbol returned
     assert!(slice.contains("executeFlow"));
@@ -119,15 +135,22 @@ fn test_f2_trace_json_output_structure() {
     // Arrange: Multi-step pipeline
     let dir = TempDir::new().expect("Failed to create tempdir");
     let file_path = dir.path().join("flow.ts");
-    fs::write(&file_path, "export function stepA() { return 1; }\nexport function flowRoot() { return stepA(); }\n").unwrap();
+    fs::write(
+        &file_path,
+        "export function stepA() { return 1; }\nexport function flowRoot() { return stepA(); }\n",
+    )
+    .unwrap();
 
     // Act: Query with json format
     let runner = CliRunner::new();
     let target = format!("{}:flowRoot", file_path.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target, "--format", "json"]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target, "--format", "json"])
+        .expect("Command failed");
 
     // Assert: Valid JSON structure
     output.assert_success();
-    let json: serde_json::Value = serde_json::from_str(&output.stdout).expect("Failed to parse JSON");
+    let json: serde_json::Value =
+        serde_json::from_str(&output.stdout).expect("Failed to parse JSON");
     assert!(json.is_object());
 }

@@ -23,9 +23,7 @@ pub struct IndexCliOptions {
 /// Executes `ctxcut index` command.
 pub fn run_index_command(opts: IndexCliOptions) -> Result<()> {
     let ws_root = opts.path.unwrap_or_else(|| PathBuf::from("."));
-    let ws_root = ws_root
-        .canonicalize()
-        .unwrap_or(ws_root);
+    let ws_root = ws_root.canonicalize().unwrap_or(ws_root);
 
     if opts.clean {
         IndexEngine::clean(&ws_root)?;
@@ -82,7 +80,11 @@ fn print_index_status(status: &IndexStatus, ws_root: &Path) {
         format!("[{}]", ws_root.display()).dimmed()
     );
     println!("{}", "─".repeat(60).dimmed());
-    println!("  {:<25} {}", "Database File:".bold(), status.db_path.display());
+    println!(
+        "  {:<25} {}",
+        "Database File:".bold(),
+        status.db_path.display()
+    );
     println!(
         "  {:<25} {}",
         "Storage Engine:".bold(),
@@ -94,11 +96,31 @@ fn print_index_status(status: &IndexStatus, ws_root: &Path) {
             "Rollback Journal".normal()
         }
     );
-    println!("  {:<25} {}", "Database Size:".bold(), format_bytes(status.db_size_bytes));
-    println!("  {:<25} {}", "Total Files:".bold(), status.total_files.to_string().cyan());
-    println!("  {:<25} {}", "Total Symbols:".bold(), status.total_symbols.to_string().green());
-    println!("  {:<25} {}", "Call Sites:".bold(), status.total_callers.to_string().yellow());
-    println!("  {:<25} {}", "Implementors:".bold(), status.total_implementors.to_string().magenta());
+    println!(
+        "  {:<25} {}",
+        "Database Size:".bold(),
+        format_bytes(status.db_size_bytes)
+    );
+    println!(
+        "  {:<25} {}",
+        "Total Files:".bold(),
+        status.total_files.to_string().cyan()
+    );
+    println!(
+        "  {:<25} {}",
+        "Total Symbols:".bold(),
+        status.total_symbols.to_string().green()
+    );
+    println!(
+        "  {:<25} {}",
+        "Call Sites:".bold(),
+        status.total_callers.to_string().yellow()
+    );
+    println!(
+        "  {:<25} {}",
+        "Implementors:".bold(),
+        status.total_implementors.to_string().magenta()
+    );
     println!(
         "  {:<25} {}",
         "Last Synchronized:".bold(),
@@ -108,7 +130,11 @@ fn print_index_status(status: &IndexStatus, ws_root: &Path) {
             .unwrap_or("Never")
             .dimmed()
     );
-    println!("  {:<25} v{}", "Schema Version:".bold(), status.schema_version);
+    println!(
+        "  {:<25} v{}",
+        "Schema Version:".bold(),
+        status.schema_version
+    );
     println!("{}", "─".repeat(60).dimmed());
 }
 

@@ -9,9 +9,7 @@ pub use typechecker::{
 };
 
 use crate::error::{CoreError, Result};
-use crate::model::{
-    SupportedLanguage, VerifyDiagnostic, VerifyPatchResult,
-};
+use crate::model::{SupportedLanguage, VerifyDiagnostic, VerifyPatchResult};
 use crate::patch::AstPatcher;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -48,13 +46,12 @@ impl PatchVerifier {
         typechecker: Option<&str>,
         dry_run: bool,
     ) -> Result<VerifyPatchResult> {
-        let (file_part, symbol_part) = parse_target_str(target).ok_or_else(|| {
-            CoreError::SymbolNotFound {
+        let (file_part, symbol_part) =
+            parse_target_str(target).ok_or_else(|| CoreError::SymbolNotFound {
                 symbol: target.to_string(),
                 path: PathBuf::from(target),
                 available_symbols: Vec::new(),
-            }
-        })?;
+            })?;
 
         let file_path = if Path::new(file_part).is_absolute() {
             PathBuf::from(file_part)
@@ -92,8 +89,7 @@ impl PatchVerifier {
             source: e,
         })?;
 
-        let lang = SupportedLanguage::from_path(file_path)
-            .unwrap_or(SupportedLanguage::TypeScript);
+        let lang = SupportedLanguage::from_path(file_path).unwrap_or(SupportedLanguage::TypeScript);
 
         // 1. AST Syntax validation and diff computation in memory
         let patch_res = match AstPatcher::patch_source(
@@ -146,9 +142,10 @@ impl PatchVerifier {
         })?;
 
         // 4. Determine & run typechecker
-        let typecheck_cmd = opts.typechecker.map(String::from).or_else(|| {
-            TypecheckerDetector::detect(opts.workspace_root, file_path, lang)
-        });
+        let typecheck_cmd = opts
+            .typechecker
+            .map(String::from)
+            .or_else(|| TypecheckerDetector::detect(opts.workspace_root, file_path, lang));
 
         let mut typecheck_success = true;
         let mut exit_code = Some(0);

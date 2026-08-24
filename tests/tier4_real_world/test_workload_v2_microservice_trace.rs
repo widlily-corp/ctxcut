@@ -97,7 +97,9 @@ impl UserRepository for SqlxUserRepository {
     }
 }
 "#;
-    sandbox.write_file("src/repository.rs", repo_content).unwrap();
+    sandbox
+        .write_file("src/repository.rs", repo_content)
+        .unwrap();
 
     // 3. Axum Route Handlers
     let handler_content = r#"
@@ -138,7 +140,9 @@ pub fn handle_list_users(state: &AppState) -> String {
     format!("Total active users: {}", users.len())
 }
 "#;
-    let handler_path = sandbox.write_file("src/handlers.rs", handler_content).unwrap();
+    let handler_path = sandbox
+        .write_file("src/handlers.rs", handler_content)
+        .unwrap();
 
     sandbox.stage_all().unwrap();
     sandbox.commit("Initial microservice architecture").unwrap();
@@ -146,7 +150,9 @@ pub fn handle_list_users(state: &AppState) -> String {
     // Act: Slice `handle_get_user`
     let runner = CliRunner::new();
     let target = format!("{}:handle_get_user", handler_path.display());
-    let output = runner.run_in_dir(sandbox.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(sandbox.path(), &["slice", &target])
+        .expect("Command failed");
 
     // Assert: Handlers extracted cleanly
     output.assert_success();

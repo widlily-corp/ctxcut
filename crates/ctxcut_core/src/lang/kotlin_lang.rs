@@ -35,11 +35,15 @@ impl LanguageAdapter for KotlinAdapter {
 
         if let Some(container_name) = container_query {
             // 1. Container.member or Container.Companion.member
-            if let Some((sym, node)) = find_in_container(root, source, container_name, member_query, file_path) {
+            if let Some((sym, node)) =
+                find_in_container(root, source, container_name, member_query, file_path)
+            {
                 return Ok((sym, node));
             }
             // 2. Extension function Receiver.func
-            if let Some((sym, node)) = find_extension_function(root, source, container_name, member_query, file_path) {
+            if let Some((sym, node)) =
+                find_extension_function(root, source, container_name, member_query, file_path)
+            {
                 return Ok((sym, node));
             }
         } else {
@@ -88,7 +92,12 @@ impl LanguageAdapter for KotlinAdapter {
 
         for user_type in AstUtils::find_descendants_by_kind(target_node, "user_type") {
             let text = AstUtils::node_text(user_type, source);
-            let name = text.trim_end_matches('?').split('<').next().unwrap_or(text).trim();
+            let name = text
+                .trim_end_matches('?')
+                .split('<')
+                .next()
+                .unwrap_or(text)
+                .trim();
             if !is_builtin_kotlin_type(name)
                 && !scoped_generics.contains(name)
                 && visited.insert(name.to_string())
@@ -119,11 +128,19 @@ impl LanguageAdapter for KotlinAdapter {
             // 1. Check local file
             if let Some(extracted) = find_kotlin_type_in_file(root, source, &type_name, file_path) {
                 if depth < opts.depth {
-                    if let Ok(tree) = ParserManager::parse_source(&extracted.definition, &ts_lang, file_path) {
-                        for id in AstUtils::find_descendants_by_kind(tree.root_node(), "simple_identifier") {
+                    if let Ok(tree) =
+                        ParserManager::parse_source(&extracted.definition, &ts_lang, file_path)
+                    {
+                        for id in AstUtils::find_descendants_by_kind(
+                            tree.root_node(),
+                            "simple_identifier",
+                        ) {
                             let nested = AstUtils::node_text(id, &extracted.definition);
                             let first = nested.chars().next().unwrap_or('_');
-                            if first.is_uppercase() && !is_builtin_kotlin_type(nested) && visited.insert(nested.to_string()) {
+                            if first.is_uppercase()
+                                && !is_builtin_kotlin_type(nested)
+                                && visited.insert(nested.to_string())
+                            {
                                 queue.push_back((nested.to_string(), depth + 1));
                             }
                         }
@@ -140,7 +157,11 @@ impl LanguageAdapter for KotlinAdapter {
                     for entry in entries.flatten() {
                         let p = entry.path();
                         if p.is_file() && p != file_path {
-                            let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+                            let ext = p
+                                .extension()
+                                .and_then(|e| e.to_str())
+                                .unwrap_or("")
+                                .to_lowercase();
                             if ext == "kt" || ext == "kts" {
                                 candidate_files.push(p);
                             }
@@ -151,13 +172,26 @@ impl LanguageAdapter for KotlinAdapter {
                 for cand_path in candidate_files {
                     if let Ok(cand_source) = fs::read_to_string(&cand_path) {
                         if cand_source.contains(&type_name) {
-                            if let Ok(tree) = ParserManager::parse_source(&cand_source, &ts_lang, &cand_path) {
-                                if let Some(extracted) = find_kotlin_type_in_file(tree.root_node(), &cand_source, &type_name, &cand_path) {
+                            if let Ok(tree) =
+                                ParserManager::parse_source(&cand_source, &ts_lang, &cand_path)
+                            {
+                                if let Some(extracted) = find_kotlin_type_in_file(
+                                    tree.root_node(),
+                                    &cand_source,
+                                    &type_name,
+                                    &cand_path,
+                                ) {
                                     if depth < opts.depth {
-                                        for id in AstUtils::find_descendants_by_kind(tree.root_node(), "simple_identifier") {
+                                        for id in AstUtils::find_descendants_by_kind(
+                                            tree.root_node(),
+                                            "simple_identifier",
+                                        ) {
                                             let nested = AstUtils::node_text(id, &cand_source);
                                             let first = nested.chars().next().unwrap_or('_');
-                                            if first.is_uppercase() && !is_builtin_kotlin_type(nested) && visited.insert(nested.to_string()) {
+                                            if first.is_uppercase()
+                                                && !is_builtin_kotlin_type(nested)
+                                                && visited.insert(nested.to_string())
+                                            {
                                                 queue.push_back((nested.to_string(), depth + 1));
                                             }
                                         }
@@ -191,7 +225,8 @@ impl LanguageAdapter for KotlinAdapter {
                 let (receiver, func_name) = match fn_node.kind() {
                     "simple_identifier" => (None, AstUtils::node_text(fn_node, source).to_string()),
                     "navigation_expression" => {
-                        let parts: Vec<&str> = AstUtils::node_text(fn_node, source).split('.').collect();
+                        let parts: Vec<&str> =
+                            AstUtils::node_text(fn_node, source).split('.').collect();
                         if parts.len() >= 2 {
                             let obj = parts[..parts.len() - 1].join(".");
                             let name = parts.last().copied().unwrap_or("").to_string();
@@ -238,12 +273,23 @@ impl LanguageAdapter for KotlinAdapter {
             let text = AstUtils::node_text(node, source);
             let has_delegation = AstUtils::find_descendants_by_kind(node, "delegation_specifier")
                 .into_iter()
-                .chain(AstUtils::find_descendants_by_kind(node, "delegation_specifiers"))
+                .chain(AstUtils::find_descendants_by_kind(
+                    node,
+                    "delegation_specifiers",
+                ))
                 .chain(AstUtils::find_descendants_by_kind(node, "user_type"))
                 .any(|d| {
                     let d_text = AstUtils::node_text(d, source);
                     d_text
-                        .split(|c: char| c == ',' || c == ':' || c.is_whitespace() || c == '<' || c == '>' || c == '(' || c == ')')
+                        .split(|c: char| {
+                            c == ','
+                                || c == ':'
+                                || c.is_whitespace()
+                                || c == '<'
+                                || c == '>'
+                                || c == '('
+                                || c == ')'
+                        })
                         .any(|part| part.trim() == interface_name)
                 })
                 || text.contains(&format!(": {interface_name}"))
@@ -283,7 +329,17 @@ fn get_kotlin_name(node: Node<'_>, source: &str) -> Option<String> {
     }
     for desc in AstUtils::find_descendants_by_kind(node, "simple_identifier") {
         let t = AstUtils::node_text(desc, source);
-        if t != "class" && t != "fun" && t != "interface" && t != "object" && t != "override" && t != "data" && t != "private" && t != "public" && t != "val" && t != "var" {
+        if t != "class"
+            && t != "fun"
+            && t != "interface"
+            && t != "object"
+            && t != "override"
+            && t != "data"
+            && t != "private"
+            && t != "public"
+            && t != "val"
+            && t != "var"
+        {
             return Some(t.to_string());
         }
     }
@@ -309,7 +365,10 @@ fn find_top_level<'a>(
     for node in decls.into_iter().chain(objects).chain(functions) {
         if let Some(name) = get_kotlin_name(node, source) {
             if name == target_name {
-                return Some((build_kotlin_symbol(node, source, file_path, target_name), node));
+                return Some((
+                    build_kotlin_symbol(node, source, file_path, target_name),
+                    node,
+                ));
             }
         }
     }
@@ -334,7 +393,10 @@ fn find_in_container<'a>(
                     if let Some(f_name) = get_kotlin_name(fn_node, source) {
                         if f_name == member_name {
                             let full_name = format!("{container_name}.{member_name}");
-                            return Some((build_kotlin_symbol(fn_node, source, file_path, &full_name), fn_node));
+                            return Some((
+                                build_kotlin_symbol(fn_node, source, file_path, &full_name),
+                                fn_node,
+                            ));
                         }
                     }
                 }
@@ -358,7 +420,10 @@ fn find_extension_function<'a>(
         let receiver_pat_suspend = format!("suspend fun {receiver_name}.{member_name}");
         if fn_text.contains(&receiver_pat) || fn_text.contains(&receiver_pat_suspend) {
             let full_name = format!("{receiver_name}.{member_name}");
-            return Some((build_kotlin_symbol(fn_node, source, file_path, &full_name), fn_node));
+            return Some((
+                build_kotlin_symbol(fn_node, source, file_path, &full_name),
+                fn_node,
+            ));
         }
     }
     None
@@ -379,7 +444,10 @@ fn find_any_method<'a>(
                     Some(c) => format!("{c}.{member_name}"),
                     None => member_name.to_string(),
                 };
-                return Some((build_kotlin_symbol(fn_node, source, file_path, &full_name), fn_node));
+                return Some((
+                    build_kotlin_symbol(fn_node, source, file_path, &full_name),
+                    fn_node,
+                ));
             }
         }
     }
@@ -467,7 +535,9 @@ fn extract_kotlin_doc_comment(node: Node<'_>, source: &str) -> Option<String> {
 
 fn extract_kotlin_signature(node: Node<'_>, source: &str) -> String {
     let raw = AstUtils::node_text(node, source);
-    if let Some(body) = AstUtils::find_child_by_kind(node, "function_body").or_else(|| AstUtils::find_child_by_kind(node, "block")) {
+    if let Some(body) = AstUtils::find_child_by_kind(node, "function_body")
+        .or_else(|| AstUtils::find_child_by_kind(node, "block"))
+    {
         let offset = body.start_byte().saturating_sub(node.start_byte());
         if offset > 0 && offset <= raw.len() {
             return raw[..offset].trim().to_string();
@@ -561,26 +631,92 @@ fn collect_symbols_recursive(
 fn is_builtin_kotlin_type(name: &str) -> bool {
     matches!(
         name,
-        "Int" | "Long" | "Short" | "Byte" | "Float" | "Double" | "Boolean" | "Char" | "String"
-            | "Unit" | "Nothing" | "Any" | "List" | "MutableList" | "Set" | "MutableSet"
-            | "Map" | "MutableMap" | "Array" | "Sequence" | "Flow" | "Deferred" | "Job"
-            | "Result" | "Pair" | "Triple" | "Throwable" | "Exception"
-            | "CoroutineScope" | "CoroutineContext" | "BigDecimal" | "BigInteger"
-            | "UUID" | "LocalDate" | "LocalDateTime" | "Instant"
-            | "RestController" | "Service" | "Repository" | "Component" | "Autowired"
-            | "GetMapping" | "PostMapping" | "PutMapping" | "DeleteMapping"
-            | "RequestBody" | "PathVariable" | "RequestParam"
+        "Int"
+            | "Long"
+            | "Short"
+            | "Byte"
+            | "Float"
+            | "Double"
+            | "Boolean"
+            | "Char"
+            | "String"
+            | "Unit"
+            | "Nothing"
+            | "Any"
+            | "List"
+            | "MutableList"
+            | "Set"
+            | "MutableSet"
+            | "Map"
+            | "MutableMap"
+            | "Array"
+            | "Sequence"
+            | "Flow"
+            | "Deferred"
+            | "Job"
+            | "Result"
+            | "Pair"
+            | "Triple"
+            | "Throwable"
+            | "Exception"
+            | "CoroutineScope"
+            | "CoroutineContext"
+            | "BigDecimal"
+            | "BigInteger"
+            | "UUID"
+            | "LocalDate"
+            | "LocalDateTime"
+            | "Instant"
+            | "RestController"
+            | "Service"
+            | "Repository"
+            | "Component"
+            | "Autowired"
+            | "GetMapping"
+            | "PostMapping"
+            | "PutMapping"
+            | "DeleteMapping"
+            | "RequestBody"
+            | "PathVariable"
+            | "RequestParam"
     )
 }
 
 fn is_builtin_kotlin_method(name: &str) -> bool {
     matches!(
         name,
-        "println" | "print" | "listOf" | "mutableListOf" | "setOf" | "mutableSetOf"
-            | "mapOf" | "mutableMapOf" | "arrayOf" | "let" | "apply" | "also" | "run" | "with"
-            | "launch" | "async" | "await" | "map" | "filter" | "forEach" | "first" | "firstOrNull"
-            | "take" | "drop" | "count" | "any" | "all" | "none" | "contains"
-            | "toString" | "equals" | "hashCode"
+        "println"
+            | "print"
+            | "listOf"
+            | "mutableListOf"
+            | "setOf"
+            | "mutableSetOf"
+            | "mapOf"
+            | "mutableMapOf"
+            | "arrayOf"
+            | "let"
+            | "apply"
+            | "also"
+            | "run"
+            | "with"
+            | "launch"
+            | "async"
+            | "await"
+            | "map"
+            | "filter"
+            | "forEach"
+            | "first"
+            | "firstOrNull"
+            | "take"
+            | "drop"
+            | "count"
+            | "any"
+            | "all"
+            | "none"
+            | "contains"
+            | "toString"
+            | "equals"
+            | "hashCode"
     )
 }
 
@@ -660,7 +796,11 @@ fn find_kotlin_type_in_file(
     None
 }
 
-fn find_kotlin_function_signature(root: Node<'_>, source: &str, target_name: &str) -> Option<String> {
+fn find_kotlin_function_signature(
+    root: Node<'_>,
+    source: &str,
+    target_name: &str,
+) -> Option<String> {
     let functions = AstUtils::find_descendants_by_kind(root, "function_declaration");
     for fn_node in functions {
         if let Some(name) = get_kotlin_name(fn_node, source) {

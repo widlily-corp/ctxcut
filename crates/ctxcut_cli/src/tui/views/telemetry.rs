@@ -23,13 +23,17 @@ pub fn render_telemetry(app: &AppState, area: Rect, buf: &mut Buffer) {
         .title_style(
             Style::default()
                 .fg(if is_active { Color::White } else { Color::Gray })
-                .add_modifier(if is_active { Modifier::BOLD } else { Modifier::empty() }),
+                .add_modifier(if is_active {
+                    Modifier::BOLD
+                } else {
+                    Modifier::empty()
+                }),
         );
 
     let inner = block.inner(area);
     block.render(area, buf);
 
-    if inner.height == 0 {
+    if inner.width == 0 || inner.height == 0 {
         return;
     }
 
@@ -38,7 +42,7 @@ pub fn render_telemetry(app: &AppState, area: Rect, buf: &mut Buffer) {
     // Subdivide inner into top KPI row and bottom details
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(3), Constraint::Min(4)])
+        .constraints([Constraint::Length(4), Constraint::Min(3)])
         .split(inner);
 
     // KPI Cards
@@ -82,7 +86,7 @@ pub fn render_telemetry(app: &AppState, area: Rect, buf: &mut Buffer) {
     kpi3.render(kpi_chunks[2], buf);
 
     // Bottom details: Pricing tiers + language breakdown
-    if chunks[1].height > 0 {
+    if chunks[1].height > 0 && chunks[1].width > 0 {
         let mut lines = Vec::new();
         lines.push("─ Model Tier Pricing Savings ───────────────────────".to_string());
         lines.push(format!(
@@ -111,7 +115,8 @@ pub fn render_telemetry(app: &AppState, area: Rect, buf: &mut Buffer) {
         }
 
         let visible_rows = chunks[1].height as usize;
-        let scroll = app.telemetry_scroll as usize;
+        let max_scroll = lines.len().saturating_sub(visible_rows);
+        let scroll = (app.telemetry_scroll as usize).min(max_scroll);
 
         for (row, line) in lines.iter().skip(scroll).take(visible_rows).enumerate() {
             let y = chunks[1].y + row as u16;
@@ -119,12 +124,8 @@ pub fn render_telemetry(app: &AppState, area: Rect, buf: &mut Buffer) {
                 break;
             }
 
-            let max_w = chunks[1].width as usize;
-            let truncated = if line.len() > max_w {
-                &line[..max_w]
-            } else {
-                line.as_str()
-            };
+            let max_w = chunks[1].width.saturating_sub(2) as usize;
+            let truncated = super::truncate_chars(line, max_w);
 
             let style = if line.starts_with('─') {
                 Style::default().fg(Color::DarkGray)
@@ -144,7 +145,9 @@ fn format_token_count(tokens: usize) -> String {
         format!("{tokens}")
     } else if tokens < 1_000_000 {
         format!("{:.1}K", tokens as f64 / 1_000.0)
-    } else {
+    } else if tokens < 1_000_000_000 {
         format!("{:.2}M", tokens as f64 / 1_000_000.0)
+    } else {
+        format!("{:.2}B", tokens as f64 / 1_000_000_000.0)
     }
 }

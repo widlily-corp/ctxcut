@@ -31,33 +31,35 @@ impl Widget for KpiCard<'_> {
             .borders(Borders::ALL)
             .border_style(Style::default().fg(Color::DarkGray))
             .title(format!(" {} ", self.title))
-            .title_style(Style::default().fg(Color::White).add_modifier(Modifier::BOLD));
+            .title_style(
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            );
 
         let inner_area = block.inner(area);
         block.render(area, buf);
 
+        if inner_area.width < 2 || inner_area.height == 0 {
+            return;
+        }
+
         if inner_area.height >= 1 && inner_area.y < buf.area().bottom() {
-            let max_w = inner_area.width as usize;
-            let val_str = if self.value.len() > max_w {
-                &self.value[..max_w]
-            } else {
-                self.value
-            };
+            let max_w = inner_area.width.saturating_sub(2) as usize;
+            let val_str = super::truncate_chars(self.value, max_w);
             buf.set_string(
                 inner_area.x + 1,
                 inner_area.y,
                 val_str,
-                Style::default().fg(self.accent_color).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(self.accent_color)
+                    .add_modifier(Modifier::BOLD),
             );
         }
 
         if inner_area.height >= 2 && (inner_area.y + 1) < buf.area().bottom() {
-            let max_w = inner_area.width as usize;
-            let sub_str = if self.subtitle.len() > max_w {
-                &self.subtitle[..max_w]
-            } else {
-                self.subtitle
-            };
+            let max_w = inner_area.width.saturating_sub(2) as usize;
+            let sub_str = super::truncate_chars(self.subtitle, max_w);
             buf.set_string(
                 inner_area.x + 1,
                 inner_area.y + 1,

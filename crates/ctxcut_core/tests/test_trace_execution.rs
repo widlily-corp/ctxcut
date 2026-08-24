@@ -72,7 +72,10 @@ export class OrderRepository {
         .expect("trace execution");
 
     assert_eq!(result.total_steps, 3);
-    assert_eq!(result.steps[0].symbol_name, "OrderController.createOrderHandler");
+    assert_eq!(
+        result.steps[0].symbol_name,
+        "OrderController.createOrderHandler"
+    );
     assert_eq!(result.steps[0].step_number, 1);
     assert_eq!(result.steps[1].symbol_name, "OrderService.processOrder");
     assert_eq!(result.steps[1].step_number, 2);
@@ -123,7 +126,11 @@ export class LoopB {
     // Traversal terminates when cycle is detected
     assert_eq!(result.total_steps, 2);
     let last_step = &result.steps[1];
-    assert!(last_step.next_target.as_ref().unwrap().contains("cycle detected"));
+    assert!(last_step
+        .next_target
+        .as_ref()
+        .unwrap()
+        .contains("cycle detected"));
 }
 
 #[test]
@@ -186,7 +193,12 @@ export class Repo {
     };
 
     let result = ExecutionTracer::trace(ws, "handleRequest", &opts).expect("trace budget");
-    println!("DEBUG sliced_tokens: {}, raw_tokens: {}\nMD:\n{}", result.stats.sliced_tokens, result.stats.raw_file_tokens, result.to_markdown());
+    println!(
+        "DEBUG sliced_tokens: {}, raw_tokens: {}\nMD:\n{}",
+        result.stats.sliced_tokens,
+        result.stats.raw_file_tokens,
+        result.to_markdown()
+    );
     assert_eq!(result.total_steps, 3);
     assert!(result.stats.sliced_tokens <= 500);
 }

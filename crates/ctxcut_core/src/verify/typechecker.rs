@@ -17,9 +17,7 @@ impl TypecheckerDetector {
         file_path: &Path,
         language: SupportedLanguage,
     ) -> Option<String> {
-        let rel_file = file_path
-            .strip_prefix(workspace_root)
-            .unwrap_or(file_path);
+        let rel_file = file_path.strip_prefix(workspace_root).unwrap_or(file_path);
         let rel_file_str = rel_file.to_string_lossy();
 
         match language {
@@ -29,7 +27,9 @@ impl TypecheckerDetector {
                 {
                     Some("cargo check".to_string())
                 } else {
-                    Some(format!("rustc --crate-type lib --emit=metadata -o NUL \"{rel_file_str}\""))
+                    Some(format!(
+                        "rustc --crate-type lib --emit=metadata -o NUL \"{rel_file_str}\""
+                    ))
                 }
             }
             SupportedLanguage::TypeScript | SupportedLanguage::JavaScript => {
@@ -248,7 +248,11 @@ fn parse_line_diagnostic(line: &str) -> Option<VerifyDiagnostic> {
                 line: line_num,
                 column: col_num,
                 message,
-                file: if file_part.is_empty() { None } else { Some(file_part.to_string()) },
+                file: if file_part.is_empty() {
+                    None
+                } else {
+                    Some(file_part.to_string())
+                },
                 code,
             });
         }
@@ -331,9 +335,16 @@ fn parse_severity_code_message(rest: &str) -> (String, Option<String>, String) {
     // Check for TS codes like error TS2322: ...
     if let Some(ts_idx) = rest.find("TS") {
         let code_part = &rest[ts_idx..];
-        let code_len = code_part.chars().take_while(|c| c.is_ascii_alphanumeric()).count();
+        let code_len = code_part
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric())
+            .count();
         let code = code_part[..code_len].to_string();
-        let msg = rest.replace(&code, "").trim_start_matches(':').trim().to_string();
+        let msg = rest
+            .replace(&code, "")
+            .trim_start_matches(':')
+            .trim()
+            .to_string();
         return (severity, Some(code), msg);
     }
 

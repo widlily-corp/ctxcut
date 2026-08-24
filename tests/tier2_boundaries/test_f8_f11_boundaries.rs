@@ -32,11 +32,21 @@ fn test_f8_boundary_multiple_schemas_disambiguation() {
     let dir = TempDir::new().unwrap();
     fs::create_dir_all(dir.path().join("pkg1")).unwrap();
     fs::create_dir_all(dir.path().join("pkg2")).unwrap();
-    fs::write(dir.path().join("pkg1/schema.prisma"), "model User { id Int @id }\n").unwrap();
-    fs::write(dir.path().join("pkg2/schema.prisma"), "model Post { id Int @id }\n").unwrap();
+    fs::write(
+        dir.path().join("pkg1/schema.prisma"),
+        "model User { id Int @id }\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("pkg2/schema.prisma"),
+        "model Post { id Int @id }\n",
+    )
+    .unwrap();
 
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()]).unwrap();
+    let output = runner
+        .run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()])
+        .unwrap();
     output.assert_success();
 }
 
@@ -99,7 +109,18 @@ fn test_f9_boundary_custom_typechecker_command() {
 
     let runner = CliRunner::new();
     let target = format!("{}:calc", file.display());
-    let output = runner.run_in_dir(dir.path(), &["patch", &target, "--code", "export function calc() { return 2; }\n", "--dry-run"]).unwrap();
+    let output = runner
+        .run_in_dir(
+            dir.path(),
+            &[
+                "patch",
+                &target,
+                "--code",
+                "export function calc() { return 2; }\n",
+                "--dry-run",
+            ],
+        )
+        .unwrap();
     output.assert_success();
 }
 
@@ -111,7 +132,18 @@ fn test_f9_boundary_process_timeout_guard() {
 
     let runner = CliRunner::new();
     let target = format!("{}:add", file.display());
-    let output = runner.run_in_dir(dir.path(), &["patch", &target, "--code", "pub fn add(a: i32, b: i32) -> i32 { a + b + 1 }\n", "--dry-run"]).unwrap();
+    let output = runner
+        .run_in_dir(
+            dir.path(),
+            &[
+                "patch",
+                &target,
+                "--code",
+                "pub fn add(a: i32, b: i32) -> i32 { a + b + 1 }\n",
+                "--dry-run",
+            ],
+        )
+        .unwrap();
     output.assert_success();
 }
 
@@ -119,15 +151,27 @@ fn test_f9_boundary_process_timeout_guard() {
 fn test_f9_boundary_concurrent_patch_isolation() {
     let dir1 = TempDir::new().unwrap();
     let dir2 = TempDir::new().unwrap();
-    fs::write(dir1.path().join("a.ts"), "export function fn() { return 1; }\n").unwrap();
-    fs::write(dir2.path().join("a.ts"), "export function fn() { return 2; }\n").unwrap();
+    fs::write(
+        dir1.path().join("a.ts"),
+        "export function fn() { return 1; }\n",
+    )
+    .unwrap();
+    fs::write(
+        dir2.path().join("a.ts"),
+        "export function fn() { return 2; }\n",
+    )
+    .unwrap();
 
     let runner = CliRunner::new();
     let target1 = format!("{}:fn", dir1.path().join("a.ts").display());
     let target2 = format!("{}:fn", dir2.path().join("a.ts").display());
 
-    let out1 = runner.run_in_dir(dir1.path(), &["slice", &target1]).unwrap();
-    let out2 = runner.run_in_dir(dir2.path(), &["slice", &target2]).unwrap();
+    let out1 = runner
+        .run_in_dir(dir1.path(), &["slice", &target1])
+        .unwrap();
+    let out2 = runner
+        .run_in_dir(dir2.path(), &["slice", &target2])
+        .unwrap();
 
     out1.assert_success();
     out2.assert_success();
@@ -136,19 +180,37 @@ fn test_f9_boundary_concurrent_patch_isolation() {
 #[test]
 fn test_f9_boundary_git_dirty_tree_preservation() {
     let sandbox = GitSandbox::new().unwrap();
-    sandbox.write_file("src/dirty.ts", "export const dirty = 1;\n").unwrap();
-    sandbox.write_file("src/target.ts", "export function fn() { return 0; }\n").unwrap();
+    sandbox
+        .write_file("src/dirty.ts", "export const dirty = 1;\n")
+        .unwrap();
+    sandbox
+        .write_file("src/target.ts", "export function fn() { return 0; }\n")
+        .unwrap();
     sandbox.stage_file("src/target.ts").unwrap();
     sandbox.commit("init").unwrap();
 
     // Leave dirty.ts uncommitted
     let runner = CliRunner::new();
     let target = format!("{}:fn", sandbox.resolve_path("src/target.ts").display());
-    let output = runner.run_in_dir(sandbox.path(), &["patch", &target, "--code", "export function fn() { return 10; }\n", "--dry-run"]).unwrap();
+    let output = runner
+        .run_in_dir(
+            sandbox.path(),
+            &[
+                "patch",
+                &target,
+                "--code",
+                "export function fn() { return 10; }\n",
+                "--dry-run",
+            ],
+        )
+        .unwrap();
     output.assert_success();
 
     // Verify dirty.ts is still preserved exactly
-    assert_eq!(sandbox.read_file("src/dirty.ts").unwrap(), "export const dirty = 1;\n");
+    assert_eq!(
+        sandbox.read_file("src/dirty.ts").unwrap(),
+        "export const dirty = 1;\n"
+    );
 }
 
 #[test]
@@ -168,12 +230,16 @@ fn test_f9_boundary_missing_typechecker_binary() {
 #[test]
 fn test_f10_boundary_no_semantic_change_whitespace_only() {
     let sandbox = GitSandbox::new().unwrap();
-    sandbox.write_file("src/ws.ts", "export function fn() { return 1; }\n").unwrap();
+    sandbox
+        .write_file("src/ws.ts", "export function fn() { return 1; }\n")
+        .unwrap();
     sandbox.stage_all().unwrap();
     sandbox.commit("init").unwrap();
 
     // Add spaces inside body
-    sandbox.modify_file("src/ws.ts", "export function fn() {   return 1;   }\n").unwrap();
+    sandbox
+        .modify_file("src/ws.ts", "export function fn() {   return 1;   }\n")
+        .unwrap();
 
     let runner = CliRunner::new();
     let output = runner.run_in_dir(sandbox.path(), &["diff"]).unwrap();
@@ -183,11 +249,18 @@ fn test_f10_boundary_no_semantic_change_whitespace_only() {
 #[test]
 fn test_f10_boundary_comment_only_modifications() {
     let sandbox = GitSandbox::new().unwrap();
-    sandbox.write_file("src/comment.ts", "export function fn() { return 1; }\n").unwrap();
+    sandbox
+        .write_file("src/comment.ts", "export function fn() { return 1; }\n")
+        .unwrap();
     sandbox.stage_all().unwrap();
     sandbox.commit("init").unwrap();
 
-    sandbox.modify_file("src/comment.ts", "// updated comment\nexport function fn() { return 1; }\n").unwrap();
+    sandbox
+        .modify_file(
+            "src/comment.ts",
+            "// updated comment\nexport function fn() { return 1; }\n",
+        )
+        .unwrap();
 
     let runner = CliRunner::new();
     let output = runner.run_in_dir(sandbox.path(), &["diff"]).unwrap();
@@ -197,7 +270,9 @@ fn test_f10_boundary_comment_only_modifications() {
 #[test]
 fn test_f10_boundary_renamed_file_semantic_diff() {
     let sandbox = GitSandbox::new().unwrap();
-    sandbox.write_file("src/old.ts", "export function run() { return 1; }\n").unwrap();
+    sandbox
+        .write_file("src/old.ts", "export function run() { return 1; }\n")
+        .unwrap();
     sandbox.stage_all().unwrap();
     sandbox.commit("init").unwrap();
 
@@ -210,13 +285,25 @@ fn test_f10_boundary_renamed_file_semantic_diff() {
 #[test]
 fn test_f10_boundary_untracked_new_file() {
     let sandbox = GitSandbox::new().unwrap();
-    sandbox.write_file("src/init.ts", "export const x = 1;\n").unwrap();
+    sandbox
+        .write_file("src/init.ts", "export const x = 1;\n")
+        .unwrap();
     sandbox.stage_all().unwrap();
     sandbox.commit("init").unwrap();
 
-    sandbox.write_file("src/brand_new.ts", "export function newlyAdded() { return 42; }\n").unwrap();
+    sandbox
+        .write_file(
+            "src/brand_new.ts",
+            "export function newlyAdded() { return 42; }\n",
+        )
+        .unwrap();
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(sandbox.path(), &["overview", sandbox.path().to_str().unwrap()]).unwrap();
+    let output = runner
+        .run_in_dir(
+            sandbox.path(),
+            &["overview", sandbox.path().to_str().unwrap()],
+        )
+        .unwrap();
     output.assert_success();
 }
 
@@ -238,7 +325,9 @@ fn test_f10_boundary_extreme_diff_size_budget() {
     sandbox.modify_file("src/huge.ts", &code).unwrap();
 
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(sandbox.path(), &["diff", "--budget", "200"]).unwrap();
+    let output = runner
+        .run_in_dir(sandbox.path(), &["diff", "--budget", "200"])
+        .unwrap();
     output.assert_success();
 }
 
@@ -266,7 +355,11 @@ export function compute(val: number): number {
 fn test_f11_boundary_name_collision_conflict() {
     let dir = TempDir::new().unwrap();
     let file = dir.path().join("conflict.ts");
-    fs::write(&file, "export function existing() {}\nexport function toRename() {}\n").unwrap();
+    fs::write(
+        &file,
+        "export function existing() {}\nexport function toRename() {}\n",
+    )
+    .unwrap();
 
     let runner = CliRunner::new();
     let target = format!("{}:toRename", file.display());
@@ -293,11 +386,21 @@ export class Derived implements Base { run(): void {} }
 #[test]
 fn test_f11_boundary_re_exported_symbol_renaming() {
     let dir = TempDir::new().unwrap();
-    fs::write(dir.path().join("source.ts"), "export function original() { return 1; }\n").unwrap();
-    fs::write(dir.path().join("index.ts"), "export { original } from './source';\n").unwrap();
+    fs::write(
+        dir.path().join("source.ts"),
+        "export function original() { return 1; }\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("index.ts"),
+        "export { original } from './source';\n",
+    )
+    .unwrap();
 
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()]).unwrap();
+    let output = runner
+        .run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()])
+        .unwrap();
     output.assert_success();
 }
 

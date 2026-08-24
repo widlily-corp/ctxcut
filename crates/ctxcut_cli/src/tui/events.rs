@@ -6,17 +6,40 @@ use std::time::Duration;
 
 /// Polls and handles terminal input events.
 pub fn handle_events(app: &mut AppState, tick_rate: Duration) -> std::io::Result<()> {
+    app.tick();
+
     if event::poll(tick_rate)? {
-        if let Event::Key(key) = event::read()? {
-            if key.kind != event::KeyEventKind::Release {
-                handle_key_event(app, key);
+        loop {
+            let ev = event::read()?;
+            match ev {
+                Event::Key(key) => {
+                    if key.kind != event::KeyEventKind::Release {
+                        handle_key_event(app, key);
+                    }
+                }
+                Event::Resize(_w, _h) => {
+                    // Windows Terminal resize event: no-op, ratatui auto-adjusts next draw frame
+                }
+                Event::FocusGained | Event::FocusLost => {
+                    // Windows Terminal focus events: ignored safely without freezing
+                }
+                Event::Paste(text) if app.is_searching => {
+                    app.search_query.push_str(&text);
+                    app.apply_filter();
+                }
+                Event::Mouse(_) | Event::Paste(_) => {}
+            }
+
+            if app.should_quit || !event::poll(Duration::from_millis(0))? {
+                break;
             }
         }
     }
     Ok(())
 }
 
-fn handle_key_event(app: &mut AppState, key: KeyEvent) {
+/// Dispatches a key event to the active TUI state machine.
+pub fn handle_key_event(app: &mut AppState, key: KeyEvent) {
     if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
         app.should_quit = true;
         return;
@@ -36,6 +59,24 @@ fn handle_key_event(app: &mut AppState, key: KeyEvent) {
                 app.search_query.clear();
                 app.apply_filter();
             }
+            KeyCode::Down => {
+                app.select_next();
+            }
+            KeyCode::Up => {
+                app.select_prev();
+            }
+            KeyCode::PageDown => {
+                app.select_page_down();
+            }
+            KeyCode::PageUp => {
+                app.select_page_up();
+            }
+            KeyCode::Home => {
+                app.select_first();
+            }
+            KeyCode::End => {
+                app.select_last();
+            }
             KeyCode::Backspace => {
                 app.search_query.pop();
                 app.apply_filter();
@@ -53,11 +94,14 @@ fn handle_key_event(app: &mut AppState, key: KeyEvent) {
         KeyCode::Char('q') | KeyCode::Esc => {
             app.should_quit = true;
         }
-        KeyCode::Tab => {
-            app.active_pane = app.active_pane.next();
-        }
         KeyCode::BackTab => {
             app.active_pane = app.active_pane.prev();
+        }
+        KeyCode::Tab if key.modifiers.contains(KeyModifiers::SHIFT) => {
+            app.active_pane = app.active_pane.prev();
+        }
+        KeyCode::Tab => {
+            app.active_pane = app.active_pane.next();
         }
         KeyCode::Char('/') => {
             app.is_searching = true;
@@ -67,6 +111,18 @@ fn handle_key_event(app: &mut AppState, key: KeyEvent) {
         }
         KeyCode::Char('k') | KeyCode::Up => {
             app.select_prev();
+        }
+        KeyCode::PageDown => {
+            app.select_page_down();
+        }
+        KeyCode::PageUp => {
+            app.select_page_up();
+        }
+        KeyCode::Home => {
+            app.select_first();
+        }
+        KeyCode::End => {
+            app.select_last();
         }
         KeyCode::Enter => {
             app.trigger_slice();

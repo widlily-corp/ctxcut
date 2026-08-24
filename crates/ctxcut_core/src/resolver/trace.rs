@@ -56,12 +56,8 @@ impl ExecutionTracer {
             let lang = SupportedLanguage::from_path(&current_file)
                 .unwrap_or(SupportedLanguage::TypeScript);
             let adapter = LanguageRegistry::for_language(lang)?;
-            let (_extracted, symbol_node) = adapter.locate_symbol(
-                root,
-                source,
-                &current_symbol.name,
-                &current_file,
-            )?;
+            let (_extracted, symbol_node) =
+                adapter.locate_symbol(root, source, &current_symbol.name, &current_file)?;
 
             // Extract outgoing domain calls
             let outgoing_candidates = extract_outgoing_calls(symbol_node, source, lang);
@@ -140,7 +136,10 @@ impl ExecutionTracer {
         }
         if total_raw_tokens == 0 {
             total_raw_tokens = steps.iter().map(|s| count_tokens(&s.code_snippet)).sum();
-            total_raw_lines = steps.iter().map(|s| s.end_line.saturating_sub(s.start_line) + 1).sum();
+            total_raw_lines = steps
+                .iter()
+                .map(|s| s.end_line.saturating_sub(s.start_line) + 1)
+                .sum();
         }
 
         let mut trace_result = TraceResult {
@@ -152,7 +151,12 @@ impl ExecutionTracer {
                 .replace('\\', "/"),
             steps,
             total_steps,
-            stats: TokenStats::calculate(total_raw_tokens, total_raw_tokens, total_raw_lines, total_raw_lines),
+            stats: TokenStats::calculate(
+                total_raw_tokens,
+                total_raw_tokens,
+                total_raw_lines,
+                total_raw_lines,
+            ),
         };
 
         // 3. Progressive Token Budgeting
@@ -162,8 +166,12 @@ impl ExecutionTracer {
         let final_md = trace_result.to_markdown();
         let sliced_tokens = count_tokens(&final_md);
         let sliced_lines = count_lines(&final_md);
-        trace_result.stats =
-            TokenStats::calculate(total_raw_tokens, sliced_tokens, total_raw_lines, sliced_lines);
+        trace_result.stats = TokenStats::calculate(
+            total_raw_tokens,
+            sliced_tokens,
+            total_raw_lines,
+            sliced_lines,
+        );
 
         Ok(trace_result)
     }
@@ -208,9 +216,12 @@ fn resolve_entry_point(
                     if let Ok(adapter) = LanguageRegistry::for_language(lang) {
                         let ts_lang = adapter.tree_sitter_language(&file);
                         if let Ok(tree) = ParserManager::parse_source(&source, &ts_lang, &file) {
-                            if let Ok((sym, _)) =
-                                adapter.locate_symbol(tree.root_node(), &source, &handler_sym, &file)
-                            {
+                            if let Ok((sym, _)) = adapter.locate_symbol(
+                                tree.root_node(),
+                                &source,
+                                &handler_sym,
+                                &file,
+                            ) {
                                 return Ok((file, handler_sym, sym));
                             }
                         }
@@ -233,17 +244,13 @@ fn resolve_entry_point(
                 path: file_path.clone(),
                 source: e,
             })?;
-            let lang = SupportedLanguage::from_path(&file_path)
-                .unwrap_or(SupportedLanguage::TypeScript);
+            let lang =
+                SupportedLanguage::from_path(&file_path).unwrap_or(SupportedLanguage::TypeScript);
             let adapter = LanguageRegistry::for_language(lang)?;
             let ts_lang = adapter.tree_sitter_language(&file_path);
             let tree = ParserManager::parse_source(&source, &ts_lang, &file_path)?;
-            let (sym, _) = adapter.locate_symbol(
-                tree.root_node(),
-                &source,
-                sym_part.trim(),
-                &file_path,
-            )?;
+            let (sym, _) =
+                adapter.locate_symbol(tree.root_node(), &source, sym_part.trim(), &file_path)?;
             return Ok((file_path, sym_part.trim().to_string(), sym));
         }
     }
@@ -318,8 +325,7 @@ fn load_ast<'a>(
             path: path.to_path_buf(),
             source: e,
         })?;
-        let lang =
-            SupportedLanguage::from_path(path).unwrap_or(SupportedLanguage::TypeScript);
+        let lang = SupportedLanguage::from_path(path).unwrap_or(SupportedLanguage::TypeScript);
         let adapter = LanguageRegistry::for_language(lang)?;
         let ts_lang = adapter.tree_sitter_language(path);
         let tree = ParserManager::parse_source(&source, &ts_lang, path)?;
@@ -353,17 +359,26 @@ fn extract_outgoing_calls(
         }
         SupportedLanguage::CSharp => {
             let mut calls = AstUtils::find_descendants_by_kind(node, "invocation_expression");
-            calls.extend(AstUtils::find_descendants_by_kind(node, "object_creation_expression"));
+            calls.extend(AstUtils::find_descendants_by_kind(
+                node,
+                "object_creation_expression",
+            ));
             calls
         }
         SupportedLanguage::Java => {
             let mut calls = AstUtils::find_descendants_by_kind(node, "method_invocation");
-            calls.extend(AstUtils::find_descendants_by_kind(node, "object_creation_expression"));
+            calls.extend(AstUtils::find_descendants_by_kind(
+                node,
+                "object_creation_expression",
+            ));
             calls
         }
         SupportedLanguage::Kotlin => {
             let mut calls = AstUtils::find_descendants_by_kind(node, "call_expression");
-            calls.extend(AstUtils::find_descendants_by_kind(node, "navigation_expression"));
+            calls.extend(AstUtils::find_descendants_by_kind(
+                node,
+                "navigation_expression",
+            ));
             calls
         }
     };
@@ -502,7 +517,9 @@ fn extract_call_parts(
         }
         SupportedLanguage::CSharp => {
             if call.kind() == "invocation_expression" {
-                let fn_node = call.child_by_field_name("expression").or_else(|| call.named_child(0))?;
+                let fn_node = call
+                    .child_by_field_name("expression")
+                    .or_else(|| call.named_child(0))?;
                 if fn_node.kind() == "identifier" {
                     Some((None, AstUtils::node_text(fn_node, source).to_string()))
                 } else if fn_node.kind() == "member_access_expression" {
@@ -622,7 +639,16 @@ fn is_noise_or_builtin(
             let r_lower = r.to_lowercase();
             if matches!(
                 r_lower.as_str(),
-                "console" | "math" | "json" | "res" | "response" | "req" | "request" | "fmt" | "log" | "logger"
+                "console"
+                    | "math"
+                    | "json"
+                    | "res"
+                    | "response"
+                    | "req"
+                    | "request"
+                    | "fmt"
+                    | "log"
+                    | "logger"
             ) {
                 return true;
             }
@@ -722,8 +748,7 @@ fn resolve_callee_definition(
     let adapter = LanguageRegistry::for_language(lang).ok()?;
 
     // A. Check local file for method or receiver.method or class method
-    if let Ok((sym, _)) =
-        adapter.locate_symbol(root, source, &candidate.method_name, current_file)
+    if let Ok((sym, _)) = adapter.locate_symbol(root, source, &candidate.method_name, current_file)
     {
         return Some((current_file.to_path_buf(), sym));
     }
@@ -925,8 +950,7 @@ fn compress_trace_budget(trace: &mut TraceResult, budget: usize) -> Result<()> {
 
     // Level 3: Fold all steps to invocation stubs
     for step in &mut trace.steps {
-        step.code_snippet =
-            fold_to_call_snippet(&step.code_snippet, step.next_target.as_deref());
+        step.code_snippet = fold_to_call_snippet(&step.code_snippet, step.next_target.as_deref());
     }
     if count_tokens(&trace.to_markdown()) <= budget {
         return Ok(());

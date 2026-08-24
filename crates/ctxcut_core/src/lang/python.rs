@@ -446,8 +446,7 @@ impl LanguageAdapter for PythonAdapter {
         let mut implementors = Vec::new();
         let mut cursor = root.walk();
 
-        let target_protocol_methods =
-            extract_python_protocol_methods(root, source, interface_name);
+        let target_protocol_methods = extract_python_protocol_methods(root, source, interface_name);
 
         for child in root.children(&mut cursor) {
             let decl = unwrap_decorated(child);
@@ -1224,13 +1223,21 @@ fn extract_python_sig(decl: Node<'_>, source: &str) -> String {
         if decl_start < sig_end && sig_end <= source.len() {
             let sig = source[decl_start..sig_end].trim_end();
             let before_comment = sig.split('#').next().unwrap_or(sig).trim();
-            return before_comment.strip_suffix(':').unwrap_or(before_comment).trim().to_string();
+            return before_comment
+                .strip_suffix(':')
+                .unwrap_or(before_comment)
+                .trim()
+                .to_string();
         }
     }
     let text = AstUtils::node_text(decl, source);
     let first_line = text.lines().next().unwrap_or(text);
     let before_comment = first_line.split('#').next().unwrap_or(first_line).trim();
-    before_comment.strip_suffix(':').unwrap_or(before_comment).trim().to_string()
+    before_comment
+        .strip_suffix(':')
+        .unwrap_or(before_comment)
+        .trim()
+        .to_string()
 }
 
 fn find_python_signature(root: Node<'_>, source: &str, func_name: &str) -> Option<String> {

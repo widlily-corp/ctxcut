@@ -15,7 +15,9 @@ pub fn render_navigator(app: &AppState, area: Rect, buf: &mut Buffer) {
         Color::DarkGray
     };
 
-    let title = if app.search_query.is_empty() {
+    let title = if app.is_loading {
+        " 📂 SYMBOLS [Scanning...] ".to_string()
+    } else if app.search_query.is_empty() {
         format!(" 📂 SYMBOLS ({}) [/ Search] ", app.filtered_symbols.len())
     } else {
         format!(
@@ -33,23 +35,54 @@ pub fn render_navigator(app: &AppState, area: Rect, buf: &mut Buffer) {
         .title_style(
             Style::default()
                 .fg(if is_active { Color::White } else { Color::Gray })
-                .add_modifier(if is_active { Modifier::BOLD } else { Modifier::empty() }),
+                .add_modifier(if is_active {
+                    Modifier::BOLD
+                } else {
+                    Modifier::empty()
+                }),
         );
 
     let inner = block.inner(area);
     block.render(area, buf);
 
-    if inner.height == 0 || app.filtered_symbols.is_empty() {
-        if inner.height > 0 && inner.y < buf.area().bottom() {
-            let msg = if inner.width > 30 {
+    if inner.width == 0 || inner.height == 0 {
+        return;
+    }
+
+    if app.is_loading {
+        if inner.y < buf.area().bottom() {
+            let max_w = inner.width.saturating_sub(2) as usize;
+            let msg = if max_w > 30 {
+                "⟳ Scanning workspace symbols..."
+            } else {
+                "⟳ Scanning..."
+            };
+            let truncated = super::truncate_chars(msg, max_w);
+            buf.set_string(
+                inner.x + 1,
+                inner.y,
+                truncated,
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            );
+        }
+        return;
+    }
+
+    if app.filtered_symbols.is_empty() {
+        if inner.y < buf.area().bottom() {
+            let max_w = inner.width.saturating_sub(2) as usize;
+            let msg = if max_w > 30 {
                 "No symbols found in workspace."
             } else {
                 "No symbols"
             };
+            let truncated = super::truncate_chars(msg, max_w);
             buf.set_string(
                 inner.x + 1,
                 inner.y,
-                msg,
+                truncated,
                 Style::default().fg(Color::DarkGray),
             );
         }
@@ -59,12 +92,14 @@ pub fn render_navigator(app: &AppState, area: Rect, buf: &mut Buffer) {
     let visible_rows = inner.height as usize;
     let selected_pos = app.selected_symbol_idx;
 
-    // Scroll window calculation
-    let start_idx = if selected_pos >= visible_rows {
+    // Scroll window calculation with end-of-list clamping
+    let raw_start = if selected_pos >= visible_rows {
         selected_pos.saturating_sub(visible_rows / 2)
     } else {
         0
     };
+    let max_start = app.filtered_symbols.len().saturating_sub(visible_rows);
+    let start_idx = raw_start.min(max_start);
 
     for (row, &sym_idx) in app
         .filtered_symbols
@@ -79,20 +114,43 @@ pub fn render_navigator(app: &AppState, area: Rect, buf: &mut Buffer) {
         }
 
         let sym = &app.symbols[sym_idx];
-        let is_selected = sym_idx == app.filtered_symbols.get(selected_pos).copied().unwrap_or(usize::MAX);
+        let is_selected = sym_idx
+            == app
+                .filtered_symbols
+                .get(selected_pos)
+                .copied()
+                .unwrap_or(usize::MAX);
 
         let prefix = if is_selected { " > " } else { "   " };
-        let rel_path = sym
-            .file_path
-            .strip_prefix(&app.workspace_root)
-            .unwrap_or(&sym.file_path)
-            .to_string_lossy()
-            .replace('\\', "/");
+        let sym_path_str = sym.file_path.to_string_lossy();
+        let ws_root_str = app.workspace_root.to_string_lossy();
+        let clean_sym_path = sym_path_str.strip_prefix(r"\\?\").unwrap_or(&sym_path_str);
+        let clean_ws_root = ws_root_str.strip_prefix(r"\\?\").unwrap_or(&ws_root_str);
+        let sym_norm = clean_sym_path.replace('\\', "/");
+        let ws_norm = clean_ws_root.replace('\\', "/");
+        let ws_norm_trimmed = ws_norm.trim_end_matches('/');
 
-        let line_text = format!("{prefix}{}:{}:{} ({})", rel_path, sym.line, sym.symbol_name, sym.kind);
+        let rel_path = if sym_norm
+            .to_lowercase()
+            .starts_with(&ws_norm_trimmed.to_lowercase())
+        {
+            sym_norm[ws_norm_trimmed.len()..]
+                .trim_start_matches('/')
+                .to_string()
+        } else {
+            sym_norm
+        };
+
+        let line_text = format!(
+            "{prefix}{}:{}:{} ({})",
+            rel_path, sym.line, sym.symbol_name, sym.kind
+        );
         let max_w = inner.width as usize;
-        let truncated = if line_text.len() > max_w {
-            format!("{}…", &line_text[..max_w.saturating_sub(1)])
+        let truncated = if line_text.chars().count() > max_w {
+            format!(
+                "{}…",
+                super::truncate_chars(&line_text, max_w.saturating_sub(1))
+            )
         } else {
             line_text
         };

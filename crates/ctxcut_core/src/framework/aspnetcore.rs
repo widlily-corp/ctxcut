@@ -85,14 +85,19 @@ impl FrameworkAnalyzer for AspNetCoreAnalyzer {
         // 2. Scan for [FromBody], [FromQuery], [FromRoute] action parameters
         for line in search_text.lines() {
             let trimmed = line.trim();
-            if trimmed.contains("[FromBody]") || trimmed.contains("[FromQuery]") || trimmed.contains("[FromRoute]") {
+            if trimmed.contains("[FromBody]")
+                || trimmed.contains("[FromQuery]")
+                || trimmed.contains("[FromRoute]")
+            {
                 for tag in &["[FromBody]", "[FromQuery]", "[FromRoute]"] {
                     if let Some(pos) = trimmed.find(tag) {
                         let after = &trimmed[pos + tag.len()..].trim();
                         let parts: Vec<&str> = after.split_whitespace().collect();
                         if let Some(type_candidate) = parts.first() {
                             let clean = type_candidate.trim_matches(['(', ')', ',', ';']).trim();
-                            if !is_builtin_aspnet_type(clean) && !dto_names.contains(&clean.to_string()) {
+                            if !is_builtin_aspnet_type(clean)
+                                && !dto_names.contains(&clean.to_string())
+                            {
                                 dto_names.push(clean.to_string());
                             }
                         }
@@ -115,7 +120,9 @@ impl FrameworkAnalyzer for AspNetCoreAnalyzer {
                             }
                         }
                         let inner_clean = inner.split(',').next().unwrap_or(inner).trim();
-                        if !is_builtin_aspnet_type(inner_clean) && !dto_names.contains(&inner_clean.to_string()) {
+                        if !is_builtin_aspnet_type(inner_clean)
+                            && !dto_names.contains(&inner_clean.to_string())
+                        {
                             dto_names.push(inner_clean.to_string());
                         }
                     }
@@ -152,11 +159,36 @@ impl FrameworkAnalyzer for AspNetCoreAnalyzer {
 fn is_builtin_aspnet_type(name: &str) -> bool {
     matches!(
         name,
-        "int" | "string" | "bool" | "double" | "float" | "decimal" | "byte" | "long"
-            | "void" | "object" | "dynamic" | "var" | "Guid" | "DateTime" | "DateTimeOffset"
-            | "Task" | "ValueTask" | "IActionResult" | "ActionResult" | "ILogger" | "IConfiguration"
-            | "CancellationToken" | "HttpContext" | "HttpRequest" | "HttpResponse"
-            | "List" | "IList" | "IEnumerable" | "Dictionary" | "IDictionary"
+        "int"
+            | "string"
+            | "bool"
+            | "double"
+            | "float"
+            | "decimal"
+            | "byte"
+            | "long"
+            | "void"
+            | "object"
+            | "dynamic"
+            | "var"
+            | "Guid"
+            | "DateTime"
+            | "DateTimeOffset"
+            | "Task"
+            | "ValueTask"
+            | "IActionResult"
+            | "ActionResult"
+            | "ILogger"
+            | "IConfiguration"
+            | "CancellationToken"
+            | "HttpContext"
+            | "HttpRequest"
+            | "HttpResponse"
+            | "List"
+            | "IList"
+            | "IEnumerable"
+            | "Dictionary"
+            | "IDictionary"
     )
 }
 

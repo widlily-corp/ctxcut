@@ -677,7 +677,11 @@ fn extract_c_cpp_overview(
             "class_specifier" | "struct_specifier" => {
                 if let Some(name_n) = child.child_by_field_name("name") {
                     let name = AstUtils::node_text(name_n, source).to_string();
-                    let kind = if child.kind() == "class_specifier" { "class" } else { "struct" };
+                    let kind = if child.kind() == "class_specifier" {
+                        "class"
+                    } else {
+                        "struct"
+                    };
                     let doc = extract_leading_doc_comment(child, source);
                     items.push(SymbolOverviewItem {
                         name,
@@ -707,7 +711,12 @@ fn extract_csharp_overview(
     let interfaces = AstUtils::find_descendants_by_kind(root, "interface_declaration");
     let structs = AstUtils::find_descendants_by_kind(root, "struct_declaration");
 
-    for node in classes.into_iter().chain(records).chain(interfaces).chain(structs) {
+    for node in classes
+        .into_iter()
+        .chain(records)
+        .chain(interfaces)
+        .chain(structs)
+    {
         if let Some(name_node) = node.child_by_field_name("name") {
             let name = AstUtils::node_text(name_node, source).to_string();
             let kind = match node.kind() {
@@ -745,7 +754,12 @@ fn extract_java_overview(
     let records = AstUtils::find_descendants_by_kind(root, "record_declaration");
     let enums = AstUtils::find_descendants_by_kind(root, "enum_declaration");
 
-    for node in classes.into_iter().chain(interfaces).chain(records).chain(enums) {
+    for node in classes
+        .into_iter()
+        .chain(interfaces)
+        .chain(records)
+        .chain(enums)
+    {
         if let Some(name_node) = node.child_by_field_name("name") {
             let name = AstUtils::node_text(name_node, source).to_string();
             let kind = match node.kind() {
@@ -785,7 +799,11 @@ fn extract_kotlin_overview(
     for node in classes.into_iter().chain(objects) {
         if let Some(name_node) = node.child_by_field_name("name") {
             let name = AstUtils::node_text(name_node, source).to_string();
-            let kind = if node.kind() == "class_declaration" { "class" } else { "object" };
+            let kind = if node.kind() == "class_declaration" {
+                "class"
+            } else {
+                "object"
+            };
             let start_line = node.start_position().row + 1;
             let end_line = node.end_position().row + 1;
             let doc = extract_leading_doc_comment(node, source);
@@ -899,7 +917,9 @@ fn extract_go_signature_header(node: Node<'_>, source: &str) -> String {
 
 fn extract_leading_doc_comment(node: Node<'_>, source: &str) -> Option<String> {
     if let Some(prev) = node.prev_sibling() {
-        if prev.kind() == "comment" || prev.kind() == "line_comment" || prev.kind() == "block_comment"
+        if prev.kind() == "comment"
+            || prev.kind() == "line_comment"
+            || prev.kind() == "block_comment"
         {
             let text = AstUtils::node_text(prev, source);
             for line in text.lines() {
@@ -996,9 +1016,7 @@ pub fn format_overview_markdown(report: &WorkspaceOverviewReport) -> String {
     let _ = writeln!(
         out,
         "**Tokens:** `{}` (Raw: `{}`) | **Token Savings:** `{:.1}%`\n",
-        report.total_overview_tokens,
-        report.total_raw_tokens,
-        report.token_savings_percentage
+        report.total_overview_tokens, report.total_raw_tokens, report.token_savings_percentage
     );
 
     if !report.language_breakdown.is_empty() {

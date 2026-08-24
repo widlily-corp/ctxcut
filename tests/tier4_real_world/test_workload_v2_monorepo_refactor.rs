@@ -42,7 +42,9 @@ model Customer {
   balance   Int      @default(0)
 }
 "#;
-    sandbox.write_file("packages/db/schema.prisma", prisma_schema).unwrap();
+    sandbox
+        .write_file("packages/db/schema.prisma", prisma_schema)
+        .unwrap();
 
     let db_client = r#"
 export interface Invoice {
@@ -79,7 +81,9 @@ export class PrismaClient {
 }
 export const prisma = new PrismaClient();
 "#;
-    sandbox.write_file("packages/db/src/index.ts", db_client).unwrap();
+    sandbox
+        .write_file("packages/db/src/index.ts", db_client)
+        .unwrap();
 
     // Package 2: Core Billing Domain Service (with full multi-method implementation)
     let billing_service = r#"
@@ -193,7 +197,9 @@ export class BillingService {
     }
 }
 "#;
-    let billing_path = sandbox.write_file("packages/core/src/billing.ts", billing_service).unwrap();
+    let billing_path = sandbox
+        .write_file("packages/core/src/billing.ts", billing_service)
+        .unwrap();
 
     // Package 3: Next.js App Router Action
     let server_action = r#"
@@ -214,7 +220,9 @@ export async function handleRefundAction(formData: FormData) {
     return await BillingService.processRefund(request);
 }
 "#;
-    sandbox.write_file("apps/web/app/actions/refund.ts", server_action).unwrap();
+    sandbox
+        .write_file("apps/web/app/actions/refund.ts", server_action)
+        .unwrap();
 
     sandbox.stage_all().unwrap();
     sandbox.commit("Initial monorepo architecture").unwrap();
@@ -222,7 +230,9 @@ export async function handleRefundAction(formData: FormData) {
     // Act: Slice `BillingService.processRefund`
     let runner = CliRunner::new();
     let target = format!("{}:BillingService.processRefund", billing_path.display());
-    let output = runner.run_in_dir(sandbox.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(sandbox.path(), &["slice", &target])
+        .expect("Command failed");
 
     // Assert: Slicing output
     output.assert_success();
@@ -230,7 +240,10 @@ export async function handleRefundAction(formData: FormData) {
 
     // Verify token reduction against full monorepo billing files (>= 60%)
     let verifier = TokenVerifier::new();
-    let full_text = format!("{}\n{}\n{}\n{}", prisma_schema, db_client, billing_service, server_action);
+    let full_text = format!(
+        "{}\n{}\n{}\n{}",
+        prisma_schema, db_client, billing_service, server_action
+    );
     let metrics = verifier.verify_reduction(&full_text, &output.stdout, 60.0);
     assert!(metrics.reduction_percentage >= 60.0);
 }

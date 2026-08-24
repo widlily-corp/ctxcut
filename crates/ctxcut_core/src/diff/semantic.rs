@@ -2,9 +2,7 @@
 
 use crate::error::Result;
 use crate::lang::LanguageRegistry;
-use crate::model::{
-    ExtractedSymbol, SliceOptions, SliceResult, SupportedLanguage, TokenStats,
-};
+use crate::model::{ExtractedSymbol, SliceOptions, SliceResult, SupportedLanguage, TokenStats};
 use crate::parser::ParserManager;
 use crate::slice::ContextSlicer;
 use crate::telemetry::{
@@ -310,7 +308,8 @@ impl SemanticDiffEngine {
                 .to_string_lossy()
                 .replace('\\', "/");
 
-            let old_source = get_git_file_content(workspace_root, &rel_path, staged).unwrap_or_default();
+            let old_source =
+                get_git_file_content(workspace_root, &rel_path, staged).unwrap_or_default();
             let new_source = if staged {
                 get_git_staged_content(workspace_root, &rel_path).unwrap_or_default()
             } else if path.exists() {
@@ -354,9 +353,12 @@ impl SemanticDiffEngine {
         let tokens_saved = total_raw_tokens.saturating_sub(total_diff_tokens);
 
         let savings_percentage = calculate_savings_percentage(total_raw_tokens, total_diff_tokens);
-        let standard_savings = (tokens_saved as f64 / 1_000_000.0) * STANDARD_PRICE_PER_MILLION_TOKENS;
-        let frontier_savings = (tokens_saved as f64 / 1_000_000.0) * FRONTIER_PRICE_PER_MILLION_TOKENS;
-        let economy_savings = (tokens_saved as f64 / 1_000_000.0) * ECONOMY_PRICE_PER_MILLION_TOKENS;
+        let standard_savings =
+            (tokens_saved as f64 / 1_000_000.0) * STANDARD_PRICE_PER_MILLION_TOKENS;
+        let frontier_savings =
+            (tokens_saved as f64 / 1_000_000.0) * FRONTIER_PRICE_PER_MILLION_TOKENS;
+        let economy_savings =
+            (tokens_saved as f64 / 1_000_000.0) * ECONOMY_PRICE_PER_MILLION_TOKENS;
 
         let roi = SemanticDiffRoi {
             raw_tokens: total_raw_tokens,
@@ -431,7 +433,9 @@ impl SemanticDiffEngine {
         if let (Some(tree), false) = (&old_tree, old_source.trim().is_empty()) {
             let names = adapter.list_symbols(tree.root_node(), old_source);
             for name in names {
-                if let Ok((sym, _)) = adapter.locate_symbol(tree.root_node(), old_source, &name, file_path) {
+                if let Ok((sym, _)) =
+                    adapter.locate_symbol(tree.root_node(), old_source, &name, file_path)
+                {
                     old_symbols.insert(name, sym);
                 }
             }
@@ -441,7 +445,9 @@ impl SemanticDiffEngine {
         if let (Some(tree), false) = (&new_tree, new_source.trim().is_empty()) {
             let names = adapter.list_symbols(tree.root_node(), new_source);
             for name in names {
-                if let Ok((sym, _)) = adapter.locate_symbol(tree.root_node(), new_source, &name, file_path) {
+                if let Ok((sym, _)) =
+                    adapter.locate_symbol(tree.root_node(), new_source, &name, file_path)
+                {
                     new_symbols.insert(name, sym);
                 }
             }
@@ -580,7 +586,10 @@ fn classify_symbol_delta(
         return (true, SymbolChangeKind::DocstringModified);
     }
 
-    if old_sym.kind.contains("type") || old_sym.kind.contains("interface") || old_sym.kind.contains("struct") {
+    if old_sym.kind.contains("type")
+        || old_sym.kind.contains("interface")
+        || old_sym.kind.contains("struct")
+    {
         return (true, SymbolChangeKind::TypeDefinitionChanged);
     }
 
@@ -602,7 +611,11 @@ fn strip_comments_and_normalize(code: &str) -> String {
     let mut out = Vec::new();
     for line in code.lines() {
         let trimmed = line.trim();
-        if trimmed.starts_with("//") || trimmed.starts_with('#') || trimmed.starts_with("/*") || trimmed.starts_with('*') {
+        if trimmed.starts_with("//")
+            || trimmed.starts_with('#')
+            || trimmed.starts_with("/*")
+            || trimmed.starts_with('*')
+        {
             continue;
         }
         if !trimmed.is_empty() {
@@ -616,14 +629,24 @@ fn extract_import_changes(old_source: &str, new_source: &str) -> Vec<ImportChang
     let old_imports: BTreeSet<String> = old_source
         .lines()
         .map(str::trim)
-        .filter(|l| l.starts_with("import ") || l.starts_with("from ") || l.starts_with("use ") || (l.starts_with("const ") && l.contains("require(")))
+        .filter(|l| {
+            l.starts_with("import ")
+                || l.starts_with("from ")
+                || l.starts_with("use ")
+                || (l.starts_with("const ") && l.contains("require("))
+        })
         .map(String::from)
         .collect();
 
     let new_imports: BTreeSet<String> = new_source
         .lines()
         .map(str::trim)
-        .filter(|l| l.starts_with("import ") || l.starts_with("from ") || l.starts_with("use ") || (l.starts_with("const ") && l.contains("require(")))
+        .filter(|l| {
+            l.starts_with("import ")
+                || l.starts_with("from ")
+                || l.starts_with("use ")
+                || (l.starts_with("const ") && l.contains("require("))
+        })
         .map(String::from)
         .collect();
 

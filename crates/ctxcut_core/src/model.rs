@@ -125,11 +125,7 @@ impl SupportedLanguage {
     pub fn is_typescript_family(&self) -> bool {
         matches!(
             self,
-            Self::TypeScript
-                | Self::JavaScript
-                | Self::Vue
-                | Self::Svelte
-                | Self::Astro
+            Self::TypeScript | Self::JavaScript | Self::Vue | Self::Svelte | Self::Astro
         )
     }
 }
@@ -724,8 +720,16 @@ impl VerifyPatchResult {
                     (Some(l), None) => format!(" [line {l}]"),
                     _ => String::new(),
                 };
-                let code_tag = diag.code.as_deref().map(|c| format!(" ({c})")).unwrap_or_default();
-                out.push_str(&format!("- **{}**{loc}{code_tag}: {}\n", diag.severity.to_uppercase(), diag.message));
+                let code_tag = diag
+                    .code
+                    .as_deref()
+                    .map(|c| format!(" ({c})"))
+                    .unwrap_or_default();
+                out.push_str(&format!(
+                    "- **{}**{loc}{code_tag}: {}\n",
+                    diag.severity.to_uppercase(),
+                    diag.message
+                ));
             }
             out.push('\n');
         }
@@ -749,4 +753,3 @@ impl VerifyPatchResult {
         serde_json::to_string(self).unwrap_or_else(|_| "{}".to_string())
     }
 }
-

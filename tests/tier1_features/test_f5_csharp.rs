@@ -40,7 +40,9 @@ public class OrdersController : ControllerBase
 
     // Act: Run stats scan
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", file_path.to_str().unwrap()]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", file_path.to_str().unwrap()])
+        .expect("Command failed");
 
     // Assert: C# file processed without errors
     output.assert_success();
@@ -92,7 +94,9 @@ public class OrderService : IOrderService
 
     // Act: Run workspace overview
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()])
+        .expect("Command failed");
 
     // Assert: Overview completes successfully
     output.assert_success();
@@ -119,7 +123,9 @@ public interface IRepository<T> where T : class
 
     // Act: Stats calculation
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", "-f", file_path.to_str().unwrap()]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", "-f", file_path.to_str().unwrap()])
+        .expect("Command failed");
 
     // Assert: File scanned
     output.assert_success();

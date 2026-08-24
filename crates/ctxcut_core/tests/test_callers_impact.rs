@@ -61,7 +61,11 @@ export const quickQuote = (subtotal: number) => {
     assert_eq!(result.target_symbol, "calculateTax");
     assert_eq!(result.total_callers, 3);
 
-    let caller_names: Vec<&str> = result.callers.iter().map(|c| c.caller_symbol.as_str()).collect();
+    let caller_names: Vec<&str> = result
+        .callers
+        .iter()
+        .map(|c| c.caller_symbol.as_str())
+        .collect();
     assert!(caller_names.contains(&"OrderController.handleCheckout"));
     assert!(caller_names.contains(&"OrderController.previewTax"));
     assert!(caller_names.contains(&"quickQuote"));
@@ -112,7 +116,11 @@ def admin_create_user(raw_data):
     assert_eq!(result.target_symbol, "save_user");
     assert_eq!(result.total_callers, 2);
 
-    let caller_names: Vec<&str> = result.callers.iter().map(|c| c.caller_symbol.as_str()).collect();
+    let caller_names: Vec<&str> = result
+        .callers
+        .iter()
+        .map(|c| c.caller_symbol.as_str())
+        .collect();
     assert!(caller_names.contains(&"UserService.register_user"));
     assert!(caller_names.contains(&"admin_create_user"));
 }
@@ -162,7 +170,11 @@ pub fn reset_password_handler(pass: &str) {
     assert_eq!(result.target_symbol, "hash_password");
     assert_eq!(result.total_callers, 2);
 
-    let caller_names: Vec<&str> = result.callers.iter().map(|c| c.caller_symbol.as_str()).collect();
+    let caller_names: Vec<&str> = result
+        .callers
+        .iter()
+        .map(|c| c.caller_symbol.as_str())
+        .collect();
     assert!(caller_names.contains(&"AuthManager::sign_up"));
     assert!(caller_names.contains(&"reset_password_handler"));
 }
@@ -211,7 +223,11 @@ func HandleHealth() error {
     assert_eq!(result.target_symbol, "ExecuteQuery");
     assert_eq!(result.total_callers, 2);
 
-    let caller_names: Vec<&str> = result.callers.iter().map(|c| c.caller_symbol.as_str()).collect();
+    let caller_names: Vec<&str> = result
+        .callers
+        .iter()
+        .map(|c| c.caller_symbol.as_str())
+        .collect();
     assert!(caller_names.contains(&"UserHandler.HandleGet"));
     assert!(caller_names.contains(&"HandleHealth"));
 }

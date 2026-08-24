@@ -36,7 +36,11 @@ impl TypeOrmStitcher {
     }
 
     /// Discovers candidate TypeORM entity files in the workspace.
-    pub fn discover_entity_files(&self, workspace_root: &Path, current_file: &Path) -> Vec<PathBuf> {
+    pub fn discover_entity_files(
+        &self,
+        workspace_root: &Path,
+        current_file: &Path,
+    ) -> Vec<PathBuf> {
         let mut candidates = Vec::new();
 
         // 1. Check current directory and sibling files
@@ -113,8 +117,12 @@ impl TypeOrmStitcher {
                         definition,
                     };
 
-                    schema.entities.insert(class_name.to_lowercase(), entity_def.clone());
-                    schema.entities.insert(table_name.to_lowercase(), entity_def);
+                    schema
+                        .entities
+                        .insert(class_name.to_lowercase(), entity_def.clone());
+                    schema
+                        .entities
+                        .insert(table_name.to_lowercase(), entity_def);
                 }
             }
 

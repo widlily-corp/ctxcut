@@ -42,7 +42,11 @@ pub fn run_refactor_rename(opts: RefactorRenameOptions) -> Result<()> {
         for file in &result.files {
             out.push_str(&format!(
                 "\n{} {} ({} occurrences)\n",
-                if opts.dry_run { "ℹ".cyan() } else { "✔".green() },
+                if opts.dry_run {
+                    "ℹ".cyan()
+                } else {
+                    "✔".green()
+                },
                 file.file_path.bold(),
                 file.occurrences_count
             ));
@@ -73,9 +77,17 @@ pub fn run_refactor_rename(opts: RefactorRenameOptions) -> Result<()> {
     };
 
     if let Some(out_file) = opts.output {
-        fs::write(out_file, &rendered)
-            .with_context(|| format!("Failed to write refactor report to `{}`", out_file.display()))?;
-        println!("{} Refactor report saved to `{}`", "✔".green(), out_file.display());
+        fs::write(out_file, &rendered).with_context(|| {
+            format!(
+                "Failed to write refactor report to `{}`",
+                out_file.display()
+            )
+        })?;
+        println!(
+            "{} Refactor report saved to `{}`",
+            "✔".green(),
+            out_file.display()
+        );
     }
 
     if opts.clip {

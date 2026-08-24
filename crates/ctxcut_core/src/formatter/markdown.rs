@@ -150,7 +150,11 @@ impl MarkdownFormatter {
         let sym_header = symbol_names.join(", ");
 
         // Header section with metadata
-        let _ = writeln!(out, "### Context Slice: `{}:{}`", result.file_path, sym_header);
+        let _ = writeln!(
+            out,
+            "### Context Slice: `{}:{}`",
+            result.file_path, sym_header
+        );
         let _ = writeln!(
             out,
             "*Language: `{}` | Lines: `{}` (was `{}`) | Tokens: `{}` (was `{}`) | Savings: `{:.1}%`*\n",
@@ -265,7 +269,11 @@ impl MarkdownFormatter {
     pub fn format_impact(result: &crate::model::ImpactSliceResult) -> String {
         let mut out = String::with_capacity(2048);
 
-        let _ = writeln!(out, "### Upstream Impact Analysis: `{}`", result.target_symbol);
+        let _ = writeln!(
+            out,
+            "### Upstream Impact Analysis: `{}`",
+            result.target_symbol
+        );
         if let Some(ref tf) = result.target_file {
             let _ = writeln!(out, "*Target Declaration File: `{tf}`*");
         }
@@ -295,7 +303,11 @@ impl MarkdownFormatter {
             if let Some(ref sig) = caller.caller_signature {
                 let _ = writeln!(out, "   - **Caller Signature**: `{}`", sig.trim());
             }
-            let _ = writeln!(out, "   - **Call Invocation** (line {}):", caller.line_number);
+            let _ = writeln!(
+                out,
+                "   - **Call Invocation** (line {}):",
+                caller.line_number
+            );
             let _ = writeln!(out, "     ```");
             for line in caller.call_snippet.lines() {
                 let _ = writeln!(out, "     {line}");

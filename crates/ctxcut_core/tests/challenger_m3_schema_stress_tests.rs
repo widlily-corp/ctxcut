@@ -9,9 +9,7 @@
 //! 6. Token overhead bounds and sub-millisecond execution performance.
 
 use ctxcut_core::model::{ExtractedType, SliceOptions};
-use ctxcut_core::schema::{
-    DrizzleStitcher, PrismaStitcher, SchemaStitcher, SqlMigrationStitcher,
-};
+use ctxcut_core::schema::{DrizzleStitcher, PrismaStitcher, SchemaStitcher, SqlMigrationStitcher};
 use ctxcut_core::slice::ContextSlicer;
 use std::collections::HashSet;
 use std::fs;
@@ -194,16 +192,22 @@ export async function getTaskDetails(prisma: any, taskId: string) {
     // Verification:
     // 1. Task model should be hoisted
     assert!(
-        stitched.iter().any(|t| t.name == "Task" && t.kind == "prisma_model"),
+        stitched
+            .iter()
+            .any(|t| t.name == "Task" && t.kind == "prisma_model"),
         "Task model must be hoisted"
     );
     // 2. Referenced enums TaskPriority and TaskStatus must be hoisted
     assert!(
-        stitched.iter().any(|t| t.name == "TaskPriority" && t.kind == "prisma_enum"),
+        stitched
+            .iter()
+            .any(|t| t.name == "TaskPriority" && t.kind == "prisma_enum"),
         "TaskPriority enum must be hoisted"
     );
     assert!(
-        stitched.iter().any(|t| t.name == "TaskStatus" && t.kind == "prisma_enum"),
+        stitched
+            .iter()
+            .any(|t| t.name == "TaskStatus" && t.kind == "prisma_enum"),
         "TaskStatus enum must be hoisted"
     );
     // 3. No infinite loops or excessive runtime (< 50ms)
@@ -212,7 +216,11 @@ export async function getTaskDetails(prisma: any, taskId: string) {
     // 4. Ensure no duplicate entries
     let mut names = HashSet::new();
     for item in &stitched {
-        assert!(names.insert(item.name.clone()), "Duplicate type found: {}", item.name);
+        assert!(
+            names.insert(item.name.clone()),
+            "Duplicate type found: {}",
+            item.name
+        );
     }
 
     // 5. Test slicing integration with ContextSlicer
@@ -226,14 +234,20 @@ export async function getTaskDetails(prisma: any, taskId: string) {
     let slice_result = slicer
         .slice_symbol(&service_path, "getTaskDetails", &opts)
         .expect("Slicing getTaskDetails");
-    println!("Hoisted types in slice_result: {:?}", slice_result.hoisted_types);
+    println!(
+        "Hoisted types in slice_result: {:?}",
+        slice_result.hoisted_types
+    );
     assert!(
         slice_result.hoisted_types.iter().any(|t| t.name == "Task"),
         "ContextSlicer must include stitched Task model in hoisted_types. Actual: {:?}",
         slice_result.hoisted_types
     );
     assert!(
-        slice_result.hoisted_types.iter().any(|t| t.name == "TaskPriority"),
+        slice_result
+            .hoisted_types
+            .iter()
+            .any(|t| t.name == "TaskPriority"),
         "ContextSlicer must include stitched TaskPriority enum in hoisted_types"
     );
 }
@@ -338,9 +352,18 @@ export async function getOrderSummary(db: any, orderId: number) {
     let table_names: Vec<&str> = stitched.iter().map(|t| t.name.as_str()).collect();
     assert!(table_names.contains(&"orders"), "Should hoist orders table");
     assert!(table_names.contains(&"users"), "Should hoist users table");
-    assert!(table_names.contains(&"orderItems"), "Should hoist orderItems table");
-    assert!(table_names.contains(&"auditLogs"), "Should hoist auditLogs table");
-    assert!(table_names.contains(&"cacheEntries"), "Should hoist cacheEntries table");
+    assert!(
+        table_names.contains(&"orderItems"),
+        "Should hoist orderItems table"
+    );
+    assert!(
+        table_names.contains(&"auditLogs"),
+        "Should hoist auditLogs table"
+    );
+    assert!(
+        table_names.contains(&"cacheEntries"),
+        "Should hoist cacheEntries table"
+    );
 
     // Unreferenced table 'products' should NOT be hoisted (minimal token overhead)
     assert!(
@@ -447,8 +470,14 @@ pub async fn generate_revenue_report(pool: &PgPool) -> Result<Vec<ReportRow>, sq
     let names: Vec<&str> = stitched.iter().map(|t| t.name.as_str()).collect();
 
     // Must extract employees, departments, orders, and payment_status enum
-    assert!(names.contains(&"employees"), "Must detect 'employees' table");
-    assert!(names.contains(&"departments"), "Must detect 'departments' table");
+    assert!(
+        names.contains(&"employees"),
+        "Must detect 'employees' table"
+    );
+    assert!(
+        names.contains(&"departments"),
+        "Must detect 'departments' table"
+    );
     assert!(names.contains(&"orders"), "Must detect 'orders' table");
     assert!(
         names.contains(&"payment_status"),
@@ -478,7 +507,11 @@ fn test_adversarial_corrupted_files_and_dynamic_sql_resilience() {
     // 1. Non-UTF8 binary file in migrations dir (must be skipped safely)
     let mig_dir = dir.path().join("migrations");
     fs::create_dir_all(&mig_dir).unwrap();
-    fs::write(mig_dir.join("000_binary_asset.sql"), b"\x00\xFF\xFE\x10\x20\x30\xDE\xAD\xBE\xEF").unwrap();
+    fs::write(
+        mig_dir.join("000_binary_asset.sql"),
+        b"\x00\xFF\xFE\x10\x20\x30\xDE\xAD\xBE\xEF",
+    )
+    .unwrap();
 
     // 2. Corrupted SQL migration with syntax errors, broken DDLs, and unclosed quotes
     let corrupted_sql = r#"
@@ -697,10 +730,8 @@ export class CheckoutService {
         .stitch_schemas(dir.path(), &app_service_path, app_service_code)
         .expect("Stitch polyglot schemas");
 
-    let type_map: std::collections::HashMap<String, ExtractedType> = stitched
-        .into_iter()
-        .map(|t| (t.name.clone(), t))
-        .collect();
+    let type_map: std::collections::HashMap<String, ExtractedType> =
+        stitched.into_iter().map(|t| (t.name.clone(), t)).collect();
 
     // TypeORM assertions:
     assert!(
@@ -762,7 +793,8 @@ fn test_adversarial_schema_stitching_token_overhead_and_performance() {
     let dir = TempDir::new().expect("Create tempdir");
 
     // Create a large schema repository with 50 Prisma models and 50 SQL tables
-    let mut large_prisma = String::from("datasource db { provider = \"postgresql\" url = env(\"DB\") }\n\n");
+    let mut large_prisma =
+        String::from("datasource db { provider = \"postgresql\" url = env(\"DB\") }\n\n");
     for i in 0..50 {
         large_prisma.push_str(&format!(
             "model Model{i} {{\n  id Int @id @default(autoincrement())\n  fieldA String\n  fieldB Int\n  fieldC DateTime @default(now())\n}}\n\n"
@@ -799,7 +831,11 @@ export async function handleTarget(prisma: any, db: any) {
         let res = stitcher
             .stitch_schemas(dir.path(), &query_file, query_code)
             .expect("Stitch schemas in loop");
-        assert_eq!(res.len(), 2, "Only Model17 and sql_table_42 should be stitched");
+        assert_eq!(
+            res.len(),
+            2,
+            "Only Model17 and sql_table_42 should be stitched"
+        );
     }
     let total_time = start.elapsed();
     let avg_ms = total_time.as_secs_f64() * 1000.0 / 100.0;
@@ -832,7 +868,11 @@ export async function handleTarget(prisma: any, db: any) {
 #[test]
 fn test_adversarial_monorepo_proximity_and_cross_dialect_isolation() {
     let dir = TempDir::new().expect("Create tempdir");
-    fs::write(dir.path().join("package.json"), r#"{"name":"monorepo","workspaces":["packages/*"]}"#).unwrap();
+    fs::write(
+        dir.path().join("package.json"),
+        r#"{"name":"monorepo","workspaces":["packages/*"]}"#,
+    )
+    .unwrap();
 
     let auth_pkg = dir.path().join("packages/auth");
     let billing_pkg = dir.path().join("packages/billing");
@@ -862,7 +902,11 @@ model User {
 }
 "#;
     fs::write(billing_pkg.join("schema.prisma"), billing_prisma).unwrap();
-    fs::write(billing_pkg.join("package.json"), r#"{"name":"@mono/billing"}"#).unwrap();
+    fs::write(
+        billing_pkg.join("package.json"),
+        r#"{"name":"@mono/billing"}"#,
+    )
+    .unwrap();
 
     let auth_service = auth_pkg.join("src/auth_service.ts");
     fs::write(
@@ -945,7 +989,10 @@ export function getAccount(prisma: any, id: number) {
 
     // Slicing must succeed without panic, report degradation if types were compressed
     assert!(slice_result.target_symbol.name == "getAccount");
-    println!("Budget slice sliced_tokens: {}, raw_file_tokens: {}", slice_result.stats.sliced_tokens, slice_result.stats.raw_file_tokens);
+    println!(
+        "Budget slice sliced_tokens: {}, raw_file_tokens: {}",
+        slice_result.stats.sliced_tokens, slice_result.stats.raw_file_tokens
+    );
     let _ = report;
 }
 
@@ -981,7 +1028,11 @@ model Post {
 
     let ddl_dir = dir.path().join("migrations");
     fs::create_dir_all(&ddl_dir).unwrap();
-    fs::write(ddl_dir.join("001.sql"), "CREATE TABLE audit_records (id INT, log TEXT);\n").unwrap();
+    fs::write(
+        ddl_dir.join("001.sql"),
+        "CREATE TABLE audit_records (id INT, log TEXT);\n",
+    )
+    .unwrap();
 
     let multi_service_path = dir.path().join("multi_service.ts");
     let multi_service_content = r#"
@@ -1022,15 +1073,26 @@ export function logAudit(db: any) {
     assert_eq!(batch.target_symbols.len(), 4);
 
     // Verify all 4 types exist (User, Role enum, Post, audit_records table)
-    let hoisted_names: Vec<&str> = batch.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted_names: Vec<&str> = batch
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(hoisted_names.contains(&"User"), "Must hoist User");
     assert!(hoisted_names.contains(&"Role"), "Must hoist Role enum");
     assert!(hoisted_names.contains(&"Post"), "Must hoist Post");
-    assert!(hoisted_names.contains(&"audit_records"), "Must hoist audit_records");
+    assert!(
+        hoisted_names.contains(&"audit_records"),
+        "Must hoist audit_records"
+    );
 
     // Ensure NO duplicates in batch hoisted_types
     let mut seen = HashSet::new();
     for t in &batch.hoisted_types {
-        assert!(seen.insert(t.name.clone()), "Duplicate type in batch slice: {}", t.name);
+        assert!(
+            seen.insert(t.name.clone()),
+            "Duplicate type in batch slice: {}",
+            t.name
+        );
     }
 }

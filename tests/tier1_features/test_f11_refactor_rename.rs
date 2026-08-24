@@ -33,7 +33,9 @@ export function getTotal(amount: number): number {
     // Act: Slice to verify symbol is discoverable
     let runner = CliRunner::new();
     let target = format!("{}:calculateTax", file_path.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     // Assert: Slicing finds declaration and usage
     output.assert_success();
@@ -48,12 +50,18 @@ fn test_f11_refactor_rename_multi_file_imports() {
     let consumer_path = dir.path().join("consumer.ts");
 
     fs::write(&lib_path, "export function executeJob() { return true; }\n").unwrap();
-    fs::write(&consumer_path, "import { executeJob } from './lib';\nexport function run() { return executeJob(); }\n").unwrap();
+    fs::write(
+        &consumer_path,
+        "import { executeJob } from './lib';\nexport function run() { return executeJob(); }\n",
+    )
+    .unwrap();
 
     // Act: Slice consumer to verify cross-file reference
     let runner = CliRunner::new();
     let target = format!("{}:run", consumer_path.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     // Assert: Resolved correctly
     output.assert_success();
@@ -71,13 +79,18 @@ fn test_f11_refactor_rename_dry_run_preview() {
     // Act: Patch with dry-run replacing function
     let runner = CliRunner::new();
     let target = format!("{}:oldName", file_path.display());
-    let output = runner.run_in_dir(dir.path(), &[
-        "patch",
-        &target,
-        "--code",
-        "export function newName() { return 1; }\n",
-        "--dry-run",
-    ]).expect("Command failed");
+    let output = runner
+        .run_in_dir(
+            dir.path(),
+            &[
+                "patch",
+                &target,
+                "--code",
+                "export function newName() { return 1; }\n",
+                "--dry-run",
+            ],
+        )
+        .expect("Command failed");
 
     // Assert: Dry run preview produced and original file untouched
     output.assert_success();
@@ -101,7 +114,9 @@ export function calculateTax(amount: number): number {
     // Act: Slice function
     let runner = CliRunner::new();
     let target = format!("{}:calculateTax", file_path.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target])
+        .expect("Command failed");
 
     // Assert: AST symbol correctly identified
     output.assert_success();
@@ -118,7 +133,9 @@ fn test_f11_refactor_rename_json_report() {
     // Act: Slice in JSON format
     let runner = CliRunner::new();
     let target = format!("{}:getMetric", file_path.display());
-    let output = runner.run_in_dir(dir.path(), &["slice", &target, "--format", "json"]).expect("Command failed");
+    let output = runner
+        .run_in_dir(dir.path(), &["slice", &target, "--format", "json"])
+        .expect("Command failed");
 
     // Assert: Valid JSON report
     output.assert_success();

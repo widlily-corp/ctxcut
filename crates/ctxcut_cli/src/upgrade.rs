@@ -65,26 +65,21 @@ pub fn run_upgrade_command(opts: &UpgradeOptions) -> Result<()> {
             clean_target
         );
     } else {
-        println!(
-            "{} Checking for updates from repository...",
-            "🔍".cyan()
-        );
+        println!("{} Checking for updates from repository...", "🔍".cyan());
     }
 
     // Determine target platform asset name
     let target_triple = get_target_triple();
-    let archive_ext = if cfg!(target_os = "windows") { "zip" } else { "tar.gz" };
+    let archive_ext = if cfg!(target_os = "windows") {
+        "zip"
+    } else {
+        "tar.gz"
+    };
     let asset_name = format!("ctxcut-{target_triple}.{archive_ext}");
 
     let current_exe = env::current_exe().unwrap_or_else(|_| PathBuf::from("ctxcut"));
-    println!(
-        "  Target architecture: {}",
-        target_triple.yellow()
-    );
-    println!(
-        "  Target binary asset: {}",
-        asset_name.dimmed()
-    );
+    println!("  Target architecture: {}", target_triple.yellow());
+    println!("  Target binary asset: {}", asset_name.dimmed());
     println!(
         "  Executable location: {}",
         current_exe.display().to_string().dimmed()

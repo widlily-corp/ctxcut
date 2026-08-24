@@ -306,9 +306,7 @@ impl LanguageAdapter for GoAdapter {
                 if let Ok(entries) = fs::read_dir(parent) {
                     for entry in entries.flatten() {
                         let p = entry.path();
-                        if p != file_path
-                            && p.extension().and_then(|e| e.to_str()) == Some("go")
-                        {
+                        if p != file_path && p.extension().and_then(|e| e.to_str()) == Some("go") {
                             if let Ok(sib_src) = fs::read_to_string(&p) {
                                 if sib_src.contains(interface_name) {
                                     if let Ok(tree) = ParserManager::parse_source(
@@ -353,7 +351,10 @@ impl LanguageAdapter for GoAdapter {
                     .map(|(_, sig)| format!("{sig} {{ ... }}"))
                     .collect();
 
-                let definition = format!("type {receiver_name} struct {{\n    // ...\n}}\n\n{}", stubs.join("\n"));
+                let definition = format!(
+                    "type {receiver_name} struct {{\n    // ...\n}}\n\n{}",
+                    stubs.join("\n")
+                );
                 implementors.push(ExtractedImplementor {
                     interface_name: interface_name.to_string(),
                     implementor_name: receiver_name,
@@ -384,7 +385,9 @@ fn extract_go_interface_methods(
                             if let Some(m_name) = child.child_by_field_name("name") {
                                 methods.insert(AstUtils::node_text(m_name, source).to_string());
                             } else {
-                                for id in AstUtils::find_descendants_by_kind(child, "field_identifier") {
+                                for id in
+                                    AstUtils::find_descendants_by_kind(child, "field_identifier")
+                                {
                                     methods.insert(AstUtils::node_text(id, source).to_string());
                                 }
                             }

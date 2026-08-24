@@ -61,7 +61,9 @@ impl PaymentGateway for StripeGateway {
     assert_eq!(imp.interface_name, "PaymentGateway");
     assert_eq!(imp.implementor_name, "StripeGateway");
     assert_eq!(imp.kind, "rust_impl");
-    assert!(imp.definition.contains("impl PaymentGateway for StripeGateway"));
+    assert!(imp
+        .definition
+        .contains("impl PaymentGateway for StripeGateway"));
 
     let md = slice.to_markdown();
     assert!(md.contains("#### 3. Concrete Implementors"));
@@ -180,7 +182,9 @@ export class SlackNotificationService implements NotificationService {
     assert_eq!(imp.interface_name, "NotificationService");
     assert_eq!(imp.implementor_name, "SlackNotificationService");
     assert_eq!(imp.kind, "ts_class");
-    assert!(imp.definition.contains("class SlackNotificationService implements NotificationService"));
+    assert!(imp
+        .definition
+        .contains("class SlackNotificationService implements NotificationService"));
 }
 
 #[test]

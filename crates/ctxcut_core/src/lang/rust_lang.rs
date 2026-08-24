@@ -328,8 +328,7 @@ impl LanguageAdapter for RustAdapter {
                 if let Some(trait_node) = child.child_by_field_name("trait") {
                     let trait_text = AstUtils::node_text(trait_node, source);
                     let base_trait = trait_text.split('<').next().unwrap_or(trait_text).trim();
-                    let simple_trait =
-                        base_trait.split("::").last().unwrap_or(base_trait).trim();
+                    let simple_trait = base_trait.split("::").last().unwrap_or(base_trait).trim();
 
                     if simple_trait == interface_name {
                         if let Some(type_node) = child.child_by_field_name("type") {

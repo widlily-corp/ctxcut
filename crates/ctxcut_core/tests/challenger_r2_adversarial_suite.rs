@@ -3,9 +3,7 @@
 //! 2. Multi-symbol Slicing with Unified Deduplication (Rust, TS, Python, Go, edge cases)
 //! 3. Edge conditions: empty workspaces, duplicate queries, whitespace tolerance.
 
-use ctxcut_core::{
-    ContextSlicer, OverviewOptions, SliceOptions, WorkspaceOverviewGenerator,
-};
+use ctxcut_core::{ContextSlicer, OverviewOptions, SliceOptions, WorkspaceOverviewGenerator};
 use std::fs;
 use tempfile::tempdir;
 
@@ -26,7 +24,10 @@ fn test_overview_empty_and_non_code_directories() {
     assert_eq!(report.total_symbols, 0);
     assert_eq!(report.total_lines, 0);
     assert_eq!(report.total_raw_tokens, 0);
-    assert!(report.total_overview_tokens > 0, "Header markdown has non-zero tokens");
+    assert!(
+        report.total_overview_tokens > 0,
+        "Header markdown has non-zero tokens"
+    );
     assert_eq!(report.token_savings_percentage, 0.0);
 
     // Directory with only non-code files (e.g. .txt, .md, .png)
@@ -47,35 +48,19 @@ fn test_overview_depth_limiting() {
     // root/level1/sub1.rs
     // root/level1/level2/sub2.rs
     // root/level1/level2/level3/sub3.rs
-    fs::write(
-        root.join("top.rs"),
-        "pub fn top_fn() -> bool { true }\n",
-    )
-    .unwrap();
+    fs::write(root.join("top.rs"), "pub fn top_fn() -> bool { true }\n").unwrap();
 
     let l1 = root.join("level1");
     fs::create_dir_all(&l1).unwrap();
-    fs::write(
-        l1.join("sub1.rs"),
-        "pub fn l1_fn() -> i32 { 1 }\n",
-    )
-    .unwrap();
+    fs::write(l1.join("sub1.rs"), "pub fn l1_fn() -> i32 { 1 }\n").unwrap();
 
     let l2 = l1.join("level2");
     fs::create_dir_all(&l2).unwrap();
-    fs::write(
-        l2.join("sub2.rs"),
-        "pub fn l2_fn() -> i32 { 2 }\n",
-    )
-    .unwrap();
+    fs::write(l2.join("sub2.rs"), "pub fn l2_fn() -> i32 { 2 }\n").unwrap();
 
     let l3 = l2.join("level3");
     fs::create_dir_all(&l3).unwrap();
-    fs::write(
-        l3.join("sub3.rs"),
-        "pub fn l3_fn() -> i32 { 3 }\n",
-    )
-    .unwrap();
+    fs::write(l3.join("sub3.rs"), "pub fn l3_fn() -> i32 { 3 }\n").unwrap();
 
     let opts_all = OverviewOptions {
         budget: None,
@@ -136,7 +121,10 @@ export class Service_{i} {{
     };
     let report_full = WorkspaceOverviewGenerator::generate(root, &opts_unconstrained).unwrap();
     let full_tokens = report_full.total_overview_tokens;
-    assert!(full_tokens > 200, "Expected substantial overview token count");
+    assert!(
+        full_tokens > 200,
+        "Expected substantial overview token count"
+    );
     let full_md = report_full.to_markdown();
     // Verify doc summaries and signatures are present in full output
     assert!(full_md.contains("Service_") && full_md.contains("manages transactions"));
@@ -243,22 +231,48 @@ fn validate_account(account: &UserAccount) -> bool {
     assert_eq!(batch.target_symbols[2].name, "get_status");
 
     // Check hoisted types: UserAccount and TransactionPayload and AccountStatus must be hoisted
-    let hoisted_names: Vec<&str> = batch.hoisted_types.iter().map(|t| t.name.as_str()).collect();
+    let hoisted_names: Vec<&str> = batch
+        .hoisted_types
+        .iter()
+        .map(|t| t.name.as_str())
+        .collect();
     assert!(hoisted_names.contains(&"UserAccount"));
     assert!(hoisted_names.contains(&"TransactionPayload"));
     assert!(hoisted_names.contains(&"AccountStatus"));
 
     // UserAccount must appear EXACTLY ONCE in hoisted_types
-    let user_account_count = hoisted_names.iter().filter(|&&n| n == "UserAccount").count();
-    assert_eq!(user_account_count, 1, "UserAccount was duplicated in hoisted types!");
+    let user_account_count = hoisted_names
+        .iter()
+        .filter(|&&n| n == "UserAccount")
+        .count();
+    assert_eq!(
+        user_account_count, 1,
+        "UserAccount was duplicated in hoisted types!"
+    );
 
-    let tx_payload_count = hoisted_names.iter().filter(|&&n| n == "TransactionPayload").count();
-    assert_eq!(tx_payload_count, 1, "TransactionPayload was duplicated in hoisted types!");
+    let tx_payload_count = hoisted_names
+        .iter()
+        .filter(|&&n| n == "TransactionPayload")
+        .count();
+    assert_eq!(
+        tx_payload_count, 1,
+        "TransactionPayload was duplicated in hoisted types!"
+    );
 
     // Check calls: validate_account must appear only once in stripped_calls
-    let call_names: Vec<&str> = batch.stripped_calls.iter().map(|c| c.name.as_str()).collect();
-    let validate_count = call_names.iter().filter(|&&n| n == "validate_account").count();
-    assert_eq!(validate_count, 1, "validate_account call was duplicated in stripped calls!");
+    let call_names: Vec<&str> = batch
+        .stripped_calls
+        .iter()
+        .map(|c| c.name.as_str())
+        .collect();
+    let validate_count = call_names
+        .iter()
+        .filter(|&&n| n == "validate_account")
+        .count();
+    assert_eq!(
+        validate_count, 1,
+        "validate_account call was duplicated in stripped calls!"
+    );
 
     let md = batch.to_markdown();
     assert!(md.contains("deposit, withdraw, get_status"));
@@ -314,14 +328,25 @@ def refresh_session(session: UserSession) -> UserSession:
     };
 
     let batch = slicer
-        .slice_batch(&file, &["authenticate", "authorize", "refresh_session"], &opts)
+        .slice_batch(
+            &file,
+            &["authenticate", "authorize", "refresh_session"],
+            &opts,
+        )
         .unwrap();
 
     assert_eq!(batch.target_symbols.len(), 3);
 
     // Verify UserSession is hoisted only once
-    let session_count = batch.hoisted_types.iter().filter(|t| t.name == "UserSession").count();
-    assert_eq!(session_count, 1, "UserSession duplicated in Python batch slice");
+    let session_count = batch
+        .hoisted_types
+        .iter()
+        .filter(|t| t.name == "UserSession")
+        .count();
+    assert_eq!(
+        session_count, 1,
+        "UserSession duplicated in Python batch slice"
+    );
 
     let md = batch.to_markdown();
     assert_eq!(md.matches("class UserSession:").count(), 1);
@@ -373,7 +398,11 @@ func (c *Client) Disconnect(force bool) bool {
         .unwrap();
 
     assert_eq!(batch.target_symbols.len(), 3);
-    let cfg_count = batch.hoisted_types.iter().filter(|t| t.name == "Config").count();
+    let cfg_count = batch
+        .hoisted_types
+        .iter()
+        .filter(|t| t.name == "Config")
+        .count();
     assert_eq!(cfg_count, 1, "Config struct duplicated in Go batch slice");
 }
 
@@ -396,11 +425,15 @@ pub fn sub(a: i32, b: i32) -> i32 { a - b }
     let opts = SliceOptions::default();
 
     // Query with duplicate symbols: ["add", "add", "sub"]
-    let batch = slicer.slice_batch(&file, &["add", "add", "sub"], &opts).unwrap();
+    let batch = slicer
+        .slice_batch(&file, &["add", "add", "sub"], &opts)
+        .unwrap();
     assert_eq!(batch.target_symbols.len(), 3);
 
     // Query with empty entries in list: ["add", "", "  ", "sub"]
-    let batch2 = slicer.slice_batch(&file, &["add", "", "  ", "sub"], &opts).unwrap();
+    let batch2 = slicer
+        .slice_batch(&file, &["add", "", "  ", "sub"], &opts)
+        .unwrap();
     assert_eq!(batch2.target_symbols.len(), 2);
 }
 
@@ -453,7 +486,10 @@ fn helper_fn(val: i32) -> bool {
         .unwrap();
 
     // Under tight budget, doc comments must be cleared
-    assert!(compressed_batch.target_symbols.iter().all(|s| s.doc_comment.is_none()));
+    assert!(compressed_batch
+        .target_symbols
+        .iter()
+        .all(|s| s.doc_comment.is_none()));
     assert!(compressed_batch.stats.sliced_tokens <= uncompressed_batch.stats.sliced_tokens);
 }
 
@@ -513,4 +549,3 @@ export class AuthValidator {
         md
     );
 }
-

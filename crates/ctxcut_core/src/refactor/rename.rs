@@ -327,12 +327,7 @@ fn classify_occurrence_kind(node: Node) -> String {
     "identifier".to_string()
 }
 
-fn is_node_shadowed(
-    node: Node,
-    source: &str,
-    symbol_name: &str,
-    _is_declaring_file: bool,
-) -> bool {
+fn is_node_shadowed(node: Node, source: &str, symbol_name: &str, _is_declaring_file: bool) -> bool {
     // Walk up the AST to look for an enclosing function/block that introduces a local shadow
     let mut current = node.parent();
     while let Some(parent) = current {

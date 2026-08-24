@@ -101,16 +101,25 @@ impl FrameworkAnalyzer for ReactNextAnalyzer {
 
         // 1. Extract and hoist Props interface / generic constraint types if not already hoisted
         if let Some(props_type_name) = self.extract_props_type_name(target_node, source) {
-            if !slice.hoisted_types.iter().any(|t| t.name == props_type_name) {
+            if !slice
+                .hoisted_types
+                .iter()
+                .any(|t| t.name == props_type_name)
+            {
                 let opts = SliceOptions {
                     depth: 2,
                     include_types: true,
                     include_calls: true,
                     budget: None,
                 };
-                if let Ok(mut hoisted) =
-                    TypeHoister::hoist_types(target_node, root, source, path, &opts, &tree_sitter_lang)
-                {
+                if let Ok(mut hoisted) = TypeHoister::hoist_types(
+                    target_node,
+                    root,
+                    source,
+                    path,
+                    &opts,
+                    &tree_sitter_lang,
+                ) {
                     for ty in hoisted.drain(..) {
                         if !slice.hoisted_types.iter().any(|t| t.name == ty.name) {
                             slice.hoisted_types.push(ty);
@@ -121,8 +130,14 @@ impl FrameworkAnalyzer for ReactNextAnalyzer {
         }
 
         // 2. Extract referenced custom hooks
-        let custom_hooks =
-            self.extract_custom_hooks(target_node, root, source, path, &tree_sitter_lang, &slice.stripped_calls);
+        let custom_hooks = self.extract_custom_hooks(
+            target_node,
+            root,
+            source,
+            path,
+            &tree_sitter_lang,
+            &slice.stripped_calls,
+        );
         for hook_stub in custom_hooks {
             if !slice
                 .stripped_calls

@@ -91,7 +91,8 @@ impl ImplementorHoister {
                     {
                         if let Ok(src) = fs::read_to_string(&p) {
                             let is_duck_typed = lang == SupportedLanguage::Go;
-                            let has_candidate = has_implementor_candidate_any(&src, lang, &trait_candidates);
+                            let has_candidate =
+                                has_implementor_candidate_any(&src, lang, &trait_candidates);
                             if has_candidate {
                                 if let Some((cached_src, tree)) =
                                     get_or_load_file(&p, lang, &mut file_cache)
@@ -138,7 +139,8 @@ impl ImplementorHoister {
                     {
                         if let Ok(src) = fs::read_to_string(&resolved_path) {
                             let is_duck_typed = lang == SupportedLanguage::Go;
-                            let has_candidate = has_implementor_candidate_any(&src, lang, &trait_candidates);
+                            let has_candidate =
+                                has_implementor_candidate_any(&src, lang, &trait_candidates);
                             if has_candidate {
                                 if let Some((cached_src, tree)) =
                                     get_or_load_file(&resolved_path, lang, &mut file_cache)
@@ -211,7 +213,8 @@ impl ImplementorHoister {
                         && SupportedLanguage::from_path(&p) == Some(lang)
                     {
                         if let Ok(src) = fs::read_to_string(&p) {
-                            let has_candidate = has_implementor_candidate_single(&src, lang, interface_name);
+                            let has_candidate =
+                                has_implementor_candidate_single(&src, lang, interface_name);
                             if !has_candidate {
                                 continue;
                             }
@@ -243,7 +246,8 @@ impl ImplementorHoister {
                         && SupportedLanguage::from_path(&resolved_path) == Some(lang)
                     {
                         if let Ok(src) = fs::read_to_string(&resolved_path) {
-                            let has_candidate = has_implementor_candidate_single(&src, lang, interface_name);
+                            let has_candidate =
+                                has_implementor_candidate_single(&src, lang, interface_name);
                             if has_candidate {
                                 if let Some((src, tree)) =
                                     get_or_load_file(&resolved_path, lang, &mut file_cache)
@@ -289,11 +293,17 @@ fn is_python_protocol(text: &str) -> bool {
     text.contains("Protocol") || text.contains("typing.Protocol")
 }
 
-fn has_implementor_candidate_any(src: &str, lang: SupportedLanguage, candidates: &HashSet<String>) -> bool {
+fn has_implementor_candidate_any(
+    src: &str,
+    lang: SupportedLanguage,
+    candidates: &HashSet<String>,
+) -> bool {
     let is_duck_typed = lang == SupportedLanguage::Go;
     match lang {
         SupportedLanguage::Rust => {
-            src.contains("impl") && src.contains("for") && candidates.iter().any(|t| src.contains(t))
+            src.contains("impl")
+                && src.contains("for")
+                && candidates.iter().any(|t| src.contains(t))
         }
         SupportedLanguage::TypeScript
         | SupportedLanguage::JavaScript
@@ -303,23 +313,31 @@ fn has_implementor_candidate_any(src: &str, lang: SupportedLanguage, candidates:
             src.contains("implements") && candidates.iter().any(|t| src.contains(t))
         }
         SupportedLanguage::Python => {
-            src.contains("class") && (candidates.iter().any(|t| src.contains(t)) || is_python_protocol(src))
+            src.contains("class")
+                && (candidates.iter().any(|t| src.contains(t)) || is_python_protocol(src))
         }
         SupportedLanguage::Go => {
-            (src.contains("func (") || src.contains("func(")) && (candidates.iter().any(|t| src.contains(t)) || is_duck_typed)
+            (src.contains("func (") || src.contains("func("))
+                && (candidates.iter().any(|t| src.contains(t)) || is_duck_typed)
         }
         SupportedLanguage::C => false,
         SupportedLanguage::Cpp => {
-            (src.contains("class") || src.contains("struct")) && candidates.iter().any(|t| src.contains(t))
+            (src.contains("class") || src.contains("struct"))
+                && candidates.iter().any(|t| src.contains(t))
         }
         SupportedLanguage::CSharp => {
-            (src.contains("class") || src.contains("record")) && candidates.iter().any(|t| src.contains(t))
+            (src.contains("class") || src.contains("record"))
+                && candidates.iter().any(|t| src.contains(t))
         }
         SupportedLanguage::Java => {
-            (src.contains("class") || src.contains("record")) && (src.contains("implements") || src.contains("extends")) && candidates.iter().any(|t| src.contains(t))
+            (src.contains("class") || src.contains("record"))
+                && (src.contains("implements") || src.contains("extends"))
+                && candidates.iter().any(|t| src.contains(t))
         }
         SupportedLanguage::Kotlin => {
-            (src.contains("class") || src.contains("object")) && src.contains(':') && candidates.iter().any(|t| src.contains(t))
+            (src.contains("class") || src.contains("object"))
+                && src.contains(':')
+                && candidates.iter().any(|t| src.contains(t))
         }
     }
 }
@@ -334,14 +352,13 @@ fn has_implementor_candidate_single(src: &str, lang: SupportedLanguage, target: 
         | SupportedLanguage::JavaScript
         | SupportedLanguage::Vue
         | SupportedLanguage::Svelte
-        | SupportedLanguage::Astro => {
-            src.contains("implements") && src.contains(target)
-        }
+        | SupportedLanguage::Astro => src.contains("implements") && src.contains(target),
         SupportedLanguage::Python => {
             src.contains("class") && (src.contains(target) || is_python_protocol(src))
         }
         SupportedLanguage::Go => {
-            (src.contains("func (") || src.contains("func(")) && (src.contains(target) || is_duck_typed)
+            (src.contains("func (") || src.contains("func("))
+                && (src.contains(target) || is_duck_typed)
         }
         SupportedLanguage::C => false,
         SupportedLanguage::Cpp => {
@@ -351,10 +368,14 @@ fn has_implementor_candidate_single(src: &str, lang: SupportedLanguage, target: 
             (src.contains("class") || src.contains("record")) && src.contains(target)
         }
         SupportedLanguage::Java => {
-            (src.contains("class") || src.contains("record")) && (src.contains("implements") || src.contains("extends")) && src.contains(target)
+            (src.contains("class") || src.contains("record"))
+                && (src.contains("implements") || src.contains("extends"))
+                && src.contains(target)
         }
         SupportedLanguage::Kotlin => {
-            (src.contains("class") || src.contains("object")) && src.contains(':') && src.contains(target)
+            (src.contains("class") || src.contains("object"))
+                && src.contains(':')
+                && src.contains(target)
         }
     }
 }

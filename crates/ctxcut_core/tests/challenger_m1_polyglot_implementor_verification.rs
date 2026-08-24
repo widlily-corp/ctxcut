@@ -1,4 +1,4 @@
-﻿//! Empirical Challenger 2 Verification Suite for Milestone 1 Feature 3: Polyglot Interface & Trait Implementor Hoisting.
+//! Empirical Challenger 2 Verification Suite for Milestone 1 Feature 3: Polyglot Interface & Trait Implementor Hoisting.
 //!
 //! Tests:
 //! 1. Rust: `impl Trait for Struct`, generic traits (`Trait<T>`), qualified paths (`crate::path::Trait`), where clauses.
@@ -83,12 +83,17 @@ impl<T: Clone + Send> StorageEngine<T> for RedisStore {
     let elapsed = start.elapsed();
 
     println!("Rust implementor hoisting elapsed: {:?}", elapsed);
-    assert!(!slice.hoisted_implementors.is_empty(), "Must hoist RedisStore implementor");
+    assert!(
+        !slice.hoisted_implementors.is_empty(),
+        "Must hoist RedisStore implementor"
+    );
     let imp = &slice.hoisted_implementors[0];
     assert_eq!(imp.interface_name, "StorageEngine");
     assert_eq!(imp.implementor_name, "RedisStore");
     assert_eq!(imp.kind, "rust_impl");
-    assert!(imp.definition.contains("impl<T: Clone + Send> StorageEngine<T> for RedisStore"));
+    assert!(imp
+        .definition
+        .contains("impl<T: Clone + Send> StorageEngine<T> for RedisStore"));
     assert!(imp.definition.contains("fn put"));
     assert!(imp.definition.contains("fn get"));
 }
@@ -209,11 +214,26 @@ type RandomData struct {
         .map(|imp| imp.implementor_name.clone())
         .collect();
 
-    println!("Discovered Go implementors for Writer: {:?}", implementor_names);
-    assert!(implementor_names.contains(&"FileWriter".to_string()), "FileWriter (pointer receiver) must match");
-    assert!(implementor_names.contains(&"MemoryWriter".to_string()), "MemoryWriter (value receiver + extra) must match");
-    assert!(!implementor_names.contains(&"IncompleteWriter".to_string()), "IncompleteWriter (missing Sync) must NOT match");
-    assert!(!implementor_names.contains(&"RandomData".to_string()), "RandomData must NOT match");
+    println!(
+        "Discovered Go implementors for Writer: {:?}",
+        implementor_names
+    );
+    assert!(
+        implementor_names.contains(&"FileWriter".to_string()),
+        "FileWriter (pointer receiver) must match"
+    );
+    assert!(
+        implementor_names.contains(&"MemoryWriter".to_string()),
+        "MemoryWriter (value receiver + extra) must match"
+    );
+    assert!(
+        !implementor_names.contains(&"IncompleteWriter".to_string()),
+        "IncompleteWriter (missing Sync) must NOT match"
+    );
+    assert!(
+        !implementor_names.contains(&"RandomData".to_string()),
+        "RandomData must NOT match"
+    );
 }
 
 #[test]
@@ -286,8 +306,14 @@ export class UnrelatedClass {
         .map(|imp| imp.implementor_name.clone())
         .collect();
 
-    assert!(implementor_names.contains(&"UserRecord".to_string()), "UserRecord implementing multiple interfaces must match");
-    assert!(!implementor_names.contains(&"UnrelatedClass".to_string()), "UnrelatedClass must NOT match");
+    assert!(
+        implementor_names.contains(&"UserRecord".to_string()),
+        "UserRecord implementing multiple interfaces must match"
+    );
+    assert!(
+        !implementor_names.contains(&"UnrelatedClass".to_string()),
+        "UnrelatedClass must NOT match"
+    );
 }
 
 #[test]
@@ -345,9 +371,18 @@ def dispatch_event(sink: EventSink, name: str, data: dict) -> bool:
         .collect();
 
     println!("Discovered Python implementors: {:?}", implementor_names);
-    assert!(implementor_names.contains(&"KafkaEventSink".to_string()), "KafkaEventSink (nominal) must match");
-    assert!(implementor_names.contains(&"RabbitMQEventSink".to_string()), "RabbitMQEventSink (structural duck-typed) must match");
-    assert!(!implementor_names.contains(&"NullSink".to_string()), "NullSink must NOT match");
+    assert!(
+        implementor_names.contains(&"KafkaEventSink".to_string()),
+        "KafkaEventSink (nominal) must match"
+    );
+    assert!(
+        implementor_names.contains(&"RabbitMQEventSink".to_string()),
+        "RabbitMQEventSink (structural duck-typed) must match"
+    );
+    assert!(
+        !implementor_names.contains(&"NullSink".to_string()),
+        "NullSink must NOT match"
+    );
 }
 
 #[test]
@@ -407,7 +442,10 @@ pub fn run_service_0(s: &dyn Service_0) -> u32 {
     .expect("hoist implementors");
     let hoister_elapsed = hoister_start.elapsed();
 
-    println!("Direct ImplementorHoister::hoist_implementors_for_slice elapsed: {:?}", hoister_elapsed);
+    println!(
+        "Direct ImplementorHoister::hoist_implementors_for_slice elapsed: {:?}",
+        hoister_elapsed
+    );
     assert!(!imps.is_empty());
     assert!(
         hoister_elapsed.as_millis() < 50,

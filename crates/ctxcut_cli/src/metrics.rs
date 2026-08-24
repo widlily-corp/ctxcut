@@ -191,7 +191,11 @@ pub fn render_dashboard(summary: &TelemetrySummary, metrics_path: &Path) -> Stri
         for ev in summary.recent_events.iter().take(5) {
             // Timestamp short display: "YYYY-MM-DD HH:MM"
             let time_short = if ev.timestamp.chars().count() >= 16 {
-                ev.timestamp.chars().take(16).collect::<String>().replace('T', " ")
+                ev.timestamp
+                    .chars()
+                    .take(16)
+                    .collect::<String>()
+                    .replace('T', " ")
             } else {
                 ev.timestamp.clone()
             };
@@ -343,4 +347,3 @@ mod tests {
         assert!(rendered.contains("..."));
     }
 }
-

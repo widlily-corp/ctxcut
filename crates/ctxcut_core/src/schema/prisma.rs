@@ -49,7 +49,11 @@ impl PrismaStitcher {
     }
 
     /// Discovers candidate `.prisma` files in the workspace, sorted by proximity to `current_file`.
-    pub fn discover_schema_files(&self, workspace_root: &Path, current_file: &Path) -> Vec<PathBuf> {
+    pub fn discover_schema_files(
+        &self,
+        workspace_root: &Path,
+        current_file: &Path,
+    ) -> Vec<PathBuf> {
         let mut candidates = Vec::new();
 
         // 1. Ascend from current_file parent up to workspace_root checking for prisma schemas
@@ -278,7 +282,11 @@ fn extract_referenced_types(lines: &[&str]) -> Vec<String> {
     let mut types = Vec::new();
     for line in lines {
         let trimmed = line.trim();
-        if trimmed.starts_with("//") || trimmed.starts_with("@@") || trimmed.starts_with('}') || trimmed.is_empty() {
+        if trimmed.starts_with("//")
+            || trimmed.starts_with("@@")
+            || trimmed.starts_with('}')
+            || trimmed.is_empty()
+        {
             continue;
         }
         let parts: Vec<&str> = trimmed.split_whitespace().collect();
@@ -440,7 +448,11 @@ model Account {
 
         let stitched = stitcher.stitch(temp_dir.path(), &file_path, source);
         assert_eq!(stitched.len(), 2);
-        assert!(stitched.iter().any(|t| t.name == "Account" && t.kind == "prisma_model"));
-        assert!(stitched.iter().any(|t| t.name == "Status" && t.kind == "prisma_enum"));
+        assert!(stitched
+            .iter()
+            .any(|t| t.name == "Account" && t.kind == "prisma_model"));
+        assert!(stitched
+            .iter()
+            .any(|t| t.name == "Status" && t.kind == "prisma_enum"));
     }
 }

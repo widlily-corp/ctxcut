@@ -20,10 +20,16 @@ fn test_f12_boundary_corrupted_database_auto_recovery() {
     let dir = TempDir::new().unwrap();
     let ctxcut_dir = dir.path().join(".ctxcut");
     fs::create_dir_all(&ctxcut_dir).unwrap();
-    fs::write(ctxcut_dir.join("index.db"), "GARBAGE_NON_SQLITE_CORRUPT_BYTES").unwrap();
+    fs::write(
+        ctxcut_dir.join("index.db"),
+        "GARBAGE_NON_SQLITE_CORRUPT_BYTES",
+    )
+    .unwrap();
 
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()]).unwrap();
+    let output = runner
+        .run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()])
+        .unwrap();
     output.assert_success();
 }
 
@@ -34,8 +40,12 @@ fn test_f12_boundary_concurrent_process_access() {
     fs::write(dir.path().join("file2.ts"), "export const b = 2;\n").unwrap();
 
     let runner = CliRunner::new();
-    let out1 = runner.run_in_dir(dir.path(), &["stats", "-f", dir.path().to_str().unwrap()]).unwrap();
-    let out2 = runner.run_in_dir(dir.path(), &["stats", "-f", dir.path().to_str().unwrap()]).unwrap();
+    let out1 = runner
+        .run_in_dir(dir.path(), &["stats", "-f", dir.path().to_str().unwrap()])
+        .unwrap();
+    let out2 = runner
+        .run_in_dir(dir.path(), &["stats", "-f", dir.path().to_str().unwrap()])
+        .unwrap();
 
     out1.assert_success();
     out2.assert_success();
@@ -48,14 +58,18 @@ fn test_f12_boundary_deleted_files_reconciliation() {
     fs::write(&file, "export function temp() {}\n").unwrap();
 
     let runner = CliRunner::new();
-    let out1 = runner.run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()]).unwrap();
+    let out1 = runner
+        .run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()])
+        .unwrap();
     out1.assert_success();
 
     // Delete file
     fs::remove_file(&file).unwrap();
 
     // Re-run
-    let out2 = runner.run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()]).unwrap();
+    let out2 = runner
+        .run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()])
+        .unwrap();
     out2.assert_success();
 }
 
@@ -65,7 +79,9 @@ fn test_f12_boundary_readonly_filesystem() {
     fs::write(dir.path().join("static.ts"), "export const fixed = true;\n").unwrap();
 
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", "-f", dir.path().to_str().unwrap()]).unwrap();
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", "-f", dir.path().to_str().unwrap()])
+        .unwrap();
     output.assert_success();
 }
 
@@ -79,7 +95,9 @@ fn test_f12_boundary_large_symbol_table_scale() {
     fs::write(dir.path().join("large_symbols.ts"), &big_file).unwrap();
 
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", "-f", dir.path().to_str().unwrap()]).unwrap();
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", "-f", dir.path().to_str().unwrap()])
+        .unwrap();
     output.assert_success();
 }
 
@@ -91,7 +109,15 @@ fn test_f13_boundary_invalid_sexp_syntax() {
     fs::write(dir.path().join("code.ts"), "export function fn() {}\n").unwrap();
 
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["slice", &format!("{}:fn", dir.path().join("code.ts").display())]).unwrap();
+    let output = runner
+        .run_in_dir(
+            dir.path(),
+            &[
+                "slice",
+                &format!("{}:fn", dir.path().join("code.ts").display()),
+            ],
+        )
+        .unwrap();
     output.assert_success();
 }
 
@@ -109,7 +135,11 @@ fn test_f13_boundary_zero_query_matches() {
 #[test]
 fn test_f13_boundary_deeply_nested_capture_predicates() {
     let dir = TempDir::new().unwrap();
-    fs::write(dir.path().join("nested.ts"), "export function deep() { return (x: number) => (y: number) => x + y; }\n").unwrap();
+    fs::write(
+        dir.path().join("nested.ts"),
+        "export function deep() { return (x: number) => (y: number) => x + y; }\n",
+    )
+    .unwrap();
 
     let runner = CliRunner::new();
     let target = format!("{}:deep", dir.path().join("nested.ts").display());
@@ -126,7 +156,9 @@ fn test_f13_boundary_multi_language_mixed_repo() {
     fs::write(dir.path().join("d.ts"), "export function tsFn() {}\n").unwrap();
 
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()]).unwrap();
+    let output = runner
+        .run_in_dir(dir.path(), &["overview", dir.path().to_str().unwrap()])
+        .unwrap();
     output.assert_success();
 }
 
@@ -135,12 +167,16 @@ fn test_f13_boundary_large_match_set_pagination() {
     let dir = TempDir::new().unwrap();
     let mut code = String::new();
     for i in 0..50 {
-        code.push_str(&format!("export function handler_{i}() {{ return {i}; }}\n"));
+        code.push_str(&format!(
+            "export function handler_{i}() {{ return {i}; }}\n"
+        ));
     }
     fs::write(dir.path().join("many.ts"), &code).unwrap();
 
     let runner = CliRunner::new();
-    let output = runner.run_in_dir(dir.path(), &["stats", "-f", dir.path().to_str().unwrap()]).unwrap();
+    let output = runner
+        .run_in_dir(dir.path(), &["stats", "-f", dir.path().to_str().unwrap()])
+        .unwrap();
     output.assert_success();
 }
 
@@ -201,7 +237,9 @@ fn test_f15_boundary_upgrade_offline_network_error() {
 #[test]
 fn test_f15_boundary_upgrade_permission_denied() {
     let runner = CliRunner::new();
-    let output = runner.run(&["setup-mcp", "--ide", "all", "--dry-run"]).unwrap();
+    let output = runner
+        .run(&["setup-mcp", "--ide", "all", "--dry-run"])
+        .unwrap();
     output.assert_success();
 }
 
