@@ -53,6 +53,7 @@ impl Drop for TerminalGuard {
 pub fn run_tui(workspace_root: Option<PathBuf>) -> Result<()> {
     // Headless / non-TTY fallback
     if !io::stdout().is_terminal() {
+        eprintln!("Interactive TUI requires an interactive terminal (TTY). Displaying dashboard metrics summary:");
         return crate::metrics::run_metrics_command("text");
     }
 

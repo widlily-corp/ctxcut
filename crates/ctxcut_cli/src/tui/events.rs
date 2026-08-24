@@ -8,7 +8,9 @@ use std::time::Duration;
 pub fn handle_events(app: &mut AppState, tick_rate: Duration) -> std::io::Result<()> {
     if event::poll(tick_rate)? {
         if let Event::Key(key) = event::read()? {
-            handle_key_event(app, key);
+            if key.kind != event::KeyEventKind::Release {
+                handle_key_event(app, key);
+            }
         }
     }
     Ok(())

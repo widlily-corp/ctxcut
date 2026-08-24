@@ -129,6 +129,51 @@ impl AppState {
 
     /// Scans workspace directory and extracts all top-level symbols.
     pub fn scan_symbols(&mut self) {
+        // 1. Fast-path: query persistent SQLite index (.ctxcut/index.db) if available
+        if let Ok(mut engine) = ctxcut_core::IndexEngine::open_or_create(&self.workspace_root) {
+            // If empty, quickly sync
+            if let Ok(status) = engine.status() {
+                if status.total_symbols == 0 {
+                    let _ = engine.sync_incremental(&ctxcut_core::IndexOptions::default());
+                }
+            }
+
+            let query_sql = r#"
+                SELECT f.path, s.name, s.kind, s.signature, s.start_line 
+                FROM symbols s 
+                JOIN files f ON s.file_id = f.id 
+                ORDER BY s.name ASC
+            "#;
+
+            if let Ok(mut stmt) = engine.connection().prepare(query_sql) {
+                let symbol_rows = stmt.query_map([], |row| {
+                    let rel_path: String = row.get(0)?;
+                    let name: String = row.get(1)?;
+                    let kind: String = row.get(2)?;
+                    let signature: Option<String> = row.get(3)?;
+                    let start_line: i64 = row.get(4)?;
+
+                    Ok(SymbolEntry {
+                        file_path: self.workspace_root.join(rel_path),
+                        symbol_name: name,
+                        kind,
+                        signature: signature.unwrap_or_default(),
+                        line: start_line as usize,
+                    })
+                });
+
+                if let Ok(rows) = symbol_rows {
+                    let entries: Vec<SymbolEntry> = rows.filter_map(Result::ok).collect();
+                    if !entries.is_empty() {
+                        self.symbols = entries;
+                        self.apply_filter();
+                        return;
+                    }
+                }
+            }
+        }
+
+        // 2. Fallback: on-the-fly AST overview generation
         let opts = OverviewOptions::default();
         if let Ok(report) = WorkspaceOverviewGenerator::generate(&self.workspace_root, &opts) {
             let mut entries = Vec::new();
