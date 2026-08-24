@@ -77,6 +77,10 @@ pub fn render_impact(app: &AppState, area: Rect, buf: &mut Buffer) {
 
     for (row, line) in lines.iter().skip(scroll).take(visible_rows).enumerate() {
         let y = inner.y + row as u16;
+        if y >= inner.bottom() || y >= buf.area().bottom() {
+            break;
+        }
+
         let max_w = inner.width as usize;
         let truncated = if line.len() > max_w {
             &line[..max_w]

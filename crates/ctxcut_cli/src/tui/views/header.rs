@@ -15,18 +15,24 @@ pub fn render_header(app: &AppState, area: Rect, buf: &mut Buffer) {
     let inner = block.inner(area);
     block.render(area, buf);
 
-    if inner.height >= 1 {
+    if inner.height >= 1 && inner.y < buf.area().bottom() {
         let title = " ⚡ CTXCUT v2.0 AST CONTEXT STUDIO & TELEMETRY ";
+        let max_w = inner.width as usize;
+        let truncated_title = if title.len() > max_w {
+            &title[..max_w]
+        } else {
+            title
+        };
         buf.set_string(
             inner.x + 1,
             inner.y,
-            title,
+            truncated_title,
             Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
         );
 
         let ws_str = format!("[WORKSPACE: {}]", app.workspace_root.display());
         let ws_x = inner.x + inner.width.saturating_sub(ws_str.len() as u16 + 2);
-        if ws_x > inner.x + title.len() as u16 {
+        if ws_x > inner.x + truncated_title.len() as u16 + 2 {
             buf.set_string(
                 ws_x,
                 inner.y,

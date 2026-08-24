@@ -36,22 +36,32 @@ impl Widget for KpiCard<'_> {
         let inner_area = block.inner(area);
         block.render(area, buf);
 
-        if inner_area.height >= 1 {
-            // Render main value
+        if inner_area.height >= 1 && inner_area.y < buf.area().bottom() {
+            let max_w = inner_area.width as usize;
+            let val_str = if self.value.len() > max_w {
+                &self.value[..max_w]
+            } else {
+                self.value
+            };
             buf.set_string(
                 inner_area.x + 1,
                 inner_area.y,
-                self.value,
+                val_str,
                 Style::default().fg(self.accent_color).add_modifier(Modifier::BOLD),
             );
         }
 
-        if inner_area.height >= 2 {
-            // Render subtitle
+        if inner_area.height >= 2 && (inner_area.y + 1) < buf.area().bottom() {
+            let max_w = inner_area.width as usize;
+            let sub_str = if self.subtitle.len() > max_w {
+                &self.subtitle[..max_w]
+            } else {
+                self.subtitle
+            };
             buf.set_string(
                 inner_area.x + 1,
                 inner_area.y + 1,
-                self.subtitle,
+                sub_str,
                 Style::default().fg(Color::Gray),
             );
         }

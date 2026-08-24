@@ -40,11 +40,16 @@ pub fn render_navigator(app: &AppState, area: Rect, buf: &mut Buffer) {
     block.render(area, buf);
 
     if inner.height == 0 || app.filtered_symbols.is_empty() {
-        if inner.height > 0 {
+        if inner.height > 0 && inner.y < buf.area().bottom() {
+            let msg = if inner.width > 30 {
+                "No symbols found in workspace."
+            } else {
+                "No symbols"
+            };
             buf.set_string(
-                inner.x + 2,
-                inner.y + 1,
-                "No symbols found in workspace.",
+                inner.x + 1,
+                inner.y,
+                msg,
                 Style::default().fg(Color::DarkGray),
             );
         }
@@ -68,9 +73,13 @@ pub fn render_navigator(app: &AppState, area: Rect, buf: &mut Buffer) {
         .take(visible_rows)
         .enumerate()
     {
+        let y = inner.y + row as u16;
+        if y >= inner.bottom() || y >= buf.area().bottom() {
+            break;
+        }
+
         let sym = &app.symbols[sym_idx];
         let is_selected = sym_idx == app.filtered_symbols.get(selected_pos).copied().unwrap_or(usize::MAX);
-        let y = inner.y + row as u16;
 
         let prefix = if is_selected { " > " } else { "   " };
         let rel_path = sym

@@ -50,7 +50,7 @@ fn handle_key_event(app: &mut AppState, key: KeyEvent) {
     }
 
     match key.code {
-        KeyCode::Char('q') => {
+        KeyCode::Char('q') | KeyCode::Esc => {
             app.should_quit = true;
         }
         KeyCode::Tab => {

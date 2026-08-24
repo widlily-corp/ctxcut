@@ -44,12 +44,19 @@ pub fn render_preview(app: &AppState, area: Rect, buf: &mut Buffer) {
     }
 
     let Some(ref slice) = app.current_slice else {
-        buf.set_string(
-            inner.x + 2,
-            inner.y + 1,
-            "Press [Enter] on a symbol to generate AST context slice.",
-            Style::default().fg(Color::DarkGray),
-        );
+        if inner.height > 0 && inner.y < buf.area().bottom() {
+            let msg = if inner.width > 40 {
+                "Press [Enter] on a symbol to generate AST context slice."
+            } else {
+                "Press [Enter] to slice"
+            };
+            buf.set_string(
+                inner.x + 1,
+                inner.y,
+                msg,
+                Style::default().fg(Color::DarkGray),
+            );
+        }
         return;
     };
 
@@ -103,6 +110,10 @@ pub fn render_preview(app: &AppState, area: Rect, buf: &mut Buffer) {
 
     for (row, line) in lines.iter().skip(scroll).take(visible_rows).enumerate() {
         let y = inner.y + row as u16;
+        if y >= inner.bottom() || y >= buf.area().bottom() {
+            break;
+        }
+
         let max_w = inner.width as usize;
         let truncated = if line.len() > max_w {
             &line[..max_w]
