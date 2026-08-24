@@ -1,5 +1,6 @@
 /target
 /target_test
+/target_build
 **/*.rs.bk
 *.log
 .DS_Store
