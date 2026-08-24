@@ -120,21 +120,36 @@ function Main {
     try {
         Write-Host "==> Downloading ctxcut binary from $DownloadUrl..." -ForegroundColor Cyan
 
+        $DownloadSuccess = $false
         try {
             Invoke-WebRequest -Uri $DownloadUrl -OutFile $TempZip -UseBasicParsing -TimeoutSec 60
+            $DownloadSuccess = $true
         } catch {
             # Try alternate naming pattern if custom version tag failed
             if ($Tag -ne "latest") {
                 $AltUrl = "https://github.com/$Repo/releases/download/$Tag/ctxcut-$Arch.zip"
                 Write-Host "==> Retrying with alternate download path: $AltUrl..." -ForegroundColor Gray
-                Invoke-WebRequest -Uri $AltUrl -OutFile $TempZip -UseBasicParsing -TimeoutSec 60
-            } else {
-                throw $_
+                try {
+                    Invoke-WebRequest -Uri $AltUrl -OutFile $TempZip -UseBasicParsing -TimeoutSec 60
+                    $DownloadSuccess = $true
+                } catch {
+                    $DownloadSuccess = $false
+                }
             }
         }
 
-        if (-not (Test-Path $TempZip) -or ((Get-Item $TempZip).Length -eq 0)) {
-            throw "Downloaded release archive is empty or could not be found."
+        if (-not $DownloadSuccess -or -not (Test-Path $TempZip) -or ((Get-Item $TempZip).Length -eq 0)) {
+            Write-Warning "Release asset is not available on GitHub Releases yet ($DownloadUrl)."
+            $CargoCmd = Get-Command "cargo" -ErrorAction SilentlyContinue
+            if ($CargoCmd) {
+                Write-Host "==> Detected Cargo in environment. Falling back to source build via cargo install..." -ForegroundColor Yellow
+                & cargo install --git "https://github.com/$Repo" --bin ctxcut --force
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "[OK] Successfully built and installed ctxcut via Cargo!" -ForegroundColor Green
+                    return
+                }
+            }
+            throw "Could not download precompiled binary and automated build fallback failed. Please compile locally with 'cargo install --path .' from the repository root."
         }
 
         Write-Host "==> Extracting release archive..." -ForegroundColor Gray
