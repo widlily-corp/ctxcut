@@ -53,7 +53,7 @@ banner() {
   |      _|   |   |  |      _||       |  |   |  
   |     |_    |   |  |     |_ |       |  |   |  
   |_______|   |___|  |_______||_______|  |___|  
-  AST-Powered Contextual Code Slicer for LLMs
+  AST Context Slicer, Impact Tracer & Indexer for AI Agents (v2.0)
 
 EOF
     printf "${NC}\n"
@@ -149,7 +149,7 @@ main() {
 
     info "Fetching release metadata (${TAG})..."
     if command -v curl >/dev/null 2>&1; then
-        RELEASE_JSON="$(curl -fsSL -H "User-Agent: ctxcut-installer/1.0" -H "Accept: application/vnd.github.v3+json" "$API_URL" 2>/dev/null || true)"
+        RELEASE_JSON="$(curl -fsSL -H "User-Agent: ctxcut-installer/2.0" -H "Accept: application/vnd.github.v3+json" "$API_URL" 2>/dev/null || true)"
         if [ -n "$RELEASE_JSON" ]; then
             DOWNLOAD_URL="$(printf '%s\n' "$RELEASE_JSON" | grep -o "https://[^\"]*${TARGET}\.tar\.gz" | head -n 1 || true)"
         fi
@@ -220,7 +220,7 @@ main() {
     fi
 
     # Verify installation
-    VERSION_OUTPUT="$("$INSTALL_DIR/ctxcut" --version 2>/dev/null || echo "ctxcut")"
+    VERSION_OUTPUT="$("$INSTALL_DIR/ctxcut" --version 2>/dev/null || echo "ctxcut 2.0.0")"
 
     printf "\n"
     printf "${GREEN}============================================================${NC}\n"
@@ -228,8 +228,11 @@ main() {
     printf "${GREEN}============================================================${NC}\n\n"
     printf "${CYAN}Quickstart Commands:${NC}\n"
     printf "  ctxcut slice <path:symbol>     # Extract minimal context slice for a symbol\n"
-    printf "  ctxcut diff                    # Build contextual slices from git diff\n"
-    printf "  ctxcut stats .                 # Calculate repository token reduction ROI\n"
+    printf "  ctxcut callers <symbol>        # Upstream reverse impact analysis\n"
+    printf "  ctxcut trace <entry>           # Trace execution pathway down to DB sinks\n"
+    printf "  ctxcut query --preset routes   # Structural AST query across codebase\n"
+    printf "  ctxcut index                   # Build SQLite index for sub-5ms queries\n"
+    printf "  ctxcut tui                     # Launch interactive context studio\n"
     printf "  ctxcut metrics                 # View lifetime telemetry and token savings\n"
     printf "  ctxcut setup-mcp --ide all     # Reconfigure IDE MCP servers at any time\n"
     printf "  ctxcut mcp                     # Start JSON-RPC stdio MCP server\n\n"

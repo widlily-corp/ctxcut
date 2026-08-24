@@ -7,7 +7,7 @@
 .EXAMPLE
     irm https://raw.githubusercontent.com/widlily-corp/ctxcut/main/install.ps1 | iex
 .EXAMPLE
-    .\install.ps1 -Version "0.1.0" -InstallDir "$HOME\bin"
+    .\install.ps1 -Version "2.0.0" -InstallDir "$HOME\bin"
 #>
 
 [CmdletBinding()]
@@ -39,7 +39,7 @@ function Write-Banner {
     Write-Host "  |      _|   |   |  |      _||       |  |   |  " -ForegroundColor Cyan
     Write-Host "  |     |_    |   |  |     |_ |       |  |   |  " -ForegroundColor Cyan
     Write-Host "  |_______|   |___|  |_______||_______|  |___|  " -ForegroundColor Cyan
-    Write-Host "  AST-Powered Contextual Code Slicer for LLMs" -ForegroundColor DarkCyan
+    Write-Host "  AST Context Slicer, Impact Tracer & Indexer for AI Agents (v2.0)" -ForegroundColor DarkCyan
     Write-Host ""
 }
 
@@ -47,7 +47,11 @@ function Main {
     Write-Banner
 
     $Repo = "widlily-corp/ctxcut"
-    $Arch = "x86_64-pc-windows-msvc"
+    $Arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
+        "aarch64-pc-windows-msvc"
+    } else {
+        "x86_64-pc-windows-msvc"
+    }
 
     # Resolve target directory
     if (-not $InstallDir) {
@@ -79,7 +83,7 @@ function Main {
         }
 
         $Headers = @{
-            "User-Agent" = "ctxcut-installer/1.0"
+            "User-Agent" = "ctxcut-installer/2.0"
             "Accept"     = "application/vnd.github.v3+json"
         }
 
@@ -193,7 +197,7 @@ function Main {
         $VersionOutput = try {
             & $DestExe --version
         } catch {
-            "ctxcut"
+            "ctxcut 2.0.0"
         }
 
         Write-Host ""
@@ -203,9 +207,12 @@ function Main {
         Write-Host ""
         Write-Host "Quickstart Commands:" -ForegroundColor Cyan
         Write-Host "  ctxcut slice <path:symbol>     # Extract minimal context slice for a symbol" -ForegroundColor White
-        Write-Host "  ctxcut diff                    # Build contextual slices from git diff" -ForegroundColor White
-        Write-Host "  ctxcut stats .                 # Calculate repository token reduction ROI" -ForegroundColor White
-        Write-Host "  ctxcut metrics                 # View lifetime telemetry and token savings" -ForegroundColor White
+        Write-Host "  ctxcut callers <symbol>        # Upstream reverse impact analysis" -ForegroundColor White
+        Write-Host "  ctxcut trace <entry>           # Trace execution pathway down to DB sinks" -ForegroundColor White
+        Write-Host "  ctxcut query --preset routes   # Structural AST query across codebase" -ForegroundColor White
+        Write-Host "  ctxcut index                   # Build SQLite index for sub-5ms queries" -ForegroundColor White
+        Write-Host "  ctxcut tui                     # Launch interactive context studio" -ForegroundColor White
+        Write-Host "  ctxcut metrics                 # View lifetime token savings and ROI" -ForegroundColor White
         Write-Host "  ctxcut setup-mcp --ide all     # Reconfigure IDE MCP servers at any time" -ForegroundColor White
         Write-Host "  ctxcut mcp                     # Start JSON-RPC stdio MCP server" -ForegroundColor White
         Write-Host ""
