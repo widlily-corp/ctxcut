@@ -126,6 +126,156 @@ impl SchemaStitcher {
     }
 }
 
+/// Single extracted schema entity (table, model, entity, GraphQL type, Proto message/service) for indexing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SchemaEntityRecord {
+    /// Schema kind: `"sql_table"`, `"sql_enum"`, `"prisma_model"`, `"prisma_enum"`, `"drizzle_table"`, `"typeorm_entity"`, `"graphql_type"`, `"proto_message"`, `"proto_service"`.
+    pub schema_kind: String,
+    /// Entity identifier name (e.g. `"User"`, `"products"`, `"UserService"`).
+    pub entity_name: String,
+    /// Database table name if different or applicable (e.g. `"users"`, `"products"`).
+    pub table_name: Option<String>,
+    /// Verbatim or reconstructed DDL/definition block.
+    pub definition: String,
+    /// 1-based start line.
+    pub start_line: usize,
+    /// 1-based end line.
+    pub end_line: usize,
+}
+
+/// Extracts all schema entities (SQL tables, Prisma models, Drizzle tables, TypeORM entities, GraphQL types, Proto messages) from a source file.
+pub fn extract_schema_entities(path: &Path, source: &str) -> Vec<SchemaEntityRecord> {
+    let mut results = Vec::new();
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    match ext.as_str() {
+        "sql" => {
+            let stitcher = SqlMigrationStitcher::new();
+            let mut snapshot = SqlSchemaSnapshot::default();
+            stitcher.parse_migration_file(source, path, &mut snapshot);
+            for (t_name, t_def) in snapshot.tables {
+                results.push(SchemaEntityRecord {
+                    schema_kind: "sql_table".to_string(),
+                    entity_name: t_def.name.clone(),
+                    table_name: Some(t_name),
+                    definition: t_def.ddl,
+                    start_line: 1,
+                    end_line: source.lines().count().max(1),
+                });
+            }
+            for (_e_name, e_def) in snapshot.enums {
+                results.push(SchemaEntityRecord {
+                    schema_kind: "sql_enum".to_string(),
+                    entity_name: e_def.name.clone(),
+                    table_name: None,
+                    definition: e_def.ddl,
+                    start_line: 1,
+                    end_line: source.lines().count().max(1),
+                });
+            }
+        }
+        "prisma" => {
+            let stitcher = PrismaStitcher::new();
+            let parsed = stitcher.parse_schema(source, path);
+            for (_m_name, m_def) in parsed.models {
+                results.push(SchemaEntityRecord {
+                    schema_kind: "prisma_model".to_string(),
+                    entity_name: m_def.name.clone(),
+                    table_name: Some(m_def.name.to_lowercase()),
+                    definition: m_def.definition,
+                    start_line: 1,
+                    end_line: source.lines().count().max(1),
+                });
+            }
+            for (_e_name, e_def) in parsed.enums {
+                results.push(SchemaEntityRecord {
+                    schema_kind: "prisma_enum".to_string(),
+                    entity_name: e_def.name.clone(),
+                    table_name: None,
+                    definition: e_def.definition,
+                    start_line: 1,
+                    end_line: source.lines().count().max(1),
+                });
+            }
+        }
+        "graphql" | "gql" => {
+            let stitcher = GraphqlStitcher::new();
+            let parsed = stitcher.parse_schema(source, path);
+            for (_t_name, t_def) in parsed.types {
+                results.push(SchemaEntityRecord {
+                    schema_kind: "graphql_type".to_string(),
+                    entity_name: t_def.name.clone(),
+                    table_name: None,
+                    definition: t_def.definition,
+                    start_line: 1,
+                    end_line: source.lines().count().max(1),
+                });
+            }
+        }
+        "proto" => {
+            let stitcher = ProtoStitcher::new();
+            let parsed = stitcher.parse_proto(source, path);
+            for (_m_name, m_def) in parsed.messages {
+                results.push(SchemaEntityRecord {
+                    schema_kind: "proto_message".to_string(),
+                    entity_name: m_def.name.clone(),
+                    table_name: None,
+                    definition: m_def.definition,
+                    start_line: 1,
+                    end_line: source.lines().count().max(1),
+                });
+            }
+            for (_s_name, s_def) in parsed.services {
+                results.push(SchemaEntityRecord {
+                    schema_kind: "proto_service".to_string(),
+                    entity_name: s_def.name.clone(),
+                    table_name: None,
+                    definition: s_def.definition,
+                    start_line: 1,
+                    end_line: source.lines().count().max(1),
+                });
+            }
+        }
+        "ts" | "tsx" | "js" | "jsx" => {
+            if source.contains("pgTable") || source.contains("mysqlTable") || source.contains("sqliteTable") {
+                let stitcher = DrizzleStitcher::new();
+                let parsed = stitcher.parse_schema(source, path);
+                for (_t_name, t_def) in parsed.tables {
+                    results.push(SchemaEntityRecord {
+                        schema_kind: "drizzle_table".to_string(),
+                        entity_name: t_def.variable_name.clone(),
+                        table_name: Some(t_def.table_name),
+                        definition: t_def.definition,
+                        start_line: 1,
+                        end_line: source.lines().count().max(1),
+                    });
+                }
+            }
+            if source.contains("@Entity") {
+                let stitcher = TypeOrmStitcher::new();
+                let parsed = stitcher.parse_entities(source, path);
+                for (_e_name, e_def) in parsed.entities {
+                    results.push(SchemaEntityRecord {
+                        schema_kind: "typeorm_entity".to_string(),
+                        entity_name: e_def.class_name.clone(),
+                        table_name: Some(e_def.table_name),
+                        definition: e_def.definition,
+                        start_line: 1,
+                        end_line: source.lines().count().max(1),
+                    });
+                }
+            }
+        }
+        _ => {}
+    }
+
+    results
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

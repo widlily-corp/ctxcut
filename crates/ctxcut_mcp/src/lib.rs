@@ -9,11 +9,16 @@ pub mod logger;
 pub use logger::{format_rfc3339, McpFileLogger, ToolLogRecord};
 
 use anyhow::Result;
+use ctxcut_core::refactor::batch::{
+    BatchAstPatcher, PatchTransactionRequest, SymbolPatchUnit,
+};
 use ctxcut_core::{
-    AstPatcher, AstQueryEngine, ContextSlicer, ExecutionTracer, ImpactAnalyzer, IndexEngine,
-    IndexOptions, MarkdownFormatter, OverviewOptions, PatchVerifier, SemanticDiffEngine,
-    SliceOptions, SliceResult, SupportedLanguage, SymbolRenamer, TelemetryLogger,
-    TestContextGenerator, WorkspaceOverviewGenerator,
+    AstPatcher, AstQueryEngine, ContextSlicer, DefaultIntentSlicer, DefaultSwarmPartitioner,
+    ExecutionTracer, FullstackExecutionTracer, FullstackTracer, ImpactAnalyzer, IndexEngine,
+    IndexOptions, IntentSliceOptions, IntentSlicer, MarkdownFormatter, OverviewOptions,
+    PatchVerifier, SemanticDiffEngine, SliceOptions, SliceResult, SupportedLanguage,
+    SwarmPartitionEngine, SymbolRenamer, TelemetryLogger, TestContextGenerator,
+    WorkspaceOverviewGenerator,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -634,6 +639,144 @@ fn build_tools_list_response() -> Value {
                         }
                     }
                 }
+            },
+            {
+                "name": "get_fullstack_trace",
+                "description": "Traces end-to-end cross-boundary execution flows connecting client-side API calls, server route endpoints, controller actions, service logic, repository queries, and database schemas (DDL/Prisma/SQL).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "entry": {
+                            "type": "string",
+                            "description": "Entry point identifier (e.g. `POST /api/v1/orders`, `src/client.ts:createOrder`, or `billing.chargeInvoice`)"
+                        },
+                        "root_dir": {
+                            "type": "string",
+                            "description": "Workspace root directory path to search within (defaults to current directory)"
+                        },
+                        "budget": {
+                            "type": "integer",
+                            "description": "Optional token budget limit for degraded trace output (default: 1500 tokens)"
+                        },
+                        "format": {
+                            "type": "string",
+                            "description": "Output format: 'markdown' (default) or 'json'",
+                            "enum": ["markdown", "json"]
+                        }
+                    },
+                    "required": ["entry"]
+                }
+            },
+            {
+                "name": "get_intent_slice",
+                "description": "Extracts high-density semantic context slice matching natural language task intent using hybrid BM25 lexical ranking and Tree-sitter AST dependency expansion.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "prompt": {
+                            "type": "string",
+                            "description": "Natural language task or intent prompt describing desired functionality"
+                        },
+                        "root_dir": {
+                            "type": "string",
+                            "description": "Workspace root directory path to search within (defaults to current directory)"
+                        },
+                        "budget": {
+                            "type": "integer",
+                            "description": "Target token budget limit (default: 1500 tokens)"
+                        },
+                        "max_symbols": {
+                            "type": "integer",
+                            "description": "Maximum number of primary target symbols to extract (default: 5)"
+                        },
+                        "depth": {
+                            "type": "integer",
+                            "description": "AST dependency traversal depth (default: 1)"
+                        },
+                        "format": {
+                            "type": "string",
+                            "description": "Output format: 'markdown' (default) or 'json'",
+                            "enum": ["markdown", "json"]
+                        }
+                    },
+                    "required": ["prompt"]
+                }
+            },
+            {
+                "name": "patch_transaction",
+                "description": "Executes atomic multi-symbol, multi-file AST refactoring transactions with compiler dry-run verification and automatic rollback on syntax/type errors.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "patches": {
+                            "type": "array",
+                            "description": "Array of symbol patch units to apply atomically across workspace files",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "file_path": { "type": "string", "description": "Target source file path" },
+                                    "symbol_name": { "type": "string", "description": "Target symbol identifier" },
+                                    "replacement_code": { "type": "string", "description": "New replacement code snippet" },
+                                    "expected_old_hash": { "type": "string", "description": "Optional SHA-256 hash of existing symbol body for CAS concurrency check" }
+                                },
+                                "required": ["file_path", "symbol_name", "replacement_code"]
+                            }
+                        },
+                        "root_dir": {
+                            "type": "string",
+                            "description": "Workspace root directory path (defaults to current directory)"
+                        },
+                        "typechecker": {
+                            "type": "string",
+                            "description": "Optional custom typechecker command override (e.g. `cargo check`, `tsc --noEmit`)"
+                        },
+                        "apply": {
+                            "type": "boolean",
+                            "description": "Whether to persist changes to disk on success (default: false for dry-run verification)"
+                        },
+                        "timeout_ms": {
+                            "type": "integer",
+                            "description": "Optional typechecker execution timeout in milliseconds (default: 30000)"
+                        },
+                        "format": {
+                            "type": "string",
+                            "description": "Output format: 'markdown' (default) or 'json'",
+                            "enum": ["markdown", "json", "text"]
+                        }
+                    },
+                    "required": ["patches"]
+                }
+            },
+            {
+                "name": "pack_agent_context",
+                "description": "Partitions workspace into $K$ isolated, non-overlapping AST context clusters for multi-agent swarms with write authority tagging and mock contract synthesis.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "root_dir": {
+                            "type": "string",
+                            "description": "Workspace root directory path (defaults to current directory)"
+                        },
+                        "agents_count": {
+                            "type": "integer",
+                            "description": "Total number of agent clusters to partition workspace into (default: 2)"
+                        },
+                        "seed_symbols": {
+                            "type": "array",
+                            "description": "Optional seed symbol names to anchor cluster centroids",
+                            "items": { "type": "string" }
+                        },
+                        "budget_per_agent": {
+                            "type": "integer",
+                            "description": "Target token budget limit per individual agent bundle (default: 1500 tokens)"
+                        },
+                        "format": {
+                            "type": "string",
+                            "description": "Output format: 'markdown' (default) or 'json'",
+                            "enum": ["markdown", "json"]
+                        }
+                    }
+                }
             }
         ]
     })
@@ -786,6 +929,10 @@ fn execute_tool_call(
         "refactor_rename" => execute_refactor_rename(args),
         "index_workspace" => execute_index_workspace(args),
         "query_ast" => execute_query_ast(args),
+        "get_fullstack_trace" => execute_fullstack_trace(args),
+        "get_intent_slice" => execute_intent_slice(args),
+        "patch_transaction" => execute_patch_transaction(args),
+        "pack_agent_context" => execute_pack_agent_context(args),
         _ => {
             let err = format!("Unknown tool: `{name}`");
             let response = json!({
@@ -1882,6 +2029,366 @@ fn execute_query_ast(args: &Value) -> (Value, Option<Value>, Option<String>, Opt
         }
         Err(e) => {
             let err = format!("AST Query error: {e}");
+            let response = json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            });
+            (response, None, Some(err), None)
+        }
+    }
+}
+
+fn execute_fullstack_trace(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
+    let Some(entry) = args
+        .get("entry")
+        .or_else(|| args.get("entry_point"))
+        .and_then(Value::as_str)
+    else {
+        let err = "Missing required parameter 'entry'".to_string();
+        return (
+            json!({ "isError": true, "content": [{ "type": "text", "text": err }] }),
+            None,
+            Some(err),
+            None,
+        );
+    };
+
+    let root_str = args.get("root_dir").and_then(Value::as_str).unwrap_or(".");
+    let budget = args
+        .get("budget")
+        .and_then(Value::as_u64)
+        .map(|b| b as usize);
+    let format_str = args
+        .get("format")
+        .and_then(Value::as_str)
+        .unwrap_or("markdown");
+
+    let tracer = FullstackExecutionTracer::new();
+    match tracer.trace_api(Path::new(root_str), entry, budget) {
+        Ok(result) => {
+            let saved_tokens = result
+                .stats
+                .raw_file_tokens
+                .saturating_sub(result.stats.sliced_tokens);
+            TelemetryLogger::record_operation(
+                "mcp_fullstack_trace",
+                root_str,
+                result.stats.raw_file_tokens,
+                result.stats.sliced_tokens,
+                saved_tokens,
+            );
+
+            let rendered = if format_str.eq_ignore_ascii_case("json") {
+                result.to_json()
+            } else {
+                result.to_markdown()
+            };
+
+            let metrics = json!({
+                "raw_tokens": result.stats.raw_file_tokens,
+                "sliced_tokens": result.stats.sliced_tokens,
+                "saved_tokens": saved_tokens,
+                "savings_pct": result.stats.savings_percentage,
+                "total_steps": result.total_steps,
+                "query_endpoint": result.query_endpoint
+            });
+
+            let response = json!({
+                "content": [{ "type": "text", "text": rendered }],
+                "trace": result
+            });
+
+            (response, Some(metrics), None, Some(saved_tokens))
+        }
+        Err(e) => {
+            let err = format!("Full-stack trace error: {e}");
+            let response = json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            });
+            (response, None, Some(err), None)
+        }
+    }
+}
+
+fn execute_intent_slice(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
+    let Some(prompt) = args
+        .get("prompt")
+        .or_else(|| args.get("query"))
+        .and_then(Value::as_str)
+    else {
+        let err = "Missing required parameter 'prompt'".to_string();
+        return (
+            json!({ "isError": true, "content": [{ "type": "text", "text": err }] }),
+            None,
+            Some(err),
+            None,
+        );
+    };
+
+    let root_str = args.get("root_dir").and_then(Value::as_str).unwrap_or(".");
+    let budget = args
+        .get("budget")
+        .and_then(Value::as_u64)
+        .map(|b| b as usize);
+    let max_symbols = args
+        .get("max_symbols")
+        .and_then(Value::as_u64)
+        .map(|s| s as usize)
+        .unwrap_or(5);
+    let depth = args
+        .get("depth")
+        .and_then(Value::as_u64)
+        .map(|d| d as usize)
+        .unwrap_or(1);
+    let format_str = args
+        .get("format")
+        .and_then(Value::as_str)
+        .unwrap_or("markdown");
+
+    let opts = IntentSliceOptions {
+        prompt: prompt.to_string(),
+        budget,
+        max_target_symbols: max_symbols,
+        depth,
+    };
+
+    let slicer = DefaultIntentSlicer::new();
+    match slicer.slice_intent(Path::new(root_str), &opts) {
+        Ok(result) => {
+            let saved_tokens = result
+                .stats
+                .raw_file_tokens
+                .saturating_sub(result.stats.sliced_tokens);
+            TelemetryLogger::record_operation(
+                "mcp_intent_slice",
+                root_str,
+                result.stats.raw_file_tokens,
+                result.stats.sliced_tokens,
+                saved_tokens,
+            );
+
+            let rendered = if format_str.eq_ignore_ascii_case("json") {
+                result.to_json()
+            } else {
+                result.to_markdown()
+            };
+
+            let metrics = json!({
+                "raw_tokens": result.stats.raw_file_tokens,
+                "sliced_tokens": result.stats.sliced_tokens,
+                "saved_tokens": saved_tokens,
+                "savings_pct": result.stats.savings_percentage,
+                "target_symbols_count": result.target_symbols.len(),
+                "hoisted_types_count": result.hoisted_types.len(),
+                "prompt": result.prompt
+            });
+
+            let response = json!({
+                "content": [{ "type": "text", "text": rendered }],
+                "intent_slice": result
+            });
+
+            (response, Some(metrics), None, Some(saved_tokens))
+        }
+        Err(e) => {
+            let err = format!("Intent slicing error: {e}");
+            let response = json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            });
+            (response, None, Some(err), None)
+        }
+    }
+}
+
+fn execute_patch_transaction(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
+    let patches_val = args.get("patches").unwrap_or(&Value::Null);
+    let patches: Vec<SymbolPatchUnit> = match serde_json::from_value(patches_val.clone()) {
+        Ok(p) => p,
+        Err(e) => {
+            let err = format!("Invalid 'patches' array: {e}");
+            return (
+                json!({ "isError": true, "content": [{ "type": "text", "text": err }] }),
+                None,
+                Some(err),
+                None,
+            );
+        }
+    };
+
+    if patches.is_empty() {
+        let err = "Parameter 'patches' array cannot be empty".to_string();
+        return (
+            json!({ "isError": true, "content": [{ "type": "text", "text": err }] }),
+            None,
+            Some(err),
+            None,
+        );
+    }
+
+    let root_opt = args
+        .get("root_dir")
+        .and_then(Value::as_str)
+        .map(PathBuf::from);
+    let typechecker = args
+        .get("typechecker")
+        .and_then(Value::as_str)
+        .map(String::from);
+    let apply = args.get("apply").and_then(Value::as_bool).unwrap_or(false);
+    let timeout_ms = args.get("timeout_ms").and_then(Value::as_u64);
+    let format_str = args
+        .get("format")
+        .and_then(Value::as_str)
+        .unwrap_or("markdown");
+
+    let req = PatchTransactionRequest {
+        workspace_root: root_opt,
+        patches,
+        typechecker,
+        apply,
+        timeout_ms,
+    };
+
+    match BatchAstPatcher::apply_transaction(&req) {
+        Ok(result) => {
+            let rendered = if format_str.eq_ignore_ascii_case("json") {
+                result.to_json()
+            } else if format_str.eq_ignore_ascii_case("text") {
+                let mut out = String::new();
+                if result.applied {
+                    out.push_str(&format!(
+                        "✔ Successfully applied batch patches across {} file(s) ({} symbol(s))\n",
+                        result.files_modified_count, result.symbols_patched_count
+                    ));
+                } else if result.success {
+                    out.push_str(&format!(
+                        "ℹ Dry-run verified successfully for {} file(s) ({} symbol(s))\n",
+                        result.files_modified_count, result.symbols_patched_count
+                    ));
+                } else if result.rolled_back {
+                    out.push_str("✖ Batch refactor failed and was rolled back cleanly\n");
+                } else {
+                    out.push_str("✖ Pre-write validation rejected the patch\n");
+                }
+                for diff in &result.diffs {
+                    out.push_str(&format!("\n--- {}\n", diff.file_path));
+                    out.push_str(&diff.diff);
+                }
+                out
+            } else {
+                result.to_markdown()
+            };
+
+            let metrics = json!({
+                "success": result.success,
+                "applied": result.applied,
+                "rolled_back": result.rolled_back,
+                "files_modified_count": result.files_modified_count,
+                "symbols_patched_count": result.symbols_patched_count,
+                "diagnostics_count": result.diagnostics.len()
+            });
+
+            let is_error = !result.success;
+            let response = json!({
+                "isError": is_error,
+                "content": [{ "type": "text", "text": rendered }],
+                "transaction": result
+            });
+
+            (response, Some(metrics), None, None)
+        }
+        Err(e) => {
+            let err = format!("Batch patch transaction error: {e}");
+            let response = json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            });
+            (response, None, Some(err), None)
+        }
+    }
+}
+
+fn execute_pack_agent_context(
+    args: &Value,
+) -> (Value, Option<Value>, Option<String>, Option<usize>) {
+    let root_str = args.get("root_dir").and_then(Value::as_str).unwrap_or(".");
+    let agents_count = args
+        .get("agents_count")
+        .and_then(Value::as_u64)
+        .map(|a| a as usize)
+        .unwrap_or(2)
+        .max(1);
+    let seeds_vec: Vec<String> = args
+        .get("seed_symbols")
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(Value::as_str)
+                .map(String::from)
+                .collect()
+        })
+        .unwrap_or_default();
+    let budget_per_agent = args
+        .get("budget_per_agent")
+        .and_then(Value::as_u64)
+        .map(|b| b as usize);
+    let format_str = args
+        .get("format")
+        .and_then(Value::as_str)
+        .unwrap_or("markdown");
+
+    let partitioner = DefaultSwarmPartitioner::new();
+    match partitioner.partition_workspace(
+        Path::new(root_str),
+        agents_count,
+        &seeds_vec,
+        budget_per_agent,
+    ) {
+        Ok(manifest) => {
+            let total_raw: usize = manifest
+                .packs
+                .iter()
+                .map(|p| p.token_stats.raw_file_tokens)
+                .sum();
+            let total_sliced: usize = manifest
+                .packs
+                .iter()
+                .map(|p| p.token_stats.sliced_tokens)
+                .sum();
+            let total_saved = total_raw.saturating_sub(total_sliced);
+            TelemetryLogger::record_operation(
+                "mcp_swarm_partition",
+                root_str,
+                total_raw,
+                total_sliced,
+                total_saved,
+            );
+
+            let rendered = if format_str.eq_ignore_ascii_case("json") {
+                manifest.to_json()
+            } else {
+                manifest.to_markdown()
+            };
+
+            let metrics = json!({
+                "total_agents": manifest.total_agents,
+                "total_symbols": manifest.total_symbols,
+                "boundary_contracts_count": manifest.boundary_contracts_count,
+                "total_raw_tokens": total_raw,
+                "total_sliced_tokens": total_sliced,
+                "total_saved_tokens": total_saved
+            });
+
+            let response = json!({
+                "content": [{ "type": "text", "text": rendered }],
+                "manifest": manifest
+            });
+
+            (response, Some(metrics), None, Some(total_saved))
+        }
+        Err(e) => {
+            let err = format!("Swarm context packaging error: {e}");
             let response = json!({
                 "isError": true,
                 "content": [{ "type": "text", "text": err }]

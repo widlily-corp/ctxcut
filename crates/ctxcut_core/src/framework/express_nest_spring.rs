@@ -1,10 +1,14 @@
-//! Express.js, NestJS, and Spring Boot framework semantic analyzers.
-//!
-//! Captures route DTOs, controllers, middleware invocation chains, guards, interceptors,
-//! and authorization constraints.
+#![allow(
+    clippy::trivially_copy_pass_by_ref,
+    clippy::unused_self,
+    clippy::collapsible_if,
+    clippy::too_many_lines,
+    clippy::uninlined_format_args
+)]
 
 use crate::error::Result;
 use crate::framework::FrameworkAnalyzer;
+use crate::fullstack::model::ServerRouteEndpoint;
 use crate::model::{CallSignatureStub, ExtractedType, SliceOptions, SliceResult};
 use crate::parser::AstUtils;
 use crate::resolver::TypeHoister;
@@ -19,6 +23,40 @@ impl ExpressAnalyzer {
     /// Creates a new `ExpressAnalyzer` instance.
     pub fn new() -> Self {
         Self
+    }
+
+    /// Extracts all server route endpoints from an Express.js source file.
+    pub fn extract_routes(&self, path: &Path, source: &str) -> Vec<ServerRouteEndpoint> {
+        let mut routes = Vec::new();
+        let file_path = path.to_string_lossy().to_string();
+
+        for line in source.lines() {
+            let t = line.trim();
+            for method in &["get", "post", "put", "delete", "patch"] {
+                let pat = format!(".{method}(");
+                if t.contains(&pat) && (t.contains("'/") || t.contains("\"/") || t.contains("`/")) {
+                    if let Some(pos) = t.find(&pat) {
+                        let after = &t[pos + pat.len()..];
+                        if let Some(path_str) = extract_path_from_args(after) {
+                            let handler_name = extract_express_handler_name(after);
+                            let sig = format!("app.{method}(\"{path_str}\", {handler_name})");
+                            routes.push(ServerRouteEndpoint {
+                                framework: "express".to_string(),
+                                http_method: method.to_uppercase(),
+                                route_path: path_str,
+                                handler_file: file_path.clone(),
+                                handler_symbol: handler_name,
+                                handler_signature: sig,
+                                request_dto_type: None,
+                                response_dto_type: None,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        routes
     }
 }
 
@@ -215,6 +253,74 @@ impl NestJsAnalyzer {
     /// Creates a new `NestJsAnalyzer`.
     pub fn new() -> Self {
         Self
+    }
+
+    /// Extracts all server route endpoints from a NestJS source file.
+    pub fn extract_routes(&self, path: &Path, source: &str) -> Vec<ServerRouteEndpoint> {
+        let mut routes = Vec::new();
+        let file_path = path.to_string_lossy().to_string();
+
+        let lines: Vec<&str> = source.lines().collect();
+        let mut controller_prefix = String::new();
+
+        // 1. Controller prefix: @Controller('users') or @Controller('/api/users')
+        for line in &lines {
+            let t = line.trim();
+            if t.starts_with("@Controller(") {
+                if let Some(p) = extract_path_or_string(t) {
+                    let clean = p.trim_matches('/');
+                    controller_prefix = if clean.is_empty() { String::new() } else { format!("/{clean}") };
+                }
+            }
+        }
+
+        // 2. Methods: @Get(':id'), @Post(), @Put(':id'), @Delete(':id'), @Patch(':id')
+        for (i, line) in lines.iter().enumerate() {
+            let t = line.trim();
+            for method in &["Get", "Post", "Put", "Delete", "Patch"] {
+                let pat = format!("@{method}(");
+                let pat_empty = format!("@{method}()");
+                if t.starts_with(&pat) || t.starts_with(&pat_empty) {
+                    let sub = extract_path_or_string(t).unwrap_or_default();
+                    let clean_sub = sub.trim_matches('/');
+                    let full_path = if clean_sub.is_empty() {
+                        if controller_prefix.is_empty() { "/".to_string() } else { controller_prefix.clone() }
+                    } else if controller_prefix.is_empty() {
+                        format!("/{clean_sub}")
+                    } else {
+                        format!("{controller_prefix}/{clean_sub}")
+                    };
+
+                    // Handler name from next line
+                    let mut handler_name = "handler".to_string();
+                    let mut handler_sig = String::new();
+                    for next_line in lines.iter().skip(i + 1) {
+                        let nt = next_line.trim();
+                        if !nt.starts_with('@') && !nt.is_empty() {
+                            handler_sig = nt.to_string();
+                            let clean = nt.trim_start_matches("async ").trim_start_matches("public ");
+                            if let Some(paren) = clean.find('(') {
+                                handler_name = clean[..paren].trim().to_string();
+                            }
+                            break;
+                        }
+                    }
+
+                    routes.push(ServerRouteEndpoint {
+                        framework: "nestjs".to_string(),
+                        http_method: method.to_uppercase(),
+                        route_path: full_path,
+                        handler_file: file_path.clone(),
+                        handler_symbol: handler_name,
+                        handler_signature: handler_sig,
+                        request_dto_type: None,
+                        response_dto_type: None,
+                    });
+                }
+            }
+        }
+
+        routes
     }
 }
 
@@ -413,6 +519,71 @@ impl SpringAnalyzer {
     /// Creates a new `SpringAnalyzer`.
     pub fn new() -> Self {
         Self
+    }
+
+    /// Extracts all server route endpoints from a Spring Boot source file.
+    pub fn extract_routes(&self, path: &Path, source: &str) -> Vec<ServerRouteEndpoint> {
+        let mut routes = Vec::new();
+        let file_path = path.to_string_lossy().to_string();
+
+        let lines: Vec<&str> = source.lines().collect();
+        let mut class_prefix = String::new();
+
+        // 1. Class prefix: @RequestMapping("/api/users")
+        for line in &lines {
+            let t = line.trim();
+            if t.starts_with("@RequestMapping(") || t.starts_with("@RestController(") {
+                if let Some(p) = extract_path_or_string(t) {
+                    let clean = p.trim_matches('/');
+                    class_prefix = if clean.is_empty() { String::new() } else { format!("/{clean}") };
+                }
+            }
+        }
+
+        // 2. Methods: @GetMapping, @PostMapping, @PutMapping, @DeleteMapping, @PatchMapping, @RequestMapping
+        for (i, line) in lines.iter().enumerate() {
+            let t = line.trim();
+            for method in &["GetMapping", "PostMapping", "PutMapping", "DeleteMapping", "PatchMapping"] {
+                let http_m = method.trim_end_matches("Mapping").to_uppercase();
+                let pat = format!("@{method}");
+                if t.starts_with(&pat) {
+                    let sub = extract_path_or_string(t).unwrap_or_default();
+                    let clean_sub = sub.trim_matches('/');
+                    let full_path = if clean_sub.is_empty() {
+                        if class_prefix.is_empty() { "/".to_string() } else { class_prefix.clone() }
+                    } else if class_prefix.is_empty() {
+                        format!("/{clean_sub}")
+                    } else {
+                        format!("{class_prefix}/{clean_sub}")
+                    };
+
+                    let mut handler_name = "handler".to_string();
+                    let mut handler_sig = String::new();
+                    for next_line in lines.iter().skip(i + 1) {
+                        let nt = next_line.trim();
+                        if !nt.starts_with('@') && (nt.contains("public ") || nt.contains("private ") || nt.contains("protected ")) {
+                            handler_sig = nt.to_string();
+                            let clean = nt.split('(').next().unwrap_or(nt);
+                            handler_name = clean.split_whitespace().last().unwrap_or("handler").to_string();
+                            break;
+                        }
+                    }
+
+                    routes.push(ServerRouteEndpoint {
+                        framework: "spring_boot".to_string(),
+                        http_method: http_m,
+                        route_path: full_path,
+                        handler_file: file_path.clone(),
+                        handler_symbol: handler_name,
+                        handler_signature: handler_sig,
+                        request_dto_type: None,
+                        response_dto_type: None,
+                    });
+                }
+            }
+        }
+
+        routes
     }
 }
 
@@ -763,3 +934,42 @@ fn is_builtin_java_type(name: &str) -> bool {
             | "Void"
     )
 }
+
+fn extract_path_or_string(line: &str) -> Option<String> {
+    for quote in ['\'', '"', '`'] {
+        if let Some(first) = line.find(quote) {
+            if let Some(second) = line[first + 1..].find(quote) {
+                let candidate = &line[first + 1..first + 1 + second];
+                return Some(candidate.to_string());
+            }
+        }
+    }
+    None
+}
+
+fn extract_path_from_args(s: &str) -> Option<String> {
+    for quote in ['\'', '"', '`'] {
+        if let Some(first) = s.find(quote) {
+            if let Some(second) = s[first + 1..].find(quote) {
+                let candidate = &s[first + 1..first + 1 + second];
+                if candidate.starts_with('/') {
+                    return Some(candidate.to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
+fn extract_express_handler_name(s: &str) -> String {
+    let parts: Vec<&str> = s.split(',').collect();
+    if parts.len() >= 2 {
+        let last = parts[parts.len() - 1].trim_matches([' ', ')', ';', '}']).trim();
+        let name = last.split(['(', ' ']).next().unwrap_or("handler").trim();
+        if !name.is_empty() {
+            return name.to_string();
+        }
+    }
+    "handler".to_string()
+}
+

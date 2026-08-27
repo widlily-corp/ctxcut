@@ -1,8 +1,14 @@
-//! AST patch verification guard with typechecking and RAII auto-rollback.
+//! AST patch verification guard with typechecking, AST diagnostic mapping, and RAII multi-file auto-rollback.
 
+pub mod ast_mapper;
+pub mod multi_rollback;
 pub mod rollback;
 pub mod typechecker;
 
+pub use ast_mapper::{
+    AstDiagnosticMapper, MappedPatchDiagnostic, PatchedFileInfo, PatchedSymbolMeta,
+};
+pub use multi_rollback::{JournalEntry, MultiFileRollbackGuard};
 pub use rollback::RollbackGuard;
 pub use typechecker::{
     DiagnosticParser, TypecheckExecutionResult, TypecheckerDetector, TypecheckerRunner,

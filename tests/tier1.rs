@@ -86,3 +86,16 @@ mod test_f14_tui_dashboard;
 
 #[path = "tier1_features/test_f15_upgrade.rs"]
 mod test_f15_upgrade;
+
+#[path = "tier1_features/test_f16_fullstack_trace.rs"]
+mod test_f16_fullstack_trace;
+
+#[path = "tier1_features/test_f17_intent_slice.rs"]
+mod test_f17_intent_slice;
+
+#[path = "tier1_features/test_f18_batch_refactor.rs"]
+mod test_f18_batch_refactor;
+
+#[path = "tier1_features/test_f19_swarm_partition.rs"]
+mod test_f19_swarm_partition;
+

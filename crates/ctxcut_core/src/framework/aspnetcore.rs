@@ -1,9 +1,16 @@
-//! ASP.NET Core framework semantic analyzer for C# web APIs and controllers.
+#![allow(
+    clippy::trivially_copy_pass_by_ref,
+    clippy::unused_self,
+    clippy::collapsible_if,
+    clippy::too_many_lines,
+    clippy::uninlined_format_args
+)]
 
 use crate::error::Result;
 use crate::framework::FrameworkAnalyzer;
 use crate::model::{CallSignatureStub, ExtractedType, SliceResult};
 use crate::parser::AstUtils;
+use crate::fullstack::model::ServerRouteEndpoint;
 use std::path::Path;
 use tree_sitter::Node;
 
@@ -16,6 +23,191 @@ impl AspNetCoreAnalyzer {
     pub fn new() -> Self {
         Self
     }
+
+    /// Extracts all server route endpoints from a C# ASP.NET Core source file.
+    pub fn extract_routes(&self, path: &Path, source: &str) -> Vec<ServerRouteEndpoint> {
+        let mut routes = Vec::new();
+        let file_path = path.to_string_lossy().to_string();
+
+        let lines: Vec<&str> = source.lines().collect();
+        let mut controller_base_route = String::new();
+        let mut controller_name = String::new();
+
+        // 1. Scan controller class name and base [Route("...")]
+        for line in &lines {
+            let t = line.trim();
+            if t.starts_with("[Route(\"") {
+                if let Some(pos) = t.find("[Route(\"") {
+                    let after = &t[pos + 8..];
+                    if let Some(end) = after.find('"') {
+                        controller_base_route = after[..end].to_string();
+                    }
+                }
+            }
+            if t.contains("class ") && t.contains("Controller") {
+                if let Some(pos) = t.find("class ") {
+                    let after = &t[pos + 6..];
+                    let name = after.split([' ', ':', '{']).next().unwrap_or("").trim();
+                    if name.ends_with("Controller") {
+                        controller_name = name.trim_end_matches("Controller").to_string();
+                    }
+                }
+            }
+        }
+
+        let base_prefix = if !controller_base_route.is_empty() {
+            let mut p = controller_base_route.replace("[controller]", &controller_name.to_lowercase());
+            if !p.starts_with('/') {
+                p = format!("/{p}");
+            }
+            p
+        } else if !controller_name.is_empty() {
+            format!("/api/{}", controller_name.to_lowercase())
+        } else {
+            String::new()
+        };
+
+        // 2. Scan action methods: [HttpGet], [HttpPost], etc.
+        for (i, line) in lines.iter().enumerate() {
+            let t = line.trim();
+            for method in &["HttpGet", "HttpPost", "HttpPut", "HttpDelete", "HttpPatch"] {
+                let http_m = method.trim_start_matches("Http").to_uppercase();
+                if t.contains(&format!("[{method}")) {
+                    let sub_path = if t.contains(&format!("[{method}(\"")) {
+                        let pat = format!("[{method}(\"");
+                        let pos = t.find(&pat).unwrap();
+                        let after = &t[pos + pat.len()..];
+                        let end = after.find('"').unwrap_or(0);
+                        let sp = &after[..end];
+                        if sp.starts_with('/') {
+                            sp.to_string()
+                        } else {
+                            format!("/{sp}")
+                        }
+                    } else {
+                        String::new()
+                    };
+
+                    let full_path = format!("{}{}", base_prefix.trim_end_matches('/'), sub_path);
+                    let final_path = if full_path.is_empty() { "/".to_string() } else { full_path };
+
+                    // Next line or subsequent lines contain method signature
+                    let mut handler_name = "Action".to_string();
+                    let mut handler_sig = String::new();
+                    for next_line in lines.iter().skip(i + 1) {
+                        let nt = next_line.trim();
+                        if nt.starts_with("public ") {
+                            handler_sig = nt.to_string();
+                            let after_public = nt.trim_start_matches("public ");
+                            if let Some(paren) = after_public.find('(') {
+                                let before_paren = &after_public[..paren];
+                                handler_name = before_paren.split_whitespace().last().unwrap_or("Action").to_string();
+                            }
+                            break;
+                        }
+                    }
+
+                    let (req_dto, res_dto) = extract_aspnet_action_dtos(source, &handler_sig, &file_path);
+
+                    routes.push(ServerRouteEndpoint {
+                        framework: "aspnetcore".to_string(),
+                        http_method: http_m,
+                        route_path: final_path,
+                        handler_file: file_path.clone(),
+                        handler_symbol: handler_name,
+                        handler_signature: handler_sig,
+                        request_dto_type: req_dto,
+                        response_dto_type: res_dto,
+                    });
+                }
+            }
+
+            // 3. Minimal APIs: app.MapGet("/...", ...), app.MapPost(...)
+            for method in &["MapGet", "MapPost", "MapPut", "MapDelete", "MapPatch"] {
+                let http_m = method.trim_start_matches("Map").to_uppercase();
+                let pat = format!(".{method}(\"");
+                if t.contains(&pat) {
+                    if let Some(pos) = t.find(&pat) {
+                        let after = &t[pos + pat.len()..];
+                        if let Some(end) = after.find('"') {
+                            let path_str = &after[..end];
+                            let (req_dto, res_dto) = extract_aspnet_action_dtos(source, t, &file_path);
+                            routes.push(ServerRouteEndpoint {
+                                framework: "aspnetcore".to_string(),
+                                http_method: http_m.clone(),
+                                route_path: path_str.to_string(),
+                                handler_file: file_path.clone(),
+                                handler_symbol: format!("MinimalApi_{http_m}"),
+                                handler_signature: t.to_string(),
+                                request_dto_type: req_dto,
+                                response_dto_type: res_dto,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        // Deduplicate
+        let mut unique = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        for r in routes {
+            let key = (r.http_method.clone(), r.route_path.clone(), r.handler_symbol.clone());
+            if seen.insert(key) {
+                unique.push(r);
+            }
+        }
+
+        unique
+    }
+}
+
+fn extract_aspnet_action_dtos(
+    source: &str,
+    sig: &str,
+    file_path: &str,
+) -> (Option<ExtractedType>, Option<ExtractedType>) {
+    let mut req_dto = None;
+    let mut res_dto = None;
+
+    if sig.contains("[FromBody]") {
+        if let Some(pos) = sig.find("[FromBody]") {
+            let after = &sig[pos + 10..].trim();
+            let type_name = after.split_whitespace().next().unwrap_or("").trim_matches([',', ')']);
+            if !type_name.is_empty() {
+                req_dto = find_type_declaration(source, type_name, Path::new(file_path));
+            }
+        }
+    }
+
+    if sig.contains("ActionResult<") {
+        if let Some(pos) = sig.find("ActionResult<") {
+            let after = &sig[pos + 13..];
+            if let Some(end) = after.find('>') {
+                let type_name = after[..end].trim();
+                if !type_name.is_empty() {
+                    res_dto = find_type_declaration(source, type_name, Path::new(file_path));
+                }
+            }
+        }
+    }
+
+    (req_dto, res_dto)
+}
+
+fn find_type_declaration(source: &str, name: &str, file_path: &Path) -> Option<ExtractedType> {
+    for line in source.lines() {
+        let t = line.trim();
+        if t.contains(&format!("class {name}")) || t.contains(&format!("record {name}")) || t.contains(&format!("struct {name}")) {
+            return Some(ExtractedType {
+                name: name.to_string(),
+                kind: "class".to_string(),
+                file_path: file_path.to_string_lossy().to_string(),
+                definition: t.to_string(),
+            });
+        }
+    }
+    None
 }
 
 impl FrameworkAnalyzer for AspNetCoreAnalyzer {

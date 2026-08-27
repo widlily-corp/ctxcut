@@ -1,7 +1,12 @@
-//! AST-guided refactoring and symbol renaming module.
+//! AST-guided refactoring, batch multi-symbol mutation, and symbol renaming module.
 
+pub mod batch;
 pub mod rename;
 
+pub use batch::{
+    BatchAstPatcher, FilePatchDiff, PatchTransactionRequest, PatchTransactionResult,
+    SymbolPatchUnit, TransactionalPatcher,
+};
 pub use rename::SymbolRenamer;
 use serde::{Deserialize, Serialize};
 

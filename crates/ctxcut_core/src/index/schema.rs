@@ -121,6 +121,88 @@ pub fn apply_schema(conn: &Connection) -> Result<()> {
         );
         CREATE INDEX IF NOT EXISTS idx_refs_sym ON symbol_references(symbol_name);
         CREATE INDEX IF NOT EXISTS idx_refs_source ON symbol_references(source_file_id);
+
+        -- 8. Server Routes
+        CREATE TABLE IF NOT EXISTS routes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+            framework TEXT NOT NULL,
+            http_method TEXT NOT NULL,
+            route_path TEXT NOT NULL,
+            handler_symbol TEXT NOT NULL,
+            handler_signature TEXT NOT NULL,
+            request_dto TEXT,
+            response_dto TEXT,
+            start_line INTEGER NOT NULL,
+            end_line INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_routes_path ON routes(route_path);
+        CREATE INDEX IF NOT EXISTS idx_routes_method_path ON routes(http_method, route_path);
+        CREATE INDEX IF NOT EXISTS idx_routes_symbol ON routes(handler_symbol);
+        CREATE INDEX IF NOT EXISTS idx_routes_file_id ON routes(file_id);
+
+        -- 9. Client API Call Endpoints
+        CREATE TABLE IF NOT EXISTS client_endpoints (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+            client_kind TEXT NOT NULL,
+            http_method TEXT,
+            endpoint_url TEXT,
+            rpc_procedure TEXT,
+            line_number INTEGER NOT NULL,
+            call_snippet TEXT NOT NULL,
+            request_dto TEXT,
+            response_dto TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_client_endpoints_url ON client_endpoints(endpoint_url);
+        CREATE INDEX IF NOT EXISTS idx_client_endpoints_proc ON client_endpoints(rpc_procedure);
+        CREATE INDEX IF NOT EXISTS idx_client_endpoints_file_id ON client_endpoints(file_id);
+
+        -- 10. Database and API Schema Entities
+        CREATE TABLE IF NOT EXISTS schema_entities (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+            schema_kind TEXT NOT NULL,
+            entity_name TEXT NOT NULL,
+            table_name TEXT,
+            definition TEXT NOT NULL,
+            start_line INTEGER NOT NULL,
+            end_line INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_schema_entities_name ON schema_entities(entity_name);
+        CREATE INDEX IF NOT EXISTS idx_schema_entities_table ON schema_entities(table_name);
+        CREATE INDEX IF NOT EXISTS idx_schema_entities_kind ON schema_entities(schema_kind);
+        CREATE INDEX IF NOT EXISTS idx_schema_entities_file_id ON schema_entities(file_id);
+
+        -- 11. BM25 Lexical-Structural Inverted Index
+        CREATE TABLE IF NOT EXISTS bm25_terms (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            term TEXT NOT NULL UNIQUE,
+            doc_freq INTEGER NOT NULL DEFAULT 0,
+            idf REAL NOT NULL DEFAULT 0.0
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_bm25_terms_term ON bm25_terms(term);
+
+        CREATE TABLE IF NOT EXISTS bm25_postings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            term_id INTEGER NOT NULL REFERENCES bm25_terms(id) ON DELETE CASCADE,
+            symbol_id INTEGER NOT NULL REFERENCES symbols(id) ON DELETE CASCADE,
+            file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+            field TEXT NOT NULL,
+            term_freq INTEGER NOT NULL,
+            field_length INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_bm25_postings_term ON bm25_postings(term_id);
+        CREATE INDEX IF NOT EXISTS idx_bm25_postings_symbol ON bm25_postings(symbol_id);
+        CREATE INDEX IF NOT EXISTS idx_bm25_postings_file ON bm25_postings(file_id);
+        CREATE INDEX IF NOT EXISTS idx_bm25_postings_field ON bm25_postings(field);
+
+        CREATE TABLE IF NOT EXISTS bm25_doc_stats (
+            symbol_id INTEGER PRIMARY KEY REFERENCES symbols(id) ON DELETE CASCADE,
+            file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+            total_terms INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_bm25_doc_stats_file ON bm25_doc_stats(file_id);
         "#,
     )
     .map_err(|e| CoreError::DatabaseError(format!("Failed to create SQLite schema tables: {e}")))?;

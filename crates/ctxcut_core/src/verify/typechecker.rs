@@ -27,13 +27,19 @@ impl TypecheckerDetector {
                 {
                     Some("cargo check".to_string())
                 } else {
-                    Some(format!(
-                        "rustc --crate-type lib --emit=metadata -o NUL \"{rel_file_str}\""
-                    ))
+                    None
                 }
             }
             SupportedLanguage::TypeScript | SupportedLanguage::JavaScript => {
-                Some("npx tsc --noEmit".to_string())
+                if workspace_root.join("tsconfig.json").exists()
+                    || workspace_root.join("package.json").exists()
+                    || find_file_upward(file_path, "tsconfig.json").is_some()
+                    || find_file_upward(file_path, "package.json").is_some()
+                {
+                    Some("npx tsc --noEmit".to_string())
+                } else {
+                    None
+                }
             }
             SupportedLanguage::Python => {
                 if workspace_root.join("mypy.ini").exists()
@@ -52,10 +58,20 @@ impl TypecheckerDetector {
                 {
                     Some("go vet ./...".to_string())
                 } else {
-                    Some(format!("go vet \"{rel_file_str}\""))
+                    None
                 }
             }
-            SupportedLanguage::CSharp => Some("dotnet build".to_string()),
+            SupportedLanguage::CSharp => {
+                if workspace_root.join("*.csproj").exists()
+                    || workspace_root.join("*.sln").exists()
+                    || find_file_upward(file_path, "*.csproj").is_some()
+                    || find_file_upward(file_path, "*.sln").is_some()
+                {
+                    Some("dotnet build".to_string())
+                } else {
+                    None
+                }
+            }
             SupportedLanguage::Java => {
                 if workspace_root.join("pom.xml").exists()
                     || find_file_upward(file_path, "pom.xml").is_some()
@@ -67,7 +83,7 @@ impl TypecheckerDetector {
                 {
                     Some("gradle compileJava".to_string())
                 } else {
-                    Some(format!("javac \"{rel_file_str}\""))
+                    None
                 }
             }
             SupportedLanguage::Kotlin => {
@@ -76,14 +92,58 @@ impl TypecheckerDetector {
                 {
                     Some("gradle compileKotlin".to_string())
                 } else {
-                    Some(format!("kotlinc \"{rel_file_str}\" -nowarn"))
+                    None
                 }
             }
-            SupportedLanguage::C => Some(format!("clang -fsyntax-only \"{rel_file_str}\"")),
-            SupportedLanguage::Cpp => Some(format!("clang++ -fsyntax-only \"{rel_file_str}\"")),
-            SupportedLanguage::Vue => Some("npx vue-tsc --noEmit".to_string()),
-            SupportedLanguage::Svelte => Some("npx svelte-check".to_string()),
-            SupportedLanguage::Astro => Some("npx astro check".to_string()),
+            SupportedLanguage::C => {
+                if workspace_root.join("CMakeLists.txt").exists()
+                    || workspace_root.join("Makefile").exists()
+                    || find_file_upward(file_path, "CMakeLists.txt").is_some()
+                    || find_file_upward(file_path, "Makefile").is_some()
+                {
+                    Some(format!("clang -fsyntax-only \"{rel_file_str}\""))
+                } else {
+                    None
+                }
+            }
+            SupportedLanguage::Cpp => {
+                if workspace_root.join("CMakeLists.txt").exists()
+                    || workspace_root.join("Makefile").exists()
+                    || find_file_upward(file_path, "CMakeLists.txt").is_some()
+                    || find_file_upward(file_path, "Makefile").is_some()
+                {
+                    Some(format!("clang++ -fsyntax-only \"{rel_file_str}\""))
+                } else {
+                    None
+                }
+            }
+            SupportedLanguage::Vue => {
+                if workspace_root.join("package.json").exists()
+                    || find_file_upward(file_path, "package.json").is_some()
+                {
+                    Some("npx vue-tsc --noEmit".to_string())
+                } else {
+                    None
+                }
+            }
+            SupportedLanguage::Svelte => {
+                if workspace_root.join("package.json").exists()
+                    || find_file_upward(file_path, "package.json").is_some()
+                {
+                    Some("npx svelte-check".to_string())
+                } else {
+                    None
+                }
+            }
+            SupportedLanguage::Astro => {
+                if workspace_root.join("package.json").exists()
+                    || find_file_upward(file_path, "package.json").is_some()
+                {
+                    Some("npx astro check".to_string())
+                } else {
+                    None
+                }
+            }
         }
     }
 }

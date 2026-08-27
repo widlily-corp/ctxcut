@@ -9,7 +9,9 @@ pub mod diff;
 pub mod error;
 pub mod formatter;
 pub mod framework;
+pub mod fullstack;
 pub mod index;
+pub mod intent;
 pub mod lang;
 pub mod model;
 pub mod overview;
@@ -20,6 +22,7 @@ pub mod refactor;
 pub mod resolver;
 pub mod schema;
 pub mod slice;
+pub mod swarm;
 pub mod telemetry;
 pub mod test_context;
 pub mod tokenizer;
@@ -33,10 +36,22 @@ pub use diff::{
 pub use error::{CoreError, Result};
 pub use formatter::{normalize_language_tag, Formatter, JsonFormatter, MarkdownFormatter};
 pub use framework::{
-    DjangoFastApiAnalyzer, ExpressAnalyzer, ExpressNestSpringAnalyzer, FrameworkAnalyzer,
-    FrameworkRegistry, NestJsAnalyzer, ReactNextAnalyzer, SpringAnalyzer,
+    extract_server_routes, AspNetCoreAnalyzer, AxumActixAnalyzer, DjangoFastApiAnalyzer,
+    ExpressAnalyzer, ExpressNestSpringAnalyzer, FlaskAnalyzer, FrameworkAnalyzer,
+    FrameworkRegistry, GinChiAnalyzer, NestJsAnalyzer, ReactNextAnalyzer, SpringAnalyzer,
+};
+pub use fullstack::{
+    ClientApiCall, ClientDetector, FullstackExecutionTracer, FullstackTraceResult,
+    FullstackTraceStep, FullstackTracer, RouteMatcher, ServerRouteEndpoint,
+    DEFAULT_FULLSTACK_BUDGET,
 };
 pub use index::{IndexEngine, IndexOptions, IndexStatus, IndexSyncResult, CURRENT_SCHEMA_VERSION};
+pub use intent::{
+    assemble_critical_bundle, compute_idf, extract_query_keywords, extract_symbol_tokens,
+    tokenize_nl_and_code, Bm25Index, Bm25Params, CriticalAstBundle, DefaultIntentSlicer, FieldKind,
+    HybridAstRanker, IntentSliceOptions, IntentSliceResult, IntentSlicer, Posting, ScoredCandidate,
+    SymbolTokenDocument,
+};
 pub use lang::{
     GoAdapter, LanguageAdapter, LanguageRegistry, PythonAdapter, RustAdapter, TypeScriptAdapter,
 };
@@ -60,8 +75,14 @@ pub use resolver::{
     ImplementorHoister, ImportMapping, ImportResolver, SignatureStripper, SymbolLocator,
     TypeHoister,
 };
-pub use schema::SchemaStitcher;
+pub use schema::{extract_schema_entities, SchemaEntityRecord, SchemaStitcher};
 pub use slice::{budget::BudgetCompressor, budget::DegradationReport, ContextSlicer};
+pub use swarm::{
+    BoundaryStubGenerator, CommunityClusterer, DefaultSwarmPartitionEngine,
+    DefaultSwarmPartitioner, EdgeKind, GraphEdge, GraphNode, MockContractGenerator,
+    SwarmAgentPack, SwarmBudgetEngine, SwarmPartitionEngine, SwarmPartitionManifest,
+    WorkspaceGraph, WorkspaceGraphBuilder,
+};
 pub use telemetry::{
     current_rfc3339_timestamp, format_rfc3339, LanguageMetric, ModelTierSavings, SourceMetric,
     TelemetryEvent, TelemetryLogger, TelemetrySummary, ECONOMY_PRICE_PER_MILLION_TOKENS,

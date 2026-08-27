@@ -4,13 +4,16 @@ pub mod callers;
 pub mod diff;
 pub mod index;
 pub mod metrics;
+pub mod pack_agent_context;
 pub mod query;
 pub mod refactor;
 pub mod route;
 pub mod semantic_diff;
 pub mod setup_mcp;
+pub mod slice_intent;
 pub mod stats;
 pub mod trace;
+pub mod trace_api;
 pub mod tui;
 pub mod upgrade;
 pub mod verify;
@@ -19,14 +22,19 @@ pub use callers::run_callers_command;
 pub use diff::{run_diff_slicer, run_diff_slicer_in};
 pub use index::{run_index_command, IndexCliOptions};
 pub use metrics::{render_dashboard, run_metrics_command};
+pub use pack_agent_context::run_pack_agent_context_command;
 pub use query::{run_query_command, QueryOptions};
-pub use refactor::{run_refactor_rename, RefactorRenameOptions};
+pub use refactor::{
+    run_refactor_batch, run_refactor_rename, RefactorBatchOptions, RefactorRenameOptions,
+};
 pub use semantic_diff::{run_semantic_diff, SemanticDiffOptions};
 pub use setup_mcp::{
     format_setup_report, get_ide_config_paths, merge_mcp_config, run_setup_mcp, safe_merge_json,
     setup_ide_mcp, IdeTarget, MergeStatus, SetupMcpOptions, SetupResult,
 };
+pub use slice_intent::{run_slice_intent_command, SliceIntentCliOptions};
 pub use trace::run_trace_command;
+pub use trace_api::run_trace_api_command;
 pub use tui::run_tui;
 pub use upgrade::{run_upgrade_command, UpgradeOptions};
 pub use verify::{run_verify_patch, VerifyPatchOptions};
@@ -552,6 +560,100 @@ pub enum Commands {
         #[arg(long)]
         allow_downgrade: bool,
     },
+
+    /// Full-stack cross-boundary execution tracing from frontend API calls to backend handlers and DB DDL.
+    #[command(name = "trace-api", alias = "fullstack-trace")]
+    TraceApi {
+        /// Entry point query (e.g. `POST /api/v1/orders`, `src/client.ts:createOrder`, or `billing.chargeInvoice`).
+        entry: String,
+
+        /// Workspace root directory path (defaults to current directory).
+        #[arg(short, long)]
+        root: Option<PathBuf>,
+
+        /// Adaptive token budget limit (default: 1500 tokens).
+        #[arg(long)]
+        budget: Option<usize>,
+
+        /// Copy output directly to system clipboard.
+        #[arg(long)]
+        clip: bool,
+
+        /// Output file path to save extracted Markdown/JSON.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Output format (markdown or json).
+        #[arg(long, default_value = "markdown")]
+        format: String,
+    },
+
+    /// Semantic intent-driven AST slicing combining natural language BM25 matching with AST dependency traversal.
+    #[command(name = "slice-intent", alias = "intent")]
+    SliceIntent {
+        /// Natural language task prompt or query description.
+        prompt: String,
+
+        /// Workspace root directory path (defaults to current directory).
+        #[arg(short, long)]
+        root: Option<PathBuf>,
+
+        /// Target token budget (default: 1500 tokens).
+        #[arg(long)]
+        budget: Option<usize>,
+
+        /// Maximum number of primary target symbols to extract (default: 5).
+        #[arg(long)]
+        max_symbols: Option<usize>,
+
+        /// AST dependency traversal depth (default: 1).
+        #[arg(long, default_value = "1")]
+        depth: usize,
+
+        /// Copy output directly to system clipboard.
+        #[arg(long)]
+        clip: bool,
+
+        /// Output file path to save extracted Markdown/JSON.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Output format (markdown or json).
+        #[arg(long, default_value = "markdown")]
+        format: String,
+    },
+
+    /// Partition repository into isolated, non-overlapping AST context bundles for multi-agent swarms.
+    #[command(name = "pack-agent-context", alias = "pack-swarm")]
+    PackAgentContext {
+        /// Workspace root directory path (defaults to current directory).
+        #[arg(short, long)]
+        root: Option<PathBuf>,
+
+        /// Total number of agent clusters to partition into (default: 2).
+        #[arg(short, long, default_value = "2")]
+        agents: usize,
+
+        /// Comma-separated seed symbol names to anchor cluster centroids.
+        #[arg(long)]
+        seeds: Option<String>,
+
+        /// Token budget limit per agent pack (default: 1500).
+        #[arg(long)]
+        budget: Option<usize>,
+
+        /// Copy output directly to system clipboard.
+        #[arg(long)]
+        clip: bool,
+
+        /// Output file path to save partition manifest.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Output format (markdown or json).
+        #[arg(long, default_value = "markdown")]
+        format: String,
+    },
 }
 
 /// Subcommands for AST-guided refactoring.
@@ -579,6 +681,49 @@ pub enum RefactorSubcommands {
         clip: bool,
 
         /// Output file path to save refactor report.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Output format (text, markdown, or json).
+        #[arg(long, default_value = "text")]
+        format: String,
+    },
+
+    /// Atomic multi-symbol, multi-file batch AST refactoring with compiler dry-run verification and auto-rollback.
+    Batch {
+        /// Direct JSON string of patch instructions.
+        #[arg(long)]
+        patches: Option<String>,
+
+        /// Path to JSON file containing patch array or transaction request.
+        #[arg(short, long)]
+        file: Option<PathBuf>,
+
+        /// Workspace root directory (defaults to current directory).
+        #[arg(short, long)]
+        root: Option<PathBuf>,
+
+        /// Typechecker command override (e.g. `cargo check`, `tsc --noEmit`).
+        #[arg(long)]
+        typechecker: Option<String>,
+
+        /// Commit and persist changes to disk on success (default: false).
+        #[arg(long)]
+        apply: bool,
+
+        /// Run in dry-run mode without writing changes to disk (default if --apply is not set).
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Typechecker execution timeout in milliseconds.
+        #[arg(long)]
+        timeout_ms: Option<u64>,
+
+        /// Copy output directly to system clipboard.
+        #[arg(long)]
+        clip: bool,
+
+        /// Output file path to save batch refactor report.
         #[arg(short, long)]
         output: Option<PathBuf>,
 
@@ -939,6 +1084,86 @@ where
             };
             run_refactor_rename(opts)
         }
+
+        Some(Commands::Refactor {
+            command:
+                RefactorSubcommands::Batch {
+                    patches,
+                    file,
+                    root,
+                    typechecker,
+                    apply,
+                    dry_run,
+                    timeout_ms,
+                    clip,
+                    output,
+                    format,
+                },
+        }) => {
+            let opts = RefactorBatchOptions {
+                patches: patches.as_deref(),
+                file: file.as_deref(),
+                root: root.as_deref(),
+                typechecker: typechecker.as_deref(),
+                apply,
+                dry_run,
+                timeout_ms,
+                format: &format,
+                clip,
+                output: output.as_deref(),
+            };
+            run_refactor_batch(opts)
+        }
+
+        Some(Commands::TraceApi {
+            entry,
+            root,
+            budget,
+            clip,
+            output,
+            format,
+        }) => run_trace_api_command(&entry, root, budget, clip, output.as_deref(), &format),
+
+        Some(Commands::SliceIntent {
+            prompt,
+            root,
+            budget,
+            max_symbols,
+            depth,
+            clip,
+            output,
+            format,
+        }) => {
+            let opts = SliceIntentCliOptions {
+                prompt: &prompt,
+                root_dir: root.as_deref(),
+                budget,
+                max_symbols,
+                depth: Some(depth),
+                clip,
+                output: output.as_deref(),
+                format: &format,
+            };
+            run_slice_intent_command(opts)
+        }
+
+        Some(Commands::PackAgentContext {
+            root,
+            agents,
+            seeds,
+            budget,
+            clip,
+            output,
+            format,
+        }) => run_pack_agent_context_command(
+            root,
+            Some(agents),
+            seeds.as_deref(),
+            budget,
+            clip,
+            output.as_deref(),
+            &format,
+        ),
 
         Some(Commands::SetupMcp {
             ide,

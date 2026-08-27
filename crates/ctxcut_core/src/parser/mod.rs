@@ -151,4 +151,14 @@ impl AstUtils {
             Some(doc)
         }
     }
+
+    /// Extracts the signature header of a declaration before its body block.
+    pub fn extract_signature_header(node: Node<'_>, source: &str) -> String {
+        let text = Self::node_text(node, source);
+        if let Some(brace_pos) = text.find('{') {
+            text[..brace_pos].trim().to_string()
+        } else {
+            text.lines().next().unwrap_or(text).trim().to_string()
+        }
+    }
 }

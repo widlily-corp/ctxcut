@@ -12,6 +12,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tree_sitter::{Language, Node};
 
+use crate::fullstack::model::ServerRouteEndpoint;
+
 /// Framework analyzer for Django, Django REST Framework (DRF), and FastAPI.
 #[derive(Debug, Default, Clone)]
 pub struct DjangoFastApiAnalyzer;
@@ -21,6 +23,120 @@ impl DjangoFastApiAnalyzer {
     pub fn new() -> Self {
         Self
     }
+
+    /// Extracts all server route endpoints from a FastAPI or Django Python source file.
+    pub fn extract_routes(&self, path: &Path, source: &str) -> Vec<ServerRouteEndpoint> {
+        let mut routes = Vec::new();
+        let file_path = path.to_string_lossy().to_string();
+
+        let lines: Vec<&str> = source.lines().collect();
+        for (i, line) in lines.iter().enumerate() {
+            let t = line.trim();
+
+            // FastAPI route decorators: @app.get("/..."), @router.post("/...")
+            if t.starts_with('@') && (t.contains(".get(") || t.contains(".post(") || t.contains(".put(") || t.contains(".delete(") || t.contains(".patch(") || t.contains(".api_route(")) {
+                for method in &["get", "post", "put", "delete", "patch"] {
+                    let pat = format!(".{method}(");
+                    if t.contains(&pat) {
+                        if let Some(pos) = t.find(&pat) {
+                            let after = &t[pos + pat.len()..];
+                            if let Some(route_path) = extract_python_string(after) {
+                                let mut handler_name = "handler".to_string();
+                                let mut handler_sig = String::new();
+                                for next_line in lines.iter().skip(i + 1) {
+                                    let nt = next_line.trim();
+                                    if nt.starts_with("def ") || nt.starts_with("async def ") {
+                                        handler_sig = nt.to_string();
+                                        let clean = nt.trim_start_matches("async ").trim_start_matches("def ");
+                                        handler_name = clean.split(['(', ':']).next().unwrap_or("handler").trim().to_string();
+                                        break;
+                                    }
+                                }
+
+                                let (req_dto, res_dto) = extract_fastapi_dtos(source, t, &handler_sig, &file_path);
+
+                                routes.push(ServerRouteEndpoint {
+                                    framework: "fastapi".to_string(),
+                                    http_method: method.to_uppercase(),
+                                    route_path,
+                                    handler_file: file_path.clone(),
+                                    handler_symbol: handler_name,
+                                    handler_signature: handler_sig,
+                                    request_dto_type: req_dto,
+                                    response_dto_type: res_dto,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        routes
+    }
+}
+
+fn extract_python_string(s: &str) -> Option<String> {
+    for quote in ['\'', '"'] {
+        if let Some(first) = s.find(quote) {
+            if let Some(second) = s[first + 1..].find(quote) {
+                let candidate = &s[first + 1..first + 1 + second];
+                return Some(candidate.to_string());
+            }
+        }
+    }
+    None
+}
+
+fn extract_fastapi_dtos(
+    source: &str,
+    decorator_line: &str,
+    handler_sig: &str,
+    file_path: &str,
+) -> (Option<ExtractedType>, Option<ExtractedType>) {
+    let mut req_dto = None;
+    let mut res_dto = None;
+
+    if decorator_line.contains("response_model=") {
+        if let Some(pos) = decorator_line.find("response_model=") {
+            let after = &decorator_line[pos + 15..];
+            let name = after.split([',', ')', ' ']).next().unwrap_or("").trim();
+            if !name.is_empty() {
+                res_dto = find_python_model(source, name, file_path);
+            }
+        }
+    }
+
+    if let Some(paren) = handler_sig.find('(') {
+        if let Some(end_paren) = handler_sig.rfind(')') {
+            let params = &handler_sig[paren + 1..end_paren];
+            for param in params.split(',') {
+                if let Some((_p_name, p_type)) = param.split_once(':') {
+                    let clean_type = p_type.split('=').next().unwrap_or(p_type).trim();
+                    if clean_type.contains("BaseModel") || clean_type.ends_with("Schema") || clean_type.ends_with("Dto") || clean_type.ends_with("Request") || clean_type.ends_with("In") {
+                        req_dto = find_python_model(source, clean_type, file_path);
+                    }
+                }
+            }
+        }
+    }
+
+    (req_dto, res_dto)
+}
+
+fn find_python_model(source: &str, name: &str, file_path: &str) -> Option<ExtractedType> {
+    for line in source.lines() {
+        let t = line.trim();
+        if t.starts_with(&format!("class {name}(")) || t.starts_with(&format!("class {name}:")) {
+            return Some(ExtractedType {
+                name: name.to_string(),
+                kind: "class".to_string(),
+                file_path: file_path.to_string(),
+                definition: t.to_string(),
+            });
+        }
+    }
+    None
 }
 
 /// Extracted metadata from a FastAPI route handler node.
