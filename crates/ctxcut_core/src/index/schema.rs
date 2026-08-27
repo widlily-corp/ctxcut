@@ -203,6 +203,77 @@ pub fn apply_schema(conn: &Connection) -> Result<()> {
             total_terms INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_bm25_doc_stats_file ON bm25_doc_stats(file_id);
+
+        -- 12. Pre-computed Swarm Clusters
+        CREATE TABLE IF NOT EXISTS clusters (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            total_agents INTEGER NOT NULL DEFAULT 2,
+            cluster_index INTEGER NOT NULL,
+            agent_id TEXT NOT NULL,
+            cluster_name TEXT NOT NULL,
+            primary_language TEXT NOT NULL,
+            symbol_count INTEGER NOT NULL,
+            token_count INTEGER NOT NULL,
+            mock_contracts TEXT,
+            raw_tokens INTEGER NOT NULL DEFAULT 0,
+            sliced_tokens INTEGER NOT NULL DEFAULT 0,
+            raw_lines INTEGER NOT NULL DEFAULT 0,
+            sliced_lines INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_clusters_total_agents ON clusters(total_agents);
+        CREATE INDEX IF NOT EXISTS idx_clusters_agent ON clusters(agent_id);
+        CREATE INDEX IF NOT EXISTS idx_clusters_name ON clusters(cluster_name);
+
+        -- 13. Swarm Cluster Symbol Mappings
+        CREATE TABLE IF NOT EXISTS cluster_symbols (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cluster_id INTEGER NOT NULL REFERENCES clusters(id) ON DELETE CASCADE,
+            symbol_id INTEGER REFERENCES symbols(id) ON DELETE CASCADE,
+            symbol_name TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            language TEXT NOT NULL,
+            signature TEXT NOT NULL,
+            doc_comment TEXT,
+            body TEXT NOT NULL,
+            start_line INTEGER NOT NULL,
+            end_line INTEGER NOT NULL,
+            token_count INTEGER NOT NULL DEFAULT 0,
+            line_count INTEGER NOT NULL DEFAULT 0,
+            is_seed BOOLEAN NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_cluster_symbols_cluster ON cluster_symbols(cluster_id);
+        CREATE INDEX IF NOT EXISTS idx_cluster_symbols_symbol ON cluster_symbols(symbol_id);
+        CREATE INDEX IF NOT EXISTS idx_cluster_symbols_name ON cluster_symbols(symbol_name);
+
+        -- 14. Swarm Cluster Boundary Contracts (Stubs & Hoisted Types)
+        CREATE TABLE IF NOT EXISTS cluster_boundaries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cluster_id INTEGER NOT NULL REFERENCES clusters(id) ON DELETE CASCADE,
+            kind TEXT NOT NULL,
+            symbol_name TEXT NOT NULL,
+            target_agent_id TEXT NOT NULL,
+            content TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            start_line INTEGER NOT NULL DEFAULT 1,
+            end_line INTEGER NOT NULL DEFAULT 1,
+            language TEXT NOT NULL DEFAULT 'typescript',
+            signature TEXT,
+            doc_comment TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_cluster_boundaries_cluster ON cluster_boundaries(cluster_id);
+        CREATE INDEX IF NOT EXISTS idx_cluster_boundaries_kind ON cluster_boundaries(kind);
+
+        -- 15. Workspace Graph Edges Cache
+        CREATE TABLE IF NOT EXISTS graph_edges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            from_node TEXT NOT NULL,
+            to_node TEXT NOT NULL,
+            weight REAL NOT NULL,
+            kind TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_graph_edges_from ON graph_edges(from_node);
+        CREATE INDEX IF NOT EXISTS idx_graph_edges_to ON graph_edges(to_node);
         "#,
     )
     .map_err(|e| CoreError::DatabaseError(format!("Failed to create SQLite schema tables: {e}")))?;

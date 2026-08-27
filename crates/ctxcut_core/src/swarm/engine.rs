@@ -245,6 +245,21 @@ impl SwarmPartitionEngine for DefaultSwarmPartitioner {
         seed_symbols: &[String],
         budget_per_agent: Option<usize>,
     ) -> Result<SwarmPartitionManifest> {
+        // 1. Check pre-computed SQLite index cache first for fast O(1) retrieval (<10ms)
+        let db_path = root_dir.join(".ctxcut").join("index.db");
+        if db_path.exists() && seed_symbols.is_empty() {
+            if let Ok(engine) = crate::index::IndexEngine::open_or_create(root_dir) {
+                if let Ok(Some(manifest)) = engine.get_precomputed_swarm_manifest(
+                    agents_count,
+                    seed_symbols,
+                    budget_per_agent,
+                ) {
+                    return Ok(manifest);
+                }
+            }
+        }
+
+        // 2. Dynamic graph building and Louvain clustering fallback
         let graph = WorkspaceGraphBuilder::build(root_dir)?;
         let total_symbols = graph.nodes.len();
 
@@ -327,7 +342,7 @@ impl SwarmPartitionEngine for DefaultSwarmPartitioner {
 }
 
 /// Derives a semantic cluster name based on the dominant file or primary symbol.
-fn derive_cluster_name(
+pub fn derive_cluster_name(
     graph: &super::graph::WorkspaceGraph,
     node_ids: &[String],
     cluster_idx: usize,

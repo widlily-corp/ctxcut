@@ -1,26 +1,71 @@
-//! Web framework route handler resolver.
+//! Web, IPC, and RPC framework route handler resolver.
 
 use anyhow::{bail, Result};
 use ctxcut_core::{
-    ContextSlicer, ProjectWalker, SliceOptions, SliceResult, SupportedLanguage, TraversalConfig,
+    extract_server_routes, ContextSlicer, ProjectWalker, RouteMatcher, SliceOptions, SliceResult,
+    SupportedLanguage, TraversalConfig,
 };
 use std::fs;
 use std::path::Path;
 
-/// Resolves a route handler by HTTP method and URL path, returning its contextual slice.
+/// Resolves a route handler by HTTP/IPC/RPC method and URL/channel/command path, returning its contextual slice.
 pub fn resolve_route_slice(
     search_root: &Path,
     method: &str,
     route_path: &str,
     opts: &SliceOptions,
 ) -> Result<SliceResult> {
-    let method_upper = method.to_uppercase();
-    let method_lower = method.to_lowercase();
-    let target_path_clean = route_path.trim_matches('/');
-
     let config = TraversalConfig::default();
     let files = ProjectWalker::collect_files(search_root, &config);
     let slicer = ContextSlicer::new();
+    let matcher = RouteMatcher::new();
+
+    // 1. Extract AST server routes across all candidate files in the workspace
+    let mut all_routes = Vec::new();
+    for path in &files {
+        if SupportedLanguage::from_path(path).is_none() {
+            continue;
+        }
+
+        if let Ok(source) = fs::read_to_string(path) {
+            let routes = extract_server_routes(path, &source);
+            all_routes.extend(routes);
+        }
+    }
+
+    // 2. Query RouteMatcher for best matching route
+    let query_with_method = if method.is_empty() || method.eq_ignore_ascii_case("ANY") {
+        route_path.to_string()
+    } else {
+        format!("{method} {route_path}")
+    };
+
+    let matched_route = matcher
+        .find_best_server_route(&query_with_method, &all_routes)
+        .or_else(|| matcher.find_best_server_route(route_path, &all_routes));
+
+    if let Some(route) = matched_route {
+        let target_path = Path::new(&route.handler_file);
+        if let Ok(mut slice) = slicer.slice_symbol(target_path, &route.handler_symbol, opts) {
+            // Hoist DTO models if available and not yet present in slice
+            if let Some(req_dto) = &route.request_dto_type {
+                if !slice.hoisted_types.iter().any(|t| t.name == req_dto.name) {
+                    slice.hoisted_types.push(req_dto.clone());
+                }
+            }
+            if let Some(res_dto) = &route.response_dto_type {
+                if !slice.hoisted_types.iter().any(|t| t.name == res_dto.name) {
+                    slice.hoisted_types.push(res_dto.clone());
+                }
+            }
+            return Ok(slice);
+        }
+    }
+
+    // 3. Fallback: line-by-line inspection for ad-hoc or unparsed frameworks
+    let method_upper = method.to_uppercase();
+    let method_lower = method.to_lowercase();
+    let target_path_clean = route_path.trim_matches('/');
 
     for path in &files {
         if SupportedLanguage::from_path(path).is_none() {
@@ -33,7 +78,6 @@ pub fn resolve_route_slice(
 
         // Check if file contains method or route path match
         if !source.contains(target_path_clean) && !source.contains(route_path) {
-            // Check segment match (e.g. "/checkout" inside "/api/v1/checkout")
             let last_segment = target_path_clean
                 .split('/')
                 .next_back()
@@ -43,7 +87,6 @@ pub fn resolve_route_slice(
             }
         }
 
-        // Try resolving in this file
         if let Some(symbol_name) =
             extract_route_handler_symbol(&source, &method_upper, &method_lower, target_path_clean)
         {
@@ -91,7 +134,6 @@ fn extract_route_handler_symbol(
                 || line_trimmed.contains(&format!(".{method_upper}(")))
             && (line_trimmed.contains(target_path_clean) || line_trimmed.contains(last_segment))
         {
-            // The handler is the def/async def on the next lines
             if let Some(def_name) = find_next_function_def(source, line) {
                 return Some(def_name);
             }

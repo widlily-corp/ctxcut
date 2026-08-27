@@ -197,6 +197,9 @@ fn collect_symbols_recursive(node: Node<'_>, source: &str, out: &mut Vec<String>
                             out.push(name);
                         }
                     }
+                    if let Some(val) = declarator.child_by_field_name("value") {
+                        collect_symbols_recursive(val, source, out);
+                    }
                 }
             }
             "class_declaration" | "abstract_class_declaration" => {
@@ -227,7 +230,23 @@ fn collect_symbols_recursive(node: Node<'_>, source: &str, out: &mut Vec<String>
                     }
                 }
             }
-            "ERROR" => {
+            "pair" => {
+                if let Some(key_node) = decl.child_by_field_name("key") {
+                    let key_text = AstUtils::node_text(key_node, source).trim().trim_matches(['\'', '"', '`']);
+                    if !key_text.is_empty() && !out.contains(&key_text.to_string()) {
+                        out.push(key_text.to_string());
+                    }
+                }
+            }
+            "ERROR"
+            | "object"
+            | "arguments"
+            | "array"
+            | "statement_block"
+            | "call_expression"
+            | "export_statement"
+            | "expression_statement"
+            | "parenthesized_expression" => {
                 collect_symbols_recursive(decl, source, out);
             }
             _ => {}
@@ -289,6 +308,11 @@ fn find_symbol_recursive<'a>(
                                 language,
                             );
                             return Some((sym, declarator));
+                        }
+                    }
+                    if let Some(val) = declarator.child_by_field_name("value") {
+                        if let Some(found) = find_symbol_recursive(val, source, target_name, file_path, language) {
+                            return Some(found);
                         }
                     }
                 }
@@ -357,7 +381,32 @@ fn find_symbol_recursive<'a>(
                     }
                 }
             }
-            "ERROR" => {
+            "pair" => {
+                if let Some(key_node) = decl.child_by_field_name("key") {
+                    let key_text = AstUtils::node_text(key_node, source).trim().trim_matches(['\'', '"', '`']);
+                    if key_text == target_name {
+                        let sym = build_symbol(
+                            decl,
+                            decl,
+                            "function",
+                            target_name,
+                            source,
+                            file_path,
+                            language,
+                        );
+                        return Some((sym, decl));
+                    }
+                }
+            }
+            "ERROR"
+            | "object"
+            | "arguments"
+            | "array"
+            | "statement_block"
+            | "call_expression"
+            | "export_statement"
+            | "expression_statement"
+            | "parenthesized_expression" => {
                 if let Some(found) =
                     find_symbol_recursive(decl, source, target_name, file_path, language)
                 {

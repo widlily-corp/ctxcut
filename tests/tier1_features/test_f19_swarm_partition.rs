@@ -317,3 +317,116 @@ fn test_f19_swarm_partition_mcp_pack_agent_context_tool() {
     // Assert: Response includes coordinator symbol
     assert!(slice_content.contains("swarmAgentCoordinator"));
 }
+
+#[test]
+fn test_f19_precomputed_swarm_clusters_sqlite_caching_and_fast_retrieval() {
+    use ctxcut_core::{DefaultSwarmPartitioner, IndexEngine, IndexOptions, SwarmPartitionEngine};
+
+    // Arrange: Multi-file project
+    let dir = TempDir::new().expect("Failed to create tempdir");
+    let auth_file = dir.path().join("auth.ts");
+    let billing_file = dir.path().join("billing.ts");
+    let orders_file = dir.path().join("orders.ts");
+
+    fs::write(
+        &auth_file,
+        r#"
+export interface UserSession {
+    userId: string;
+    token: string;
+}
+export function verifySession(token: string): UserSession {
+    return { userId: "user_1", token };
+}
+"#,
+    )
+    .unwrap();
+
+    fs::write(
+        &billing_file,
+        r#"
+import { UserSession } from "./auth";
+export interface PaymentReceipt {
+    receiptId: string;
+    amount: number;
+}
+export function processPayment(session: UserSession, amount: number): PaymentReceipt {
+    return { receiptId: "rcpt_1", amount };
+}
+"#,
+    )
+    .unwrap();
+
+    fs::write(
+        &orders_file,
+        r#"
+import { processPayment } from "./billing";
+import { verifySession } from "./auth";
+export function checkoutCart(token: string, total: number): boolean {
+    const session = verifySession(token);
+    const receipt = processPayment(session, total);
+    return receipt.amount > 0;
+}
+"#,
+    )
+    .unwrap();
+
+    // Act 1: Build SQLite index with precomputed community clusters
+    let mut engine = IndexEngine::open_or_create(dir.path()).expect("Failed to open index engine");
+    let sync_result = engine
+        .sync_incremental(&IndexOptions { rebuild: true, max_depth: None })
+        .expect("Failed to sync index");
+    assert!(sync_result.files_added >= 3);
+
+    // Verify SQLite schema tables populated
+    let cluster_count: usize = engine
+        .connection()
+        .query_row("SELECT COUNT(*) FROM clusters", [], |r| r.get(0))
+        .expect("Query clusters failed");
+    assert!(cluster_count > 0, "Clusters table should contain pre-computed partitions");
+
+    let cluster_sym_count: usize = engine
+        .connection()
+        .query_row("SELECT COUNT(*) FROM cluster_symbols", [], |r| r.get(0))
+        .expect("Query cluster_symbols failed");
+    assert!(cluster_sym_count > 0, "Cluster symbols table should contain mapped symbols");
+
+    let edge_count: usize = engine
+        .connection()
+        .query_row("SELECT COUNT(*) FROM graph_edges", [], |r| r.get(0))
+        .expect("Query graph_edges failed");
+    assert!(edge_count > 0, "Graph edges cache table should contain dependency edges");
+
+    // Act 2: Retrieve precomputed swarm manifest via IndexEngine in O(1) time (<10ms)
+    let start = std::time::Instant::now();
+    let manifest_opt = engine
+        .get_precomputed_swarm_manifest(2, &[], None)
+        .expect("Failed to get precomputed manifest");
+    let elapsed = start.elapsed();
+    assert!(manifest_opt.is_some(), "Precomputed manifest should be retrieved");
+    assert!(elapsed.as_millis() < 50, "SQLite precomputed manifest query should be sub-50ms (took {}ms)", elapsed.as_millis());
+
+    let manifest = manifest_opt.unwrap();
+    assert_eq!(manifest.total_agents, 2);
+    assert!(manifest.total_symbols > 0);
+    assert!(!manifest.packs.is_empty());
+
+    // Act 3: Fast SwarmPartitionEngine partition_workspace hits SQLite cache
+    let partitioner = DefaultSwarmPartitioner::new();
+    let swarm_start = std::time::Instant::now();
+    let p_manifest = partitioner
+        .partition_workspace(dir.path(), 2, &[], None)
+        .expect("Failed to partition workspace");
+    let swarm_elapsed = swarm_start.elapsed();
+    assert_eq!(p_manifest.total_agents, 2);
+    assert!(swarm_elapsed.as_millis() < 100, "partition_workspace should complete sub-100ms via cache (took {}ms)", swarm_elapsed.as_millis());
+
+    // Act 4: CLI pack-agent-context command verification
+    let runner = CliRunner::new();
+    let output = runner
+        .run_in_dir(dir.path(), &["pack-agent-context", "--root", dir.path().to_str().unwrap(), "--format", "markdown"])
+        .expect("CLI pack-agent-context failed");
+    output.assert_success();
+    assert!(output.stdout.contains("Swarm Multi-Agent Context Partition Manifest") || output.stdout.contains("Agent `agent_0`"));
+}
+

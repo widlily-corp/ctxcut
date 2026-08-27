@@ -11,7 +11,8 @@ pub use ast_mapper::{
 pub use multi_rollback::{JournalEntry, MultiFileRollbackGuard};
 pub use rollback::RollbackGuard;
 pub use typechecker::{
-    DiagnosticParser, TypecheckExecutionResult, TypecheckerDetector, TypecheckerRunner,
+    DiagnosticParser, TypecheckExecutionResult, TypecheckerDetector, TypecheckerResolution,
+    TypecheckerRunner,
 };
 
 use crate::error::{CoreError, Result};
@@ -147,11 +148,21 @@ impl PatchVerifier {
             source: e,
         })?;
 
-        // 4. Determine & run typechecker
-        let typecheck_cmd = opts
-            .typechecker
-            .map(String::from)
-            .or_else(|| TypecheckerDetector::detect(opts.workspace_root, file_path, lang));
+        // 4. Determine & run typechecker with dynamic working directory
+        let resolution =
+            TypecheckerDetector::detect_resolution(opts.workspace_root, file_path, lang);
+
+        let (typecheck_cmd, typecheck_cwd) = if let Some(cmd_override) = opts.typechecker {
+            let cwd = resolution
+                .as_ref()
+                .map(|r| r.working_dir.clone())
+                .unwrap_or_else(|| opts.workspace_root.to_path_buf());
+            (Some(cmd_override.to_string()), cwd)
+        } else if let Some(res) = resolution {
+            (Some(res.command), res.working_dir)
+        } else {
+            (None, opts.workspace_root.to_path_buf())
+        };
 
         let mut typecheck_success = true;
         let mut exit_code = Some(0);
@@ -161,7 +172,7 @@ impl PatchVerifier {
 
         if let Some(ref cmd_str) = typecheck_cmd {
             let timeout_dur = Duration::from_millis(opts.timeout_ms.unwrap_or(30_000));
-            let run_res = TypecheckerRunner::run(cmd_str, opts.workspace_root, timeout_dur);
+            let run_res = TypecheckerRunner::run(cmd_str, &typecheck_cwd, timeout_dur);
 
             exit_code = run_res.exit_code;
             stdout_str = run_res.stdout;

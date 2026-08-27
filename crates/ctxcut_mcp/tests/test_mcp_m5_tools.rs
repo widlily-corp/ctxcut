@@ -228,3 +228,118 @@ export function refund(id: string): boolean { return id.length > 0; }
     assert!(metrics.is_some());
     assert!(tokens_saved.is_some());
 }
+
+#[test]
+fn test_mcp_get_fullstack_trace_with_max_depth() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+
+    let client_file = root.join("client.ts");
+    fs::write(
+        &client_file,
+        r#"
+export async function createOrder(payload: { item: string }) {
+    const res = await fetch("/api/v1/orders", {
+        method: "POST",
+        body: JSON.stringify(payload),
+    });
+    return res.json();
+}
+"#,
+    )
+    .unwrap();
+
+    let server_file = root.join("server.ts");
+    fs::write(
+        &server_file,
+        r#"
+import { Router } from 'express';
+const router = Router();
+
+router.post('/api/v1/orders', async (req, res) => {
+    const result = await processOrder(req.body);
+    res.json(result);
+});
+
+export async function processOrder(data: any) {
+    return { status: "created", data };
+}
+"#,
+    )
+    .unwrap();
+
+    let args = json!({
+        "root_dir": root.to_string_lossy(),
+        "entry": "POST /api/v1/orders",
+        "max_depth": 3,
+        "format": "json"
+    });
+
+    let (response, metrics, error_opt, tokens_saved) =
+        execute_tool_with_timeout("get_fullstack_trace", &args, 5000);
+
+    assert!(error_opt.is_none(), "Expected no error, got: {:?}", error_opt);
+    assert_ne!(response.get("isError"), Some(&json!(true)));
+
+    let text = response["content"][0]["text"].as_str().unwrap();
+    let val: serde_json::Value = serde_json::from_str(text).expect("Valid JSON expected");
+    let steps = val["steps"].as_array().expect("Steps array expected");
+    assert_eq!(steps.len(), 3, "Expected exactly 3 trace steps bounded by max_depth");
+
+    assert!(metrics.is_some());
+    assert!(tokens_saved.is_some());
+}
+
+#[test]
+fn test_mcp_pack_agent_context_with_sqlite_cache() {
+    use ctxcut_core::{IndexEngine, IndexOptions};
+
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+
+    let auth_file = root.join("auth.ts");
+    fs::write(
+        &auth_file,
+        r#"
+export function login(user: string): string { return "token_" + user; }
+export function logout(tok: string): boolean { return tok.length > 0; }
+"#,
+    )
+    .unwrap();
+
+    let billing_file = root.join("billing.ts");
+    fs::write(
+        &billing_file,
+        r#"
+export function charge(amount: number): boolean { return amount > 0; }
+export function refund(id: string): boolean { return id.length > 0; }
+"#,
+    )
+    .unwrap();
+
+    // Index first to populate SQLite precomputed clusters
+    let mut engine = IndexEngine::open_or_create(root).unwrap();
+    engine.sync_incremental(&IndexOptions { rebuild: true, max_depth: None }).unwrap();
+
+    let args = json!({
+        "root_dir": root.to_string_lossy(),
+        "agents_count": 2,
+        "format": "json"
+    });
+
+    let start = std::time::Instant::now();
+    let (response, metrics, error_opt, tokens_saved) =
+        execute_tool_with_timeout("pack_agent_context", &args, 5000);
+    let elapsed = start.elapsed();
+
+    assert!(error_opt.is_none(), "Expected no error, got: {:?}", error_opt);
+    assert_ne!(response.get("isError"), Some(&json!(true)));
+    assert!(elapsed.as_millis() < 200, "Fast SQLite lookup expected (took {}ms)", elapsed.as_millis());
+
+    let text = response["content"][0]["text"].as_str().unwrap();
+    let manifest_val: serde_json::Value = serde_json::from_str(text).unwrap();
+    assert_eq!(manifest_val["total_agents"], 2);
+    assert!(metrics.is_some());
+    assert!(tokens_saved.is_some());
+}
+

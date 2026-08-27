@@ -3,7 +3,7 @@
 use anyhow::{Context, Result};
 use arboard::Clipboard;
 use colored::Colorize;
-use ctxcut_core::{FullstackExecutionTracer, FullstackTracer, TelemetryLogger};
+use ctxcut_core::{FullstackExecutionTracer, TelemetryLogger};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -12,6 +12,7 @@ pub fn run_trace_api_command(
     entry: &str,
     root_dir: Option<PathBuf>,
     budget: Option<usize>,
+    depth: Option<usize>,
     clip: bool,
     output: Option<&Path>,
     format: &str,
@@ -21,7 +22,7 @@ pub fn run_trace_api_command(
 
     let tracer = FullstackExecutionTracer::new();
     let result = tracer
-        .trace_api(&workspace_root, entry, budget)
+        .trace_api_with_depth(&workspace_root, entry, budget, depth)
         .with_context(|| format!("Failed to trace cross-boundary execution for `{entry}`"))?;
 
     let rendered = if format.eq_ignore_ascii_case("json") {

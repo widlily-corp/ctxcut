@@ -447,10 +447,20 @@ impl BatchAstPatcher {
             .unwrap_or(workspace_root);
         let detected_lang = first_lang.unwrap_or(SupportedLanguage::TypeScript);
 
-        let typecheck_cmd = req
-            .typechecker
-            .clone()
-            .or_else(|| TypecheckerDetector::detect(workspace_root, first_file, detected_lang));
+        let resolution =
+            TypecheckerDetector::detect_resolution(workspace_root, first_file, detected_lang);
+
+        let (typecheck_cmd, typecheck_cwd) = if let Some(cmd_override) = req.typechecker.clone() {
+            let cwd = resolution
+                .as_ref()
+                .map(|r| r.working_dir.clone())
+                .unwrap_or_else(|| workspace_root.to_path_buf());
+            (Some(cmd_override), cwd)
+        } else if let Some(res) = resolution {
+            (Some(res.command), res.working_dir)
+        } else {
+            (None, workspace_root.to_path_buf())
+        };
 
         let mut typecheck_success = true;
         let mut exit_code = Some(0);
@@ -458,7 +468,7 @@ impl BatchAstPatcher {
 
         if let Some(ref cmd) = typecheck_cmd {
             let timeout = Duration::from_millis(req.timeout_ms.unwrap_or(30_000));
-            let run_res = TypecheckerRunner::run(cmd, workspace_root, timeout);
+            let run_res = TypecheckerRunner::run(cmd, &typecheck_cwd, timeout);
 
             typecheck_success = run_res.success;
             exit_code = run_res.exit_code;

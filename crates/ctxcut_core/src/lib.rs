@@ -37,8 +37,9 @@ pub use error::{CoreError, Result};
 pub use formatter::{normalize_language_tag, Formatter, JsonFormatter, MarkdownFormatter};
 pub use framework::{
     extract_server_routes, AspNetCoreAnalyzer, AxumActixAnalyzer, DjangoFastApiAnalyzer,
-    ExpressAnalyzer, ExpressNestSpringAnalyzer, FlaskAnalyzer, FrameworkAnalyzer,
-    FrameworkRegistry, GinChiAnalyzer, NestJsAnalyzer, ReactNextAnalyzer, SpringAnalyzer,
+    ElectronAnalyzer, ExpressAnalyzer, ExpressNestSpringAnalyzer, FlaskAnalyzer, FrameworkAnalyzer,
+    FrameworkRegistry, GinChiAnalyzer, NestJsAnalyzer, NextServerActionAnalyzer, ReactNextAnalyzer,
+    SpringAnalyzer, TauriAnalyzer, TrpcAnalyzer,
 };
 pub use fullstack::{
     ClientApiCall, ClientDetector, FullstackExecutionTracer, FullstackTraceResult,
@@ -99,5 +100,5 @@ pub use traversal::{
 };
 pub use verify::{
     DiagnosticParser, PatchVerifier, RollbackGuard, TypecheckExecutionResult, TypecheckerDetector,
-    TypecheckerRunner, VerifyPatchOptions,
+    TypecheckerResolution, TypecheckerRunner, VerifyPatchOptions,
 };

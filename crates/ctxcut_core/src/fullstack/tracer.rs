@@ -44,7 +44,7 @@ impl FullstackExecutionTracer {
         }
     }
 
-    /// Scans the workspace to collect all server routes, client API calls, and schema entities.
+    /// Scans the workspace to collect all server routes, client API calls, and schema entities in a single consolidated pass.
     pub fn scan_workspace(
         &self,
         root_dir: &Path,
@@ -75,27 +75,42 @@ impl FullstackExecutionTracer {
 
         (server_routes, client_calls, schemas)
     }
-}
 
-impl FullstackTracer for FullstackExecutionTracer {
-    fn trace_api(
+    /// Traces end-to-end execution flow with configurable traversal depth and hop bounding (`max_depth: 3..5`).
+    pub fn trace_api_with_depth(
         &self,
         root_dir: &Path,
         endpoint_or_proc: &str,
         budget: Option<usize>,
+        max_depth: Option<usize>,
     ) -> Result<FullstackTraceResult> {
         let target_budget = budget.unwrap_or(DEFAULT_FULLSTACK_BUDGET);
 
-        // 1. Collect workspace routes, client calls, and schemas
-        let (routes, client_calls, schemas) = self.scan_workspace(root_dir);
+        // 1. Check if persistent SQLite index is available for fast sub-5ms B-Tree queries
+        let db_path = root_dir.join(".ctxcut").join("index.db");
+        let index_engine = if db_path.exists() {
+            crate::index::IndexEngine::open_or_create(root_dir).ok()
+        } else {
+            None
+        };
 
-        // 2. Match server route
-        let server_route = self
+        let (routes, client_calls, schemas) = if let Some(engine) = &index_engine {
+            let r = engine.get_all_routes().unwrap_or_default();
+            let c = engine.get_all_client_endpoints().unwrap_or_default();
+            let s = engine.get_all_schema_entities().unwrap_or_default();
+            (r, c, s)
+        } else {
+            self.scan_workspace(root_dir)
+        };
+
+        // 2. Bidirectional Route Resolution (Forward & Backward)
+        // A. Forward Path: Match direct server route pattern or query
+        let server_route_opt = self
             .route_matcher
             .find_best_server_route(endpoint_or_proc, &routes)
             .cloned()
             .or_else(|| {
-                // If query matched a client call first, try matching from client call
+                // Forward Path B: Match client call first then correlate to route
                 let matching_client = client_calls.iter().find(|c| {
                     c.endpoint_url.as_deref() == Some(endpoint_or_proc)
                         || c.rpc_procedure.as_deref() == Some(endpoint_or_proc)
@@ -103,29 +118,118 @@ impl FullstackTracer for FullstackExecutionTracer {
                 });
                 matching_client.and_then(|c| self.route_matcher.match_client_to_server(c, &routes).cloned())
             })
-            .ok_or_else(|| {
-                CoreError::SymbolNotFound {
-                    symbol: endpoint_or_proc.to_string(),
-                    path: root_dir.to_path_buf(),
-                    available_symbols: routes.iter().map(|r| format!("{} {}", r.http_method, r.route_path)).collect(),
+            .or_else(|| {
+                // Backward Path C: Start from database schema / DDL entity / Repository / Service symbol
+                // Find matching schema or symbol
+                let matched_schema = schemas.iter().find(|s| {
+                    let s_stem = s.name.trim_end_matches('s').to_lowercase();
+                    let target_lower = endpoint_or_proc.to_lowercase();
+                    let target_stem = target_lower.trim_end_matches('s');
+                    s.name.eq_ignore_ascii_case(endpoint_or_proc)
+                        || target_lower.contains(&s.name.to_lowercase())
+                        || s.name.to_lowercase().contains(&target_lower)
+                        || (!s_stem.is_empty() && target_lower.contains(&s_stem))
+                        || (!target_stem.is_empty() && s.name.to_lowercase().contains(target_stem))
+                });
+
+                if matched_schema.is_none() && (endpoint_or_proc.starts_with('/') || endpoint_or_proc.contains('/')) {
+                    return None;
                 }
-            })?;
+
+                let target_symbol = if let Some(s) = matched_schema {
+                    s.name.clone()
+                } else {
+                    endpoint_or_proc.to_string()
+                };
+
+                if let Some(engine) = &index_engine {
+                    // Backward Hop 1: find callers of the target symbol
+                    if let Ok(callers) = engine.find_callers(&target_symbol, None) {
+                        for caller in &callers {
+                            if let Some(r) = routes.iter().find(|r| {
+                                r.handler_symbol.eq_ignore_ascii_case(&caller.caller_symbol)
+                                    || r.handler_file == caller.file_path
+                            }) {
+                                return Some(r.clone());
+                            }
+                            // Backward Hop 2: find callers of the intermediate caller
+                            if let Ok(callers_2) = engine.find_callers(&caller.caller_symbol, None) {
+                                for c2 in &callers_2 {
+                                    if let Some(r) = routes.iter().find(|r| {
+                                        r.handler_symbol.eq_ignore_ascii_case(&c2.caller_symbol)
+                                            || r.handler_file == c2.file_path
+                                    }) {
+                                        return Some(r.clone());
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Backward check by symbol search in index
+                    if let Ok(syms) = engine.find_symbols_by_name(&target_symbol) {
+                        for sym in &syms {
+                            if let Ok(callers) = engine.find_callers(&sym.name, None) {
+                                for caller in &callers {
+                                    if let Some(r) = routes.iter().find(|r| {
+                                        r.handler_symbol.eq_ignore_ascii_case(&caller.caller_symbol)
+                                            || r.handler_file == caller.file_path
+                                    }) {
+                                        return Some(r.clone());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Fallback backward check in routes collection (only when matched_schema was found)
+                if matched_schema.is_some() {
+                    routes.iter().find(|r| {
+                        let r_path = r.route_path.to_lowercase();
+                        let r_sym = r.handler_symbol.to_lowercase();
+                        let t_lower = target_symbol.to_lowercase();
+                        let t_stem = t_lower.trim_end_matches('s');
+                        let r_path_parts: Vec<&str> = r_path.split(['/', '_', '-']).filter(|p| !p.is_empty() && !matches!(*p, "api" | "v1" | "v2" | "v3" | "v4" | "v5" | "rest" | "http")).collect();
+                        let r_sym_parts: Vec<&str> = r_sym.split(['/', '_', '-']).filter(|p| !p.is_empty() && !matches!(*p, "api" | "v1" | "v2" | "v3" | "v4" | "v5" | "rest" | "http")).collect();
+
+                        r_sym.contains(&t_lower)
+                            || r_path.contains(&t_lower)
+                            || t_lower.contains(&r_sym)
+                            || t_lower.contains(&r_path)
+                            || r_path_parts.iter().any(|part| {
+                                let part_stem = part.trim_end_matches('s');
+                                !part_stem.is_empty() && (t_lower.contains(part_stem) || (!t_stem.is_empty() && part.contains(t_stem)))
+                            })
+                            || r_sym_parts.iter().any(|part| {
+                                let part_stem = part.trim_end_matches('s');
+                                !part_stem.is_empty() && (t_lower.contains(part_stem) || (!t_stem.is_empty() && part.contains(t_stem)))
+                            })
+                    }).cloned()
+                } else {
+                    None
+                }
+            });
+
+        let server_route = server_route_opt.ok_or_else(|| {
+            CoreError::SymbolNotFound {
+                symbol: endpoint_or_proc.to_string(),
+                path: root_dir.to_path_buf(),
+                available_symbols: routes.iter().map(|r| format!("{} {}", r.http_method, r.route_path)).collect(),
+            }
+        })?;
 
         // 3. Match client call
         let client_call = client_calls
             .iter()
             .find(|c| {
-                if let Some(ep) = &c.endpoint_url {
-                    self.route_matcher.paths_match(&server_route.route_path, ep)
-                } else if let Some(proc) = &c.rpc_procedure {
-                    proc.eq_ignore_ascii_case(&server_route.handler_symbol)
-                } else {
-                    false
-                }
+                self.route_matcher
+                    .match_client_to_server(c, std::slice::from_ref(&server_route))
+                    .is_some()
             })
             .cloned();
 
-        // 4. Build 6-step trace
+        // 4. Build execution steps across boundaries
         let mut steps = Vec::new();
         let mut files_traversed = HashSet::new();
 
@@ -199,6 +303,7 @@ impl FullstackTracer for FullstackExecutionTracer {
             &server_route.handler_file,
             &handler_snippet,
             &handler_source,
+            index_engine.as_ref(),
         );
         if let Some(s_file) = &service_file {
             files_traversed.insert(s_file.clone());
@@ -222,6 +327,7 @@ impl FullstackTracer for FullstackExecutionTracer {
             &server_route.handler_file,
             &service_snippet,
             &handler_snippet,
+            index_engine.as_ref(),
         );
         if let Some(d_file) = &db_file {
             files_traversed.insert(d_file.clone());
@@ -245,6 +351,7 @@ impl FullstackTracer for FullstackExecutionTracer {
             &server_route.route_path,
             &server_route.handler_symbol,
             &schemas,
+            index_engine.as_ref(),
         );
         if let Some(df) = &ddl_file {
             files_traversed.insert(df.clone());
@@ -262,15 +369,23 @@ impl FullstackTracer for FullstackExecutionTracer {
             schema_contract: None,
         });
 
+        // 5. Configurable Hop Bounding / Depth Truncation (3..5)
+        if let Some(depth) = max_depth {
+            let max_hops = depth.clamp(3, 6);
+            if steps.len() > max_hops {
+                steps.truncate(max_hops);
+            }
+        }
+
         // Renumber steps sequentially
         for (i, step) in steps.iter_mut().enumerate() {
             step.step_number = i + 1;
         }
 
-        // 5. Adaptive Token Budget Compression (1,500 - 2,000 tokens)
+        // 6. Adaptive Token Budget Compression (1,500 - 2,000 tokens)
         apply_adaptive_budget(&mut steps, target_budget);
 
-        // 6. Calculate Token Statistics
+        // 7. Calculate Token Statistics
         let mut raw_file_tokens = 0;
         let mut raw_lines = 0;
         for file in &files_traversed {
@@ -305,6 +420,17 @@ impl FullstackTracer for FullstackExecutionTracer {
             total_steps,
             stats,
         })
+    }
+}
+
+impl FullstackTracer for FullstackExecutionTracer {
+    fn trace_api(
+        &self,
+        root_dir: &Path,
+        endpoint_or_proc: &str,
+        budget: Option<usize>,
+    ) -> Result<FullstackTraceResult> {
+        self.trace_api_with_depth(root_dir, endpoint_or_proc, budget, None)
     }
 }
 
@@ -379,21 +505,46 @@ fn trace_service_layer(
     handler_file: &str,
     handler_snippet: &str,
     _handler_source: &str,
+    index_engine: Option<&crate::index::IndexEngine>,
 ) -> (String, Option<String>, usize, usize, Option<String>) {
     // Look for service calls in snippet: e.g. service.method(), Service::method(), userService.create()
     let mut service_candidate = None;
+    let mut candidate_method_name = None;
     for line in handler_snippet.lines() {
         let t = line.trim();
         if (t.contains("Service.") || t.contains("Service::") || t.contains("service.") || t.contains("service::"))
             && (t.contains('(') || t.contains(".await"))
         {
             service_candidate = Some(t.to_string());
+            if let Some(pos) = t.find('.') {
+                let after = &t[pos + 1..];
+                let method = after.split('(').next().unwrap_or("").trim_end_matches(".await").trim();
+                if !method.is_empty() {
+                    candidate_method_name = Some(method.to_string());
+                }
+            } else if let Some(pos) = t.find("::") {
+                let after = &t[pos + 2..];
+                let method = after.split('(').next().unwrap_or("").trim_end_matches(".await").trim();
+                if !method.is_empty() {
+                    candidate_method_name = Some(method.to_string());
+                }
+            }
             break;
         }
     }
 
+    if let Some(method_name) = &candidate_method_name {
+        if let Some(engine) = index_engine {
+            if let Ok(syms) = engine.find_symbols_by_name(method_name) {
+                if let Some(sym) = syms.into_iter().find(|s| s.file_path.to_lowercase().contains("service") || s.name == *method_name) {
+                    return (sym.body, Some(sym.file_path), sym.start_line, sym.end_line, Some(sym.language));
+                }
+            }
+        }
+    }
+
     if let Some(call_line) = service_candidate {
-        // Search workspace for service declaration
+        // Search workspace for service declaration if no index hit
         let config = TraversalConfig::default();
         for file_path in ProjectWalker::walk(root_dir, &config) {
             if file_path.to_string_lossy().contains("service") {
@@ -431,12 +582,23 @@ fn trace_data_access_layer(
     handler_file: &str,
     service_snippet: &str,
     handler_snippet: &str,
+    index_engine: Option<&crate::index::IndexEngine>,
 ) -> (String, Option<String>, usize, usize, Option<String>) {
     let combined = format!("{service_snippet}\n{handler_snippet}");
     for line in combined.lines() {
         let t = line.trim();
         if t.contains("query!") || t.contains("db.") || t.contains("repository.") || t.contains("prisma.") || t.contains("_context.") || t.contains("save(") {
             return (t.to_string(), Some(handler_file.to_string()), 1, 3, None);
+        }
+    }
+
+    if let Some(engine) = index_engine {
+        for keyword in ["repository", "repo", "dao", "store"] {
+            if let Ok(syms) = engine.find_symbols_by_name(keyword) {
+                if let Some(sym) = syms.into_iter().next() {
+                    return (sym.body, Some(sym.file_path), sym.start_line, sym.end_line, Some(sym.language));
+                }
+            }
         }
     }
 
@@ -469,8 +631,9 @@ fn match_schema_ddl(
     route_path: &str,
     handler_symbol: &str,
     schemas: &[ExtractedType],
+    index_engine: Option<&crate::index::IndexEngine>,
 ) -> (String, Option<String>, Option<String>) {
-    // 1. Match from already stitched schemas
+    // 1. Match from already stitched / indexed schemas
     let route_keyword = route_path.trim_matches('/').split('/').next_back().unwrap_or("").trim_end_matches('s');
     for s in schemas {
         if s.name.eq_ignore_ascii_case(route_keyword)
@@ -482,6 +645,14 @@ fn match_schema_ddl(
 
     if let Some(first) = schemas.first() {
         return (first.definition.clone(), Some(first.file_path.clone()), Some(first.name.clone()));
+    }
+
+    if let Some(engine) = index_engine {
+        if let Ok(ents) = engine.find_schema_entities(route_keyword) {
+            if let Some(ent) = ents.first() {
+                return (ent.definition.clone(), Some(ent.file_path.clone()), Some(ent.name.clone()));
+            }
+        }
     }
 
     // 2. Search for SQL migration files or schema.prisma

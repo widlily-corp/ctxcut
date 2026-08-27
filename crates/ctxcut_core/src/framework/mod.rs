@@ -15,24 +15,36 @@ pub mod aspnetcore;
 pub mod axum_actix;
 /// Django and FastAPI framework analyzers for Python.
 pub mod django_fastapi;
+/// Electron IPC framework analyzer.
+pub mod electron;
 /// Express, NestJS, and Spring Boot framework analyzers.
 pub mod express_nest_spring;
 /// Flask framework analyzer for Python.
 pub mod flask;
 /// Gin and Chi framework analyzers for Go.
 pub mod gin_chi;
+/// Next.js Server Actions framework analyzer.
+pub mod next_action;
 /// React and Next.js framework analyzers.
 pub mod react_next;
+/// Tauri IPC framework analyzer.
+pub mod tauri;
+/// tRPC framework analyzer.
+pub mod trpc;
 
 pub use aspnetcore::AspNetCoreAnalyzer;
 pub use axum_actix::AxumActixAnalyzer;
 pub use django_fastapi::DjangoFastApiAnalyzer;
+pub use electron::ElectronAnalyzer;
 pub use express_nest_spring::{
     ExpressAnalyzer, ExpressNestSpringAnalyzer, NestJsAnalyzer, SpringAnalyzer,
 };
 pub use flask::FlaskAnalyzer;
 pub use gin_chi::GinChiAnalyzer;
+pub use next_action::NextServerActionAnalyzer;
 pub use react_next::ReactNextAnalyzer;
+pub use tauri::TauriAnalyzer;
+pub use trpc::TrpcAnalyzer;
 
 use crate::error::Result;
 use crate::fullstack::model::ServerRouteEndpoint;
@@ -42,7 +54,7 @@ use tree_sitter::Node;
 
 /// Common trait for framework-specific semantic extraction and AST enhancement.
 pub trait FrameworkAnalyzer: Send + Sync {
-    /// Human-readable framework name (e.g. "django_fastapi", "react_next", "express", "nestjs", "spring", "aspnetcore").
+    /// Human-readable framework name (e.g. "django_fastapi", "react_next", "express", "nestjs", "spring", "aspnetcore", "tauri", "electron", "trpc", "nextjs_server_action").
     fn name(&self) -> &'static str {
         "framework"
     }
@@ -92,6 +104,10 @@ impl FrameworkRegistry {
         registry.register(Box::new(AspNetCoreAnalyzer));
         registry.register(Box::new(AxumActixAnalyzer));
         registry.register(Box::new(GinChiAnalyzer));
+        registry.register(Box::new(TauriAnalyzer));
+        registry.register(Box::new(ElectronAnalyzer));
+        registry.register(Box::new(TrpcAnalyzer));
+        registry.register(Box::new(NextServerActionAnalyzer));
         registry
     }
 
@@ -154,6 +170,7 @@ pub fn extract_server_routes(path: &Path, source: &str) -> Vec<ServerRouteEndpoi
     match ext.as_str() {
         "rs" => {
             routes.extend(AxumActixAnalyzer.extract_routes(path, source));
+            routes.extend(TauriAnalyzer.extract_routes(path, source));
         }
         "go" => {
             routes.extend(GinChiAnalyzer.extract_routes(path, source));
@@ -175,6 +192,9 @@ pub fn extract_server_routes(path: &Path, source: &str) -> Vec<ServerRouteEndpoi
         "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" => {
             routes.extend(ExpressAnalyzer.extract_routes(path, source));
             routes.extend(NestJsAnalyzer.extract_routes(path, source));
+            routes.extend(ElectronAnalyzer.extract_routes(path, source));
+            routes.extend(TrpcAnalyzer.extract_routes(path, source));
+            routes.extend(NextServerActionAnalyzer.extract_routes(path, source));
         }
         _ => {}
     }

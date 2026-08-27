@@ -402,3 +402,138 @@ fn test_f16_fullstack_trace_mcp_get_fullstack_trace_tool() {
     // Assert: Response includes the gateway handler symbol
     assert!(slice_content.contains("mcpGatewayHandler"));
 }
+
+#[test]
+fn test_f16_fullstack_trace_index_accelerated_and_hop_bounding() {
+    use ctxcut_core::{FullstackExecutionTracer, IndexEngine, IndexOptions};
+
+    // Arrange: Complete fullstack pipeline
+    let dir = TempDir::new().expect("Failed to create tempdir");
+    let client_file = dir.path().join("client.ts");
+    let server_file = dir.path().join("server.rs");
+    let service_file = dir.path().join("payment_service.rs");
+    let repo_file = dir.path().join("payment_repo.rs");
+    let migrations_dir = dir.path().join("migrations");
+    fs::create_dir_all(&migrations_dir).unwrap();
+    let ddl_file = migrations_dir.join("001_payments.sql");
+
+    fs::write(
+        &client_file,
+        r#"
+export interface ChargeRequest {
+    amount: number;
+    customerId: string;
+}
+export async function sendCharge(req: ChargeRequest) {
+    return fetch('/api/v1/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req),
+    });
+}
+"#,
+    )
+    .unwrap();
+
+    fs::write(
+        &server_file,
+        r#"
+use axum::{routing::post, Json, Router};
+
+pub async fn handle_payment(Json(payload): Json<ChargeRequest>) -> &'static str {
+    payment_service.process_payment(payload).await;
+    "ok"
+}
+
+pub fn payment_routes() -> Router {
+    Router::new().route("/api/v1/payments", post(handle_payment))
+}
+"#,
+    )
+    .unwrap();
+
+    fs::write(
+        &service_file,
+        r#"
+pub struct PaymentService;
+impl PaymentService {
+    pub async fn process_payment(&self, req: ChargeRequest) -> bool {
+        payment_repo.save_transaction(req);
+        true
+    }
+}
+"#,
+    )
+    .unwrap();
+
+    fs::write(
+        &repo_file,
+        r#"
+pub struct PaymentRepository;
+impl PaymentRepository {
+    pub fn save_transaction(&self, req: ChargeRequest) -> bool {
+        true
+    }
+}
+"#,
+    )
+    .unwrap();
+
+    fs::write(
+        &ddl_file,
+        r#"
+CREATE TABLE payments (
+    id SERIAL PRIMARY KEY,
+    amount NUMERIC(10, 2) NOT NULL,
+    customer_id VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+"#,
+    )
+    .unwrap();
+
+    // Act 1: Build SQLite index
+    let mut engine = IndexEngine::open_or_create(dir.path()).expect("Failed to open index engine");
+    let sync = engine.sync_incremental(&IndexOptions { rebuild: true, max_depth: None }).unwrap();
+    assert!(sync.files_added >= 4);
+
+    let tracer = FullstackExecutionTracer::new();
+
+    // Act 2: Test Hop Bounding (max_depth = 3)
+    let start_3 = std::time::Instant::now();
+    let trace_3 = tracer
+        .trace_api_with_depth(dir.path(), "/api/v1/payments", None, Some(3))
+        .expect("Trace with depth 3 failed");
+    let elapsed_3 = start_3.elapsed();
+    assert_eq!(trace_3.steps.len(), 3, "Expected exactly 3 bounded trace steps");
+    assert_eq!(trace_3.total_steps, 3);
+    assert!(elapsed_3.as_millis() < 500, "Sub-second execution expected (took {}ms)", elapsed_3.as_millis());
+
+    // Act 3: Test Hop Bounding (max_depth = 4)
+    let trace_4 = tracer
+        .trace_api_with_depth(dir.path(), "/api/v1/payments", None, Some(4))
+        .expect("Trace with depth 4 failed");
+    assert_eq!(trace_4.steps.len(), 4, "Expected exactly 4 bounded trace steps");
+
+    // Act 4: Test Hop Bounding (max_depth = 5 default)
+    let trace_5 = tracer
+        .trace_api_with_depth(dir.path(), "/api/v1/payments", None, Some(5))
+        .expect("Trace with depth 5 failed");
+    assert!(trace_5.steps.len() >= 4);
+
+    // Act 5: Bidirectional Backward Search starting from Database Schema "payments"
+    let trace_backward = tracer
+        .trace_api_with_depth(dir.path(), "payments", None, Some(5))
+        .expect("Backward trace from database table failed");
+    assert!(trace_backward.server_route.route_path.contains("/api/v1/payments") || trace_backward.server_route.handler_symbol == "handle_payment");
+    assert!(!trace_backward.steps.is_empty());
+
+    // Act 6: CLI trace-api with --depth flag
+    let runner = CliRunner::new();
+    let output = runner
+        .run_in_dir(dir.path(), &["trace-api", "/api/v1/payments", "--root", dir.path().to_str().unwrap(), "--depth", "3"])
+        .expect("CLI trace-api command failed");
+    output.assert_success();
+    assert!(output.stdout.contains("Full-Stack Execution Trace"));
+}
+

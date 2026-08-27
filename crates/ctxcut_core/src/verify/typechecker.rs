@@ -1,163 +1,566 @@
 //! Language typechecker detection, execution runner with process timeout, and diagnostic parsing.
 
 use crate::model::{SupportedLanguage, VerifyDiagnostic};
+use serde::{Deserialize, Serialize};
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
-/// Automatic typechecker command detection for all supported languages.
+/// Detailed resolution result for auto-detected or configured typechecker.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TypecheckerResolution {
+    /// Command string to execute (e.g. `cargo check --manifest-path "..."`, `npx tsc --noEmit`).
+    pub command: String,
+    /// Working directory in which the typechecker should be invoked.
+    pub working_dir: PathBuf,
+    /// Path to the resolved project manifest file, if detected.
+    pub manifest_path: Option<PathBuf>,
+}
+
+/// Automatic typechecker command detection and working directory resolution for all supported languages.
 pub struct TypecheckerDetector;
 
 impl TypecheckerDetector {
-    /// Detects the appropriate typechecker command for a given file and workspace.
+    /// Detects the appropriate typechecker command for a given file and workspace (backward-compatible).
     pub fn detect(
         workspace_root: &Path,
         file_path: &Path,
         language: SupportedLanguage,
     ) -> Option<String> {
-        let rel_file = file_path.strip_prefix(workspace_root).unwrap_or(file_path);
-        let rel_file_str = rel_file.to_string_lossy();
+        Self::detect_resolution(workspace_root, file_path, language).map(|r| r.command)
+    }
+
+    /// Detects the structured typechecker resolution (command, dynamic working directory, manifest path)
+    /// by traversing upward from `file_path` towards `workspace_root`.
+    pub fn detect_resolution(
+        workspace_root: &Path,
+        file_path: &Path,
+        language: SupportedLanguage,
+    ) -> Option<TypecheckerResolution> {
+        let abs_file = if file_path.is_absolute() {
+            file_path.to_path_buf()
+        } else {
+            workspace_root.join(file_path)
+        };
 
         match language {
             SupportedLanguage::Rust => {
-                if workspace_root.join("Cargo.toml").exists()
-                    || find_file_upward(file_path, "Cargo.toml").is_some()
-                {
-                    Some("cargo check".to_string())
+                // Find closest Cargo.toml upward
+                let manifest = find_file_upward(&abs_file, "Cargo.toml").or_else(|| {
+                    let root_manifest = workspace_root.join("Cargo.toml");
+                    if root_manifest.exists() {
+                        Some(root_manifest)
+                    } else {
+                        None
+                    }
+                })?;
+
+                let working_dir = manifest
+                    .parent()
+                    .unwrap_or(workspace_root)
+                    .to_path_buf();
+
+                let command = if working_dir != workspace_root {
+                    format!(
+                        "cargo check --manifest-path \"{}\"",
+                        manifest.to_string_lossy()
+                    )
                 } else {
-                    None
-                }
+                    "cargo check".to_string()
+                };
+
+                Some(TypecheckerResolution {
+                    command,
+                    working_dir,
+                    manifest_path: Some(manifest),
+                })
             }
             SupportedLanguage::TypeScript | SupportedLanguage::JavaScript => {
-                if workspace_root.join("tsconfig.json").exists()
-                    || workspace_root.join("package.json").exists()
-                    || find_file_upward(file_path, "tsconfig.json").is_some()
-                    || find_file_upward(file_path, "package.json").is_some()
-                {
-                    Some("npx tsc --noEmit".to_string())
-                } else {
-                    None
+                // Priority 1: tsconfig.json upward
+                if let Some(manifest) = find_file_upward(&abs_file, "tsconfig.json").or_else(|| {
+                    let root_ts = workspace_root.join("tsconfig.json");
+                    if root_ts.exists() {
+                        Some(root_ts)
+                    } else {
+                        None
+                    }
+                }) {
+                    let working_dir = manifest
+                        .parent()
+                        .unwrap_or(workspace_root)
+                        .to_path_buf();
+                    return Some(TypecheckerResolution {
+                        command: "npx tsc --noEmit".to_string(),
+                        working_dir,
+                        manifest_path: Some(manifest),
+                    });
                 }
-            }
-            SupportedLanguage::Python => {
-                if workspace_root.join("mypy.ini").exists()
-                    || workspace_root.join("pyproject.toml").exists()
-                    || find_file_upward(file_path, "mypy.ini").is_some()
-                    || find_file_upward(file_path, "pyproject.toml").is_some()
-                {
-                    Some(format!("mypy \"{rel_file_str}\""))
-                } else {
-                    Some(format!("python -m py_compile \"{rel_file_str}\""))
+
+                // Priority 2: package.json upward
+                if let Some(manifest) = find_file_upward(&abs_file, "package.json").or_else(|| {
+                    let root_pkg = workspace_root.join("package.json");
+                    if root_pkg.exists() {
+                        Some(root_pkg)
+                    } else {
+                        None
+                    }
+                }) {
+                    let working_dir = manifest
+                        .parent()
+                        .unwrap_or(workspace_root)
+                        .to_path_buf();
+                    return Some(TypecheckerResolution {
+                        command: "npx tsc --noEmit".to_string(),
+                        working_dir,
+                        manifest_path: Some(manifest),
+                    });
                 }
+
+                None
             }
             SupportedLanguage::Go => {
-                if workspace_root.join("go.mod").exists()
-                    || find_file_upward(file_path, "go.mod").is_some()
-                {
-                    Some("go vet ./...".to_string())
+                // Find closest go.mod upward
+                let manifest = find_file_upward(&abs_file, "go.mod").or_else(|| {
+                    let root_mod = workspace_root.join("go.mod");
+                    if root_mod.exists() {
+                        Some(root_mod)
+                    } else {
+                        None
+                    }
+                })?;
+
+                let working_dir = manifest
+                    .parent()
+                    .unwrap_or(workspace_root)
+                    .to_path_buf();
+
+                Some(TypecheckerResolution {
+                    command: "go vet ./...".to_string(),
+                    working_dir,
+                    manifest_path: Some(manifest),
+                })
+            }
+            SupportedLanguage::Python => {
+                // Find closest mypy.ini, pyproject.toml, or setup.py upward
+                let manifest = find_file_upward(&abs_file, "mypy.ini")
+                    .or_else(|| find_file_upward(&abs_file, "pyproject.toml"))
+                    .or_else(|| find_file_upward(&abs_file, "setup.py"))
+                    .or_else(|| {
+                        let r = workspace_root.join("mypy.ini");
+                        if r.exists() {
+                            Some(r)
+                        } else {
+                            None
+                        }
+                    })
+                    .or_else(|| {
+                        let r = workspace_root.join("pyproject.toml");
+                        if r.exists() {
+                            Some(r)
+                        } else {
+                            None
+                        }
+                    })
+                    .or_else(|| {
+                        let r = workspace_root.join("setup.py");
+                        if r.exists() {
+                            Some(r)
+                        } else {
+                            None
+                        }
+                    });
+
+                if let Some(ref m) = manifest {
+                    let working_dir = m.parent().unwrap_or(workspace_root).to_path_buf();
+                    let rel_file = abs_file.strip_prefix(&working_dir).unwrap_or(&abs_file);
+                    let rel_str = rel_file.to_string_lossy();
+                    let file_name = m.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+
+                    let command = if file_name == "mypy.ini" || file_name == "pyproject.toml" {
+                        format!("mypy \"{rel_str}\"")
+                    } else {
+                        format!("python -m py_compile \"{rel_str}\"")
+                    };
+
+                    Some(TypecheckerResolution {
+                        command,
+                        working_dir,
+                        manifest_path: Some(m.clone()),
+                    })
                 } else {
-                    None
+                    let rel_file = abs_file.strip_prefix(workspace_root).unwrap_or(&abs_file);
+                    let rel_str = rel_file.to_string_lossy();
+                    Some(TypecheckerResolution {
+                        command: format!("python -m py_compile \"{rel_str}\""),
+                        working_dir: workspace_root.to_path_buf(),
+                        manifest_path: None,
+                    })
                 }
             }
             SupportedLanguage::CSharp => {
-                if workspace_root.join("*.csproj").exists()
-                    || workspace_root.join("*.sln").exists()
-                    || find_file_upward(file_path, "*.csproj").is_some()
-                    || find_file_upward(file_path, "*.sln").is_some()
-                {
-                    Some("dotnet build".to_string())
-                } else {
-                    None
-                }
+                // Find closest *.csproj or *.sln upward
+                let manifest = find_file_matching_upward(&abs_file, is_csharp_manifest).or_else(
+                    || find_matching_file_in_dir(workspace_root, is_csharp_manifest),
+                )?;
+
+                let working_dir = manifest
+                    .parent()
+                    .unwrap_or(workspace_root)
+                    .to_path_buf();
+
+                Some(TypecheckerResolution {
+                    command: "dotnet build".to_string(),
+                    working_dir,
+                    manifest_path: Some(manifest),
+                })
             }
             SupportedLanguage::Java => {
-                if workspace_root.join("pom.xml").exists()
-                    || find_file_upward(file_path, "pom.xml").is_some()
-                {
-                    Some("mvn compile -DskipTests".to_string())
-                } else if workspace_root.join("build.gradle").exists()
-                    || workspace_root.join("build.gradle.kts").exists()
-                    || find_file_upward(file_path, "build.gradle").is_some()
-                {
-                    Some("gradle compileJava".to_string())
-                } else {
-                    None
+                // Priority 1: pom.xml
+                if let Some(manifest) = find_file_upward(&abs_file, "pom.xml").or_else(|| {
+                    let root_pom = workspace_root.join("pom.xml");
+                    if root_pom.exists() {
+                        Some(root_pom)
+                    } else {
+                        None
+                    }
+                }) {
+                    let working_dir = manifest
+                        .parent()
+                        .unwrap_or(workspace_root)
+                        .to_path_buf();
+                    return Some(TypecheckerResolution {
+                        command: "mvn compile -DskipTests".to_string(),
+                        working_dir,
+                        manifest_path: Some(manifest),
+                    });
                 }
+
+                // Priority 2: build.gradle / build.gradle.kts
+                if let Some(manifest) = find_file_upward(&abs_file, "build.gradle")
+                    .or_else(|| find_file_upward(&abs_file, "build.gradle.kts"))
+                    .or_else(|| {
+                        let r = workspace_root.join("build.gradle");
+                        if r.exists() {
+                            Some(r)
+                        } else {
+                            None
+                        }
+                    })
+                    .or_else(|| {
+                        let r = workspace_root.join("build.gradle.kts");
+                        if r.exists() {
+                            Some(r)
+                        } else {
+                            None
+                        }
+                    })
+                {
+                    let working_dir = manifest
+                        .parent()
+                        .unwrap_or(workspace_root)
+                        .to_path_buf();
+                    return Some(TypecheckerResolution {
+                        command: "gradle compileJava".to_string(),
+                        working_dir,
+                        manifest_path: Some(manifest),
+                    });
+                }
+
+                None
             }
             SupportedLanguage::Kotlin => {
-                if workspace_root.join("build.gradle.kts").exists()
-                    || find_file_upward(file_path, "build.gradle.kts").is_some()
+                // Priority 1: build.gradle.kts / build.gradle
+                if let Some(manifest) = find_file_upward(&abs_file, "build.gradle.kts")
+                    .or_else(|| find_file_upward(&abs_file, "build.gradle"))
+                    .or_else(|| {
+                        let r = workspace_root.join("build.gradle.kts");
+                        if r.exists() {
+                            Some(r)
+                        } else {
+                            None
+                        }
+                    })
+                    .or_else(|| {
+                        let r = workspace_root.join("build.gradle");
+                        if r.exists() {
+                            Some(r)
+                        } else {
+                            None
+                        }
+                    })
                 {
-                    Some("gradle compileKotlin".to_string())
-                } else {
-                    None
+                    let working_dir = manifest
+                        .parent()
+                        .unwrap_or(workspace_root)
+                        .to_path_buf();
+                    return Some(TypecheckerResolution {
+                        command: "gradle compileKotlin".to_string(),
+                        working_dir,
+                        manifest_path: Some(manifest),
+                    });
                 }
+
+                // Priority 2: pom.xml
+                if let Some(manifest) = find_file_upward(&abs_file, "pom.xml").or_else(|| {
+                    let root_pom = workspace_root.join("pom.xml");
+                    if root_pom.exists() {
+                        Some(root_pom)
+                    } else {
+                        None
+                    }
+                }) {
+                    let working_dir = manifest
+                        .parent()
+                        .unwrap_or(workspace_root)
+                        .to_path_buf();
+                    return Some(TypecheckerResolution {
+                        command: "mvn compile -DskipTests".to_string(),
+                        working_dir,
+                        manifest_path: Some(manifest),
+                    });
+                }
+
+                None
             }
             SupportedLanguage::C => {
-                if workspace_root.join("CMakeLists.txt").exists()
-                    || workspace_root.join("Makefile").exists()
-                    || find_file_upward(file_path, "CMakeLists.txt").is_some()
-                    || find_file_upward(file_path, "Makefile").is_some()
-                {
-                    Some(format!("clang -fsyntax-only \"{rel_file_str}\""))
+                let manifest = find_file_upward(&abs_file, "CMakeLists.txt")
+                    .or_else(|| find_file_upward(&abs_file, "Makefile"))
+                    .or_else(|| {
+                        let r = workspace_root.join("CMakeLists.txt");
+                        if r.exists() {
+                            Some(r)
+                        } else {
+                            None
+                        }
+                    })
+                    .or_else(|| {
+                        let r = workspace_root.join("Makefile");
+                        if r.exists() {
+                            Some(r)
+                        } else {
+                            None
+                        }
+                    });
+
+                if let Some(m) = manifest {
+                    let working_dir = m.parent().unwrap_or(workspace_root).to_path_buf();
+                    let rel_file = abs_file.strip_prefix(&working_dir).unwrap_or(&abs_file);
+                    let rel_str = rel_file.to_string_lossy();
+                    Some(TypecheckerResolution {
+                        command: format!("clang -fsyntax-only \"{rel_str}\""),
+                        working_dir,
+                        manifest_path: Some(m),
+                    })
                 } else {
                     None
                 }
             }
             SupportedLanguage::Cpp => {
-                if workspace_root.join("CMakeLists.txt").exists()
-                    || workspace_root.join("Makefile").exists()
-                    || find_file_upward(file_path, "CMakeLists.txt").is_some()
-                    || find_file_upward(file_path, "Makefile").is_some()
-                {
-                    Some(format!("clang++ -fsyntax-only \"{rel_file_str}\""))
+                let manifest = find_file_upward(&abs_file, "CMakeLists.txt")
+                    .or_else(|| find_file_upward(&abs_file, "Makefile"))
+                    .or_else(|| {
+                        let r = workspace_root.join("CMakeLists.txt");
+                        if r.exists() {
+                            Some(r)
+                        } else {
+                            None
+                        }
+                    })
+                    .or_else(|| {
+                        let r = workspace_root.join("Makefile");
+                        if r.exists() {
+                            Some(r)
+                        } else {
+                            None
+                        }
+                    });
+
+                if let Some(m) = manifest {
+                    let working_dir = m.parent().unwrap_or(workspace_root).to_path_buf();
+                    let rel_file = abs_file.strip_prefix(&working_dir).unwrap_or(&abs_file);
+                    let rel_str = rel_file.to_string_lossy();
+                    Some(TypecheckerResolution {
+                        command: format!("clang++ -fsyntax-only \"{rel_str}\""),
+                        working_dir,
+                        manifest_path: Some(m),
+                    })
                 } else {
                     None
                 }
             }
             SupportedLanguage::Vue => {
-                if workspace_root.join("package.json").exists()
-                    || find_file_upward(file_path, "package.json").is_some()
-                {
-                    Some("npx vue-tsc --noEmit".to_string())
-                } else {
-                    None
-                }
+                let manifest = find_file_upward(&abs_file, "package.json")
+                    .or_else(|| find_file_upward(&abs_file, "tsconfig.json"))
+                    .or_else(|| {
+                        let r = workspace_root.join("package.json");
+                        if r.exists() {
+                            Some(r)
+                        } else {
+                            None
+                        }
+                    })
+                    .or_else(|| {
+                        let r = workspace_root.join("tsconfig.json");
+                        if r.exists() {
+                            Some(r)
+                        } else {
+                            None
+                        }
+                    });
+
+                manifest.map(|m| {
+                    let working_dir = m.parent().unwrap_or(workspace_root).to_path_buf();
+                    TypecheckerResolution {
+                        command: "npx vue-tsc --noEmit".to_string(),
+                        working_dir,
+                        manifest_path: Some(m),
+                    }
+                })
             }
             SupportedLanguage::Svelte => {
-                if workspace_root.join("package.json").exists()
-                    || find_file_upward(file_path, "package.json").is_some()
-                {
-                    Some("npx svelte-check".to_string())
-                } else {
-                    None
-                }
+                let manifest = find_file_upward(&abs_file, "package.json")
+                    .or_else(|| find_file_upward(&abs_file, "tsconfig.json"))
+                    .or_else(|| {
+                        let r = workspace_root.join("package.json");
+                        if r.exists() {
+                            Some(r)
+                        } else {
+                            None
+                        }
+                    })
+                    .or_else(|| {
+                        let r = workspace_root.join("tsconfig.json");
+                        if r.exists() {
+                            Some(r)
+                        } else {
+                            None
+                        }
+                    });
+
+                manifest.map(|m| {
+                    let working_dir = m.parent().unwrap_or(workspace_root).to_path_buf();
+                    TypecheckerResolution {
+                        command: "npx svelte-check".to_string(),
+                        working_dir,
+                        manifest_path: Some(m),
+                    }
+                })
             }
             SupportedLanguage::Astro => {
-                if workspace_root.join("package.json").exists()
-                    || find_file_upward(file_path, "package.json").is_some()
-                {
-                    Some("npx astro check".to_string())
-                } else {
-                    None
-                }
+                let manifest = find_file_upward(&abs_file, "package.json")
+                    .or_else(|| find_file_upward(&abs_file, "tsconfig.json"))
+                    .or_else(|| {
+                        let r = workspace_root.join("package.json");
+                        if r.exists() {
+                            Some(r)
+                        } else {
+                            None
+                        }
+                    })
+                    .or_else(|| {
+                        let r = workspace_root.join("tsconfig.json");
+                        if r.exists() {
+                            Some(r)
+                        } else {
+                            None
+                        }
+                    });
+
+                manifest.map(|m| {
+                    let working_dir = m.parent().unwrap_or(workspace_root).to_path_buf();
+                    TypecheckerResolution {
+                        command: "npx astro check".to_string(),
+                        working_dir,
+                        manifest_path: Some(m),
+                    }
+                })
             }
         }
     }
 }
 
-fn find_file_upward(start: &Path, file_name: &str) -> Option<PathBuf> {
-    let mut current = start.parent()?;
+/// Traverses upward from `start` to locate the nearest file named `file_name`.
+pub fn find_file_upward(start: &Path, file_name: &str) -> Option<PathBuf> {
+    let start_dir = if start.is_dir() {
+        start.to_path_buf()
+    } else if let Some(parent) = start.parent() {
+        parent.to_path_buf()
+    } else {
+        start.to_path_buf()
+    };
+
+    let mut current = start_dir;
     loop {
         let candidate = current.join(file_name);
         if candidate.exists() {
             return Some(candidate);
         }
-        current = current.parent()?;
+        match current.parent() {
+            Some(p) if p != current => current = p.to_path_buf(),
+            _ => break,
+        }
+    }
+    None
+}
+
+/// Traverses upward from `start` to locate the nearest file satisfying `predicate`.
+pub fn find_file_matching_upward<F>(start: &Path, predicate: F) -> Option<PathBuf>
+where
+    F: Fn(&Path) -> bool,
+{
+    let start_dir = if start.is_dir() {
+        start.to_path_buf()
+    } else if let Some(parent) = start.parent() {
+        parent.to_path_buf()
+    } else {
+        start.to_path_buf()
+    };
+
+    let mut current = start_dir;
+    loop {
+        if let Ok(entries) = fs::read_dir(&current) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() && predicate(&path) {
+                    return Some(path);
+                }
+            }
+        }
+        match current.parent() {
+            Some(p) if p != current => current = p.to_path_buf(),
+            _ => break,
+        }
+    }
+    None
+}
+
+/// Checks direct children of `dir` for any file matching `predicate`.
+pub fn find_matching_file_in_dir<F>(dir: &Path, predicate: F) -> Option<PathBuf>
+where
+    F: Fn(&Path) -> bool,
+{
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() && predicate(&path) {
+                return Some(path);
+            }
+        }
+    }
+    None
+}
+
+fn is_csharp_manifest(path: &Path) -> bool {
+    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+        ext.eq_ignore_ascii_case("csproj") || ext.eq_ignore_ascii_case("sln")
+    } else {
+        false
     }
 }
+
 
 /// Output from executing a typechecker command.
 #[derive(Debug, Clone)]
@@ -410,3 +813,170 @@ fn parse_severity_code_message(rest: &str) -> (String, Option<String>, String) {
 
     (severity, None, rest.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_rust_nested_cargo_toml_tauri() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+
+        let tauri_dir = root.join("src-tauri");
+        fs::create_dir_all(tauri_dir.join("src")).unwrap();
+        let cargo_toml = tauri_dir.join("Cargo.toml");
+        fs::write(&cargo_toml, "[package]\nname = \"tauri-app\"\n").unwrap();
+        let target_file = tauri_dir.join("src").join("main.rs");
+        fs::write(&target_file, "fn main() {}\n").unwrap();
+
+        let res = TypecheckerDetector::detect_resolution(root, &target_file, SupportedLanguage::Rust)
+            .expect("Should resolve nested Tauri Cargo.toml");
+
+        assert_eq!(res.working_dir, tauri_dir);
+        assert_eq!(res.manifest_path, Some(cargo_toml.clone()));
+        assert!(res.command.contains("cargo check"));
+        assert!(res.command.contains("Cargo.toml"));
+    }
+
+    #[test]
+    fn test_rust_root_cargo_toml() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+
+        let cargo_toml = root.join("Cargo.toml");
+        fs::write(&cargo_toml, "[package]\nname = \"root-app\"\n").unwrap();
+        let target_file = root.join("src").join("lib.rs");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(&target_file, "pub fn run() {}\n").unwrap();
+
+        let res = TypecheckerDetector::detect_resolution(root, &target_file, SupportedLanguage::Rust)
+            .expect("Should resolve root Cargo.toml");
+
+        assert_eq!(res.working_dir, root);
+        assert_eq!(res.manifest_path, Some(cargo_toml));
+        assert_eq!(res.command, "cargo check");
+    }
+
+    #[test]
+    fn test_ts_monorepo_packages_tsconfig() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+
+        let pkg_dir = root.join("packages").join("web");
+        fs::create_dir_all(pkg_dir.join("src")).unwrap();
+        let tsconfig = pkg_dir.join("tsconfig.json");
+        fs::write(&tsconfig, "{}").unwrap();
+        let target_file = pkg_dir.join("src").join("index.ts");
+        fs::write(&target_file, "export const x = 1;").unwrap();
+
+        let res = TypecheckerDetector::detect_resolution(root, &target_file, SupportedLanguage::TypeScript)
+            .expect("Should resolve package tsconfig.json");
+
+        assert_eq!(res.working_dir, pkg_dir);
+        assert_eq!(res.manifest_path, Some(tsconfig));
+        assert_eq!(res.command, "npx tsc --noEmit");
+    }
+
+    #[test]
+    fn test_go_nested_submodule_go_mod() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+
+        let backend_dir = root.join("backend");
+        fs::create_dir_all(backend_dir.join("api")).unwrap();
+        let go_mod = backend_dir.join("go.mod");
+        fs::write(&go_mod, "module backend\n\ngo 1.21\n").unwrap();
+        let target_file = backend_dir.join("api").join("server.go");
+        fs::write(&target_file, "package api\n").unwrap();
+
+        let res = TypecheckerDetector::detect_resolution(root, &target_file, SupportedLanguage::Go)
+            .expect("Should resolve nested go.mod");
+
+        assert_eq!(res.working_dir, backend_dir);
+        assert_eq!(res.manifest_path, Some(go_mod));
+        assert_eq!(res.command, "go vet ./...");
+    }
+
+    #[test]
+    fn test_python_nested_pyproject_toml() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+
+        let service_dir = root.join("services").join("worker");
+        fs::create_dir_all(service_dir.join("src")).unwrap();
+        let pyproject = service_dir.join("pyproject.toml");
+        fs::write(&pyproject, "[tool.mypy]\nstrict = true\n").unwrap();
+        let target_file = service_dir.join("src").join("task.py");
+        fs::write(&target_file, "def work(): pass\n").unwrap();
+
+        let res = TypecheckerDetector::detect_resolution(root, &target_file, SupportedLanguage::Python)
+            .expect("Should resolve nested pyproject.toml");
+
+        assert_eq!(res.working_dir, service_dir);
+        assert_eq!(res.manifest_path, Some(pyproject));
+        assert!(res.command.starts_with("mypy"));
+    }
+
+    #[test]
+    fn test_csharp_nested_csproj() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+
+        let api_dir = root.join("src").join("Api");
+        fs::create_dir_all(api_dir.join("Controllers")).unwrap();
+        let csproj = api_dir.join("Api.csproj");
+        fs::write(&csproj, "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>").unwrap();
+        let target_file = api_dir.join("Controllers").join("UserController.cs");
+        fs::write(&target_file, "public class UserController {}").unwrap();
+
+        let res = TypecheckerDetector::detect_resolution(root, &target_file, SupportedLanguage::CSharp)
+            .expect("Should resolve nested .csproj");
+
+        assert_eq!(res.working_dir, api_dir);
+        assert_eq!(res.manifest_path, Some(csproj));
+        assert_eq!(res.command, "dotnet build");
+    }
+
+    #[test]
+    fn test_java_nested_pom_xml() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+
+        let core_dir = root.join("modules").join("core");
+        fs::create_dir_all(core_dir.join("src").join("main").join("java")).unwrap();
+        let pom = core_dir.join("pom.xml");
+        fs::write(&pom, "<project></project>").unwrap();
+        let target_file = core_dir.join("src").join("main").join("java").join("App.java");
+        fs::write(&target_file, "public class App {}").unwrap();
+
+        let res = TypecheckerDetector::detect_resolution(root, &target_file, SupportedLanguage::Java)
+            .expect("Should resolve nested pom.xml");
+
+        assert_eq!(res.working_dir, core_dir);
+        assert_eq!(res.manifest_path, Some(pom));
+        assert_eq!(res.command, "mvn compile -DskipTests");
+    }
+
+    #[test]
+    fn test_kotlin_nested_build_gradle_kts() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+
+        let app_dir = root.join("app");
+        fs::create_dir_all(app_dir.join("src")).unwrap();
+        let gradle = app_dir.join("build.gradle.kts");
+        fs::write(&gradle, "plugins { kotlin(\"jvm\") }").unwrap();
+        let target_file = app_dir.join("src").join("Main.kt");
+        fs::write(&target_file, "fun main() {}").unwrap();
+
+        let res = TypecheckerDetector::detect_resolution(root, &target_file, SupportedLanguage::Kotlin)
+            .expect("Should resolve nested build.gradle.kts");
+
+        assert_eq!(res.working_dir, app_dir);
+        assert_eq!(res.manifest_path, Some(gradle));
+        assert_eq!(res.command, "gradle compileKotlin");
+    }
+}
+

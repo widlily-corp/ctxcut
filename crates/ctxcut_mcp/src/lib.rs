@@ -14,7 +14,7 @@ use ctxcut_core::refactor::batch::{
 };
 use ctxcut_core::{
     AstPatcher, AstQueryEngine, ContextSlicer, DefaultIntentSlicer, DefaultSwarmPartitioner,
-    ExecutionTracer, FullstackExecutionTracer, FullstackTracer, ImpactAnalyzer, IndexEngine,
+    ExecutionTracer, FullstackExecutionTracer, ImpactAnalyzer, IndexEngine,
     IndexOptions, IntentSliceOptions, IntentSlicer, MarkdownFormatter, OverviewOptions,
     PatchVerifier, SemanticDiffEngine, SliceOptions, SliceResult, SupportedLanguage,
     SwarmPartitionEngine, SymbolRenamer, TelemetryLogger, TestContextGenerator,
@@ -373,17 +373,17 @@ fn build_tools_list_response() -> Value {
             },
             {
                 "name": "get_route_slice",
-                "description": "Resolves web framework route handler, controllers, DTOs, and middleware chains (Express, FastAPI, Gin, Axum)",
+                "description": "Resolves web, IPC, and RPC framework route handlers, controllers, DTOs, and procedures (Tauri #[tauri::command], Electron ipcMain, tRPC, Next.js Server Actions, Express, FastAPI, Gin, Axum, Actix, Spring, ASP.NET Core)",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "method": {
                             "type": "string",
-                            "description": "HTTP Method (GET, POST, PUT, DELETE, etc.)"
+                            "description": "HTTP, IPC, or RPC Method (GET, POST, PUT, DELETE, IPC, ACTION, QUERY, MUTATION, etc. Defaults to 'ANY' if omitted)"
                         },
                         "path": {
                             "type": "string",
-                            "description": "Route URL path (e.g. `/api/v1/checkout`)"
+                            "description": "Route URL path, Electron channel, Tauri command, or RPC procedure (e.g. `/api/v1/checkout`, `calculate_tax`, `dialog:openFile`, `user.getById`, `updateProfile`)"
                         },
                         "root_dir": {
                             "type": "string",
@@ -394,7 +394,7 @@ fn build_tools_list_response() -> Value {
                             "description": "Optional token budget limit"
                         }
                     },
-                    "required": ["method", "path"]
+                    "required": ["path"]
                 }
             },
             {
@@ -657,6 +657,12 @@ fn build_tools_list_response() -> Value {
                         "budget": {
                             "type": "integer",
                             "description": "Optional token budget limit for degraded trace output (default: 1500 tokens)"
+                        },
+                        "max_depth": {
+                            "type": "integer",
+                            "description": "Configurable traversal depth and hop bounding (3..5, default: 5)",
+                            "minimum": 3,
+                            "maximum": 5
                         },
                         "format": {
                             "type": "string",
@@ -1504,8 +1510,16 @@ fn execute_get_test_context(args: &Value) -> (Value, Option<Value>, Option<Strin
 }
 
 fn execute_get_route_slice(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
-    let Some(method) = args.get("method").and_then(Value::as_str) else {
-        let err = "Missing required parameter 'method'".to_string();
+    let has_ipc_key = args.get("procedure").is_some()
+        || args.get("command").is_some()
+        || args.get("channel").is_some();
+
+    let method = if let Some(m) = args.get("method").and_then(Value::as_str) {
+        m
+    } else if has_ipc_key || args.get("path").is_some() || args.get("route_path").is_some() {
+        "ANY"
+    } else {
+        let err = "Missing required parameter 'method' and 'path' (or 'procedure' / 'command' / 'channel')".to_string();
         return (
             json!({
                 "isError": true,
@@ -1516,12 +1530,16 @@ fn execute_get_route_slice(args: &Value) -> (Value, Option<Value>, Option<String
             None,
         );
     };
+
     let Some(route_path) = args
         .get("path")
         .or_else(|| args.get("route_path"))
+        .or_else(|| args.get("procedure"))
+        .or_else(|| args.get("command"))
+        .or_else(|| args.get("channel"))
         .and_then(Value::as_str)
     else {
-        let err = "Missing required parameter 'path'".to_string();
+        let err = "Missing required parameter 'path' (or 'procedure' / 'command' / 'channel')".to_string();
         return (
             json!({
                 "isError": true,
@@ -2058,13 +2076,18 @@ fn execute_fullstack_trace(args: &Value) -> (Value, Option<Value>, Option<String
         .get("budget")
         .and_then(Value::as_u64)
         .map(|b| b as usize);
+    let max_depth = args
+        .get("max_depth")
+        .or_else(|| args.get("depth"))
+        .and_then(Value::as_u64)
+        .map(|d| d as usize);
     let format_str = args
         .get("format")
         .and_then(Value::as_str)
         .unwrap_or("markdown");
 
     let tracer = FullstackExecutionTracer::new();
-    match tracer.trace_api(Path::new(root_str), entry, budget) {
+    match tracer.trace_api_with_depth(Path::new(root_str), entry, budget, max_depth) {
         Ok(result) => {
             let saved_tokens = result
                 .stats

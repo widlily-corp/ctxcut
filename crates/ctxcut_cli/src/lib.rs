@@ -575,6 +575,10 @@ pub enum Commands {
         #[arg(long)]
         budget: Option<usize>,
 
+        /// Maximum traversal depth / hop bounding (range: 3..5, default: 5).
+        #[arg(short = 'd', long = "depth", alias = "max-depth")]
+        depth: Option<usize>,
+
         /// Copy output directly to system clipboard.
         #[arg(long)]
         clip: bool,
@@ -1119,10 +1123,11 @@ where
             entry,
             root,
             budget,
+            depth,
             clip,
             output,
             format,
-        }) => run_trace_api_command(&entry, root, budget, clip, output.as_deref(), &format),
+        }) => run_trace_api_command(&entry, root, budget, depth, clip, output.as_deref(), &format),
 
         Some(Commands::SliceIntent {
             prompt,

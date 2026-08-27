@@ -13,7 +13,8 @@ pub mod stubs;
 pub use budget::SwarmBudgetEngine;
 pub use clustering::CommunityClusterer;
 pub use engine::{
-    DefaultSwarmPartitioner, SwarmAgentPack, SwarmPartitionEngine, SwarmPartitionManifest,
+    derive_cluster_name, DefaultSwarmPartitioner, SwarmAgentPack, SwarmPartitionEngine,
+    SwarmPartitionManifest,
 };
 pub use graph::{EdgeKind, GraphEdge, GraphNode, WorkspaceGraph, WorkspaceGraphBuilder};
 pub use mock::MockContractGenerator;

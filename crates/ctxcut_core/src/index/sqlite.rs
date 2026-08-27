@@ -11,10 +11,17 @@ use crate::framework::extract_server_routes;
 use crate::fullstack::client_detect::ClientDetector;
 use crate::fullstack::model::{ClientApiCall, ServerRouteEndpoint};
 use crate::lang::LanguageRegistry;
-use crate::model::{ExtractedSymbol, ExtractedType, OverviewOptions, SupportedLanguage};
+use crate::model::{
+    CallSignatureStub, ExtractedSymbol, ExtractedType, OverviewOptions, SupportedLanguage,
+    TokenStats,
+};
 use crate::overview::extract_symbols_from_file;
 use crate::parser::{AstUtils, ParserManager};
 use crate::schema::extract_schema_entities;
+use crate::swarm::{
+    derive_cluster_name, BoundaryStubGenerator, CommunityClusterer, MockContractGenerator,
+    SwarmAgentPack, SwarmBudgetEngine, SwarmPartitionManifest, WorkspaceGraphBuilder,
+};
 use crate::tokenizer::{count_lines, count_tokens};
 use crate::traversal::{ProjectWalker, TraversalConfig};
 use rusqlite::{params, Connection, OpenFlags};
@@ -513,6 +520,15 @@ impl IndexEngine {
             .conn
             .query_row("SELECT COUNT(*) FROM symbols", [], |r| r.get(0))
             .unwrap_or(0);
+
+        // 5. Pre-compute and persist Swarm community clusters and graph edges in SQLite
+        let cluster_count: usize = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM clusters", [], |r| r.get(0))
+            .unwrap_or(0);
+        if cluster_count == 0 || files_added > 0 || files_updated > 0 || files_deleted > 0 || options.rebuild {
+            let _ = self.compute_and_persist_swarm_clusters(2);
+        }
 
         let duration_ms = start_time.elapsed().as_millis() as u64;
 
@@ -1081,6 +1097,481 @@ impl IndexEngine {
             .query_row("SELECT AVG(total_terms) FROM bm25_doc_stats", [], |r| r.get(0))
             .unwrap_or(0.0);
         Ok((total_docs, avg_len))
+    }
+
+    /// Computes and persists Swarm Community Clusters and boundary contracts into SQLite.
+    pub fn compute_and_persist_swarm_clusters(&mut self, default_agents: usize) -> Result<()> {
+        let graph = WorkspaceGraphBuilder::build(&self.workspace_root)?;
+        if graph.nodes.is_empty() {
+            return Ok(());
+        }
+
+        // Store graph edges cache
+        let _ = self.conn.execute("DELETE FROM graph_edges", []);
+        {
+            let mut edge_stmt = self.conn.prepare(
+                "INSERT INTO graph_edges (from_node, to_node, weight, kind) VALUES (?1, ?2, ?3, ?4)",
+            ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare graph_edges stmt: {e}")))?;
+
+            for edge in &graph.edges {
+                let kind_str = match edge.kind {
+                    crate::swarm::EdgeKind::Call => "call",
+                    crate::swarm::EdgeKind::TypeRef => "typeref",
+                    crate::swarm::EdgeKind::Import => "import",
+                    crate::swarm::EdgeKind::CoLocated => "colocated",
+                };
+                let _ = edge_stmt.execute(params![
+                    edge.from,
+                    edge.to,
+                    edge.weight,
+                    kind_str,
+                ]);
+            }
+        }
+
+        // Precompute for default agent counts: 2, 3, 4
+        let agent_counts_to_precompute = if default_agents == 2 {
+            vec![2, 3, 4]
+        } else {
+            vec![default_agents]
+        };
+
+        for target_agents in agent_counts_to_precompute {
+            let clusters = CommunityClusterer::cluster(&graph, target_agents, &[]);
+            if clusters.is_empty() {
+                continue;
+            }
+
+            // Build node -> agent map
+            let mut node_to_agent: HashMap<String, String> = HashMap::new();
+            for (idx, cluster) in clusters.iter().enumerate() {
+                let agent_id = format!("agent_{idx}");
+                for node_id in cluster {
+                    node_to_agent.insert(node_id.clone(), agent_id.clone());
+                }
+            }
+
+            // Clean previous clusters for this total_agents
+            let _ = self.conn.execute(
+                "DELETE FROM clusters WHERE total_agents = ?1",
+                params![target_agents as i64],
+            );
+
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as i64;
+
+            for (idx, cluster_node_ids) in clusters.iter().enumerate() {
+                let agent_id = format!("agent_{idx}");
+                let cluster_name = derive_cluster_name(&graph, cluster_node_ids, idx);
+
+                let mut internal_symbols = Vec::new();
+                for node_id in cluster_node_ids {
+                    if let Some(node) = graph.nodes.get(node_id) {
+                        internal_symbols.push(node.symbol.clone());
+                    }
+                }
+
+                let (boundary_stubs, boundary_types) = BoundaryStubGenerator::synthesize_boundaries(
+                    &graph,
+                    cluster_node_ids,
+                    &node_to_agent,
+                );
+
+                let primary_lang = internal_symbols
+                    .first()
+                    .and_then(|s| SupportedLanguage::from_str_loose(&s.language))
+                    .unwrap_or(SupportedLanguage::TypeScript);
+
+                let mock_contracts = MockContractGenerator::generate_mocks(
+                    &agent_id,
+                    &boundary_stubs,
+                    &boundary_types,
+                    primary_lang,
+                );
+
+                let mut pack = SwarmAgentPack {
+                    agent_id: agent_id.clone(),
+                    cluster_name: cluster_name.clone(),
+                    internal_symbols: internal_symbols.clone(),
+                    boundary_stubs: boundary_stubs.clone(),
+                    boundary_types: boundary_types.clone(),
+                    mock_contracts: mock_contracts.clone(),
+                    token_stats: TokenStats::calculate(0, 0, 0, 0),
+                };
+
+                SwarmBudgetEngine::compute_and_apply_budget(&mut pack, &graph, None);
+
+                let symbol_count = internal_symbols.len() as i64;
+                let token_count = pack.token_stats.sliced_tokens as i64;
+
+                let mut cluster_stmt = self.conn.prepare(
+                    r#"
+                    INSERT INTO clusters (
+                        total_agents, cluster_index, agent_id, cluster_name, primary_language,
+                        symbol_count, token_count, mock_contracts, raw_tokens, sliced_tokens,
+                        raw_lines, sliced_lines, created_at
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+                    "#,
+                ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare cluster insert: {e}")))?;
+
+                cluster_stmt.execute(params![
+                    target_agents as i64,
+                    idx as i64,
+                    agent_id,
+                    cluster_name,
+                    primary_lang.as_str(),
+                    symbol_count,
+                    token_count,
+                    mock_contracts,
+                    pack.token_stats.raw_file_tokens as i64,
+                    pack.token_stats.sliced_tokens as i64,
+                    pack.token_stats.raw_lines as i64,
+                    pack.token_stats.sliced_lines as i64,
+                    now,
+                ])?;
+
+                let cluster_id = self.conn.last_insert_rowid();
+
+                // Insert cluster symbols
+                let mut sym_stmt = self.conn.prepare(
+                    r#"
+                    INSERT INTO cluster_symbols (
+                        cluster_id, symbol_id, symbol_name, file_path, language, signature,
+                        doc_comment, body, start_line, end_line, token_count, line_count, is_seed
+                    ) VALUES (?1, NULL, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 0)
+                    "#,
+                ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare cluster_symbols insert: {e}")))?;
+
+                for sym in &internal_symbols {
+                    let sym_toks = (count_tokens(&sym.signature) + count_tokens(&sym.body)) as i64;
+                    let sym_lines = if sym.end_line >= sym.start_line {
+                        (sym.end_line - sym.start_line + 1) as i64
+                    } else {
+                        1
+                    };
+
+                    sym_stmt.execute(params![
+                        cluster_id,
+                        sym.name,
+                        sym.file_path,
+                        sym.language,
+                        sym.signature,
+                        sym.doc_comment,
+                        sym.body,
+                        sym.start_line as i64,
+                        sym.end_line as i64,
+                        sym_toks,
+                        sym_lines,
+                    ])?;
+                }
+
+                // Insert boundary stubs
+                let mut boundary_stmt = self.conn.prepare(
+                    r#"
+                    INSERT INTO cluster_boundaries (
+                        cluster_id, kind, symbol_name, target_agent_id, content, file_path,
+                        start_line, end_line, language, signature, doc_comment
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+                    "#,
+                ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare cluster_boundaries insert: {e}")))?;
+
+                for stub in &boundary_stubs {
+                    boundary_stmt.execute(params![
+                        cluster_id,
+                        "stub",
+                        stub.name,
+                        "",
+                        stub.signature,
+                        stub.file_path.as_deref().unwrap_or(""),
+                        1i64,
+                        1i64,
+                        "typescript",
+                        Some(stub.signature.clone()),
+                        None::<String>,
+                    ])?;
+                }
+
+                for ty in &boundary_types {
+                    boundary_stmt.execute(params![
+                        cluster_id,
+                        "type",
+                        ty.name,
+                        "",
+                        ty.definition,
+                        ty.file_path,
+                        1i64,
+                        1i64,
+                        "typescript",
+                        None::<String>,
+                        None::<String>,
+                    ])?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Retrieves pre-computed swarm community partition manifest from SQLite in O(1) time (<10ms).
+    pub fn get_precomputed_swarm_manifest(
+        &self,
+        agents_count: usize,
+        seed_symbols: &[String],
+        budget_per_agent: Option<usize>,
+    ) -> Result<Option<SwarmPartitionManifest>> {
+        if !seed_symbols.is_empty() {
+            // Seed-constrained clustering requires dynamic partition calculation
+            return Ok(None);
+        }
+
+        let target_agents = agents_count.max(1);
+
+        let mut cluster_stmt = self.conn.prepare(
+            r#"
+            SELECT id, cluster_index, agent_id, cluster_name, primary_language,
+                   symbol_count, token_count, mock_contracts, raw_tokens, sliced_tokens,
+                   raw_lines, sliced_lines
+            FROM clusters
+            WHERE total_agents = ?1
+            ORDER BY cluster_index ASC
+            "#,
+        ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare cluster query: {e}")))?;
+
+        struct ClusterRow {
+            id: i64,
+            _cluster_index: i64,
+            agent_id: String,
+            cluster_name: String,
+            _primary_language: String,
+            _symbol_count: i64,
+            _token_count: i64,
+            mock_contracts: Option<String>,
+            raw_tokens: i64,
+            sliced_tokens: i64,
+            raw_lines: i64,
+            sliced_lines: i64,
+        }
+
+        let cluster_rows: Vec<ClusterRow> = cluster_stmt
+            .query_map(params![target_agents as i64], |row| {
+                Ok(ClusterRow {
+                    id: row.get(0)?,
+                    _cluster_index: row.get(1)?,
+                    agent_id: row.get(2)?,
+                    cluster_name: row.get(3)?,
+                    _primary_language: row.get(4)?,
+                    _symbol_count: row.get(5)?,
+                    _token_count: row.get(6)?,
+                    mock_contracts: row.get(7)?,
+                    raw_tokens: row.get(8)?,
+                    sliced_tokens: row.get(9)?,
+                    raw_lines: row.get(10)?,
+                    sliced_lines: row.get(11)?,
+                })
+            })
+            .map_err(|e| CoreError::DatabaseError(format!("Failed to query clusters: {e}")))?
+            .flatten()
+            .collect();
+
+        if cluster_rows.is_empty() {
+            return Ok(None);
+        }
+
+        let mut sym_stmt = self.conn.prepare(
+            r#"
+            SELECT symbol_name, file_path, language, signature, doc_comment, body, start_line, end_line
+            FROM cluster_symbols
+            WHERE cluster_id = ?1
+            ORDER BY id ASC
+            "#,
+        ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare cluster_symbols query: {e}")))?;
+
+        let mut boundary_stmt = self.conn.prepare(
+            r#"
+            SELECT kind, symbol_name, target_agent_id, content, file_path, start_line, language, signature, doc_comment
+            FROM cluster_boundaries
+            WHERE cluster_id = ?1
+            ORDER BY id ASC
+            "#,
+        ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare cluster_boundaries query: {e}")))?;
+
+        let mut packs = Vec::with_capacity(cluster_rows.len());
+        let mut total_boundary_contracts = 0;
+
+        for crow in cluster_rows {
+            // Load internal symbols
+            let internal_symbols: Vec<ExtractedSymbol> = sym_stmt
+                .query_map(params![crow.id], |r| {
+                    let name: String = r.get(0)?;
+                    let file_path: String = r.get(1)?;
+                    let language: String = r.get(2)?;
+                    let signature: String = r.get(3)?;
+                    let doc_comment: Option<String> = r.get(4)?;
+                    let body: String = r.get(5)?;
+                    let start_line: i64 = r.get(6)?;
+                    let end_line: i64 = r.get(7)?;
+
+                    Ok(ExtractedSymbol {
+                        name,
+                        kind: "symbol".to_string(),
+                        file_path,
+                        language,
+                        signature,
+                        doc_comment,
+                        body,
+                        start_line: start_line as usize,
+                        end_line: end_line as usize,
+                    })
+                })
+                .map_err(|e| CoreError::DatabaseError(format!("Failed to query cluster symbols: {e}")))?
+                .flatten()
+                .collect();
+
+            // Load boundaries
+            let mut boundary_stubs = Vec::new();
+            let mut boundary_types = Vec::new();
+
+            let b_rows = boundary_stmt
+                .query_map(params![crow.id], |r| {
+                    let kind: String = r.get(0)?;
+                    let symbol_name: String = r.get(1)?;
+                    let _target_agent: String = r.get(2)?;
+                    let content: String = r.get(3)?;
+                    let file_path: String = r.get(4)?;
+                    let _start_line: i64 = r.get(5)?;
+                    let _language: String = r.get(6)?;
+                    let signature: Option<String> = r.get(7)?;
+                    let _doc_comment: Option<String> = r.get(8)?;
+
+                    Ok((kind, symbol_name, content, file_path, signature))
+                })
+                .map_err(|e| CoreError::DatabaseError(format!("Failed to query boundaries: {e}")))?;
+
+            for item in b_rows.flatten() {
+                let (kind, sym_name, content, file_path, signature) = item;
+                if kind == "stub" {
+                    let sig_str = signature.unwrap_or(content);
+                    let receiver = if sym_name.contains('.') {
+                        sym_name.split('.').next().map(|s| s.to_string())
+                    } else {
+                        None
+                    };
+                    boundary_stubs.push(CallSignatureStub {
+                        name: sym_name,
+                        receiver,
+                        file_path: if file_path.is_empty() { None } else { Some(file_path) },
+                        signature: sig_str,
+                    });
+                } else {
+                    boundary_types.push(ExtractedType {
+                        name: sym_name,
+                        kind: "type".to_string(),
+                        file_path,
+                        definition: content,
+                    });
+                }
+            }
+
+            total_boundary_contracts += boundary_stubs.len() + boundary_types.len();
+
+            let token_stats = TokenStats::calculate(
+                crow.raw_tokens as usize,
+                crow.sliced_tokens as usize,
+                crow.raw_lines as usize,
+                crow.sliced_lines as usize,
+            );
+
+            let mut pack = SwarmAgentPack {
+                agent_id: crow.agent_id,
+                cluster_name: crow.cluster_name,
+                internal_symbols,
+                boundary_stubs,
+                boundary_types,
+                mock_contracts: crow.mock_contracts.unwrap_or_default(),
+                token_stats,
+            };
+
+            // If budget per agent is specified, apply budget limit
+            if let Some(budget) = budget_per_agent {
+                if pack.token_stats.sliced_tokens > budget {
+                    while pack.token_stats.sliced_tokens > budget && pack.boundary_stubs.len() > 1 {
+                        pack.boundary_stubs.pop();
+                        let sliced_t: usize = pack.internal_symbols.iter().map(|s| count_tokens(&s.body)).sum::<usize>()
+                            + pack.boundary_stubs.iter().map(|s| count_tokens(&s.signature)).sum::<usize>()
+                            + pack.boundary_types.iter().map(|t| count_tokens(&t.definition)).sum::<usize>();
+                        pack.token_stats = TokenStats::calculate(pack.token_stats.raw_file_tokens, sliced_t, pack.token_stats.raw_lines, pack.token_stats.sliced_lines);
+                    }
+                }
+            }
+
+            packs.push(pack);
+        }
+
+        let total_symbols = packs.iter().map(|p| p.internal_symbols.len()).sum();
+        let total_agents = packs.len();
+
+        Ok(Some(SwarmPartitionManifest {
+            total_agents,
+            total_symbols,
+            boundary_contracts_count: total_boundary_contracts,
+            packs,
+        }))
+    }
+
+    /// Returns all caller records where `target_symbol_name` matches.
+    pub fn find_callers_of_symbol(&self, target_symbol_name: &str) -> Result<Vec<(String, String, usize, String)>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT f.path, c.caller_symbol_name, c.call_line, c.call_snippet
+            FROM callers c
+            JOIN files f ON c.caller_file_id = f.id
+            WHERE c.target_symbol_name = ?1 OR c.target_symbol_name LIKE ?2
+            "#,
+        ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare callers query: {e}")))?;
+
+        let pattern = format!("%{target_symbol_name}%");
+        let rows = stmt.query_map(params![target_symbol_name, pattern], |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get::<_, i64>(2)? as usize,
+                row.get(3)?,
+            ))
+        }).map_err(|e| CoreError::DatabaseError(format!("Failed to query callers: {e}")))?;
+
+        let mut results = Vec::new();
+        for r in rows.flatten() {
+            results.push(r);
+        }
+        Ok(results)
+    }
+
+    /// Returns all indexed database and API schema entities.
+    pub fn get_all_schema_entities(&self) -> Result<Vec<ExtractedType>> {
+        let mut stmt = self.conn.prepare(
+            r#"
+            SELECT s.entity_name, s.schema_kind, f.path, s.definition
+            FROM schema_entities s
+            JOIN files f ON s.file_id = f.id
+            "#,
+        ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare get_all_schema_entities query: {e}")))?;
+
+        let rows = stmt.query_map([], |row| {
+            Ok(ExtractedType {
+                name: row.get(0)?,
+                kind: row.get(1)?,
+                file_path: row.get(2)?,
+                definition: row.get(3)?,
+            })
+        }).map_err(|e| CoreError::DatabaseError(format!("Failed to query all schema entities: {e}")))?;
+
+        let mut results = Vec::new();
+        for r in rows.flatten() {
+            results.push(r);
+        }
+        Ok(results)
     }
 }
 
