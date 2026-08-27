@@ -5,8 +5,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Built with Rust](https://img.shields.io/badge/Built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Model Context Protocol](https://img.shields.io/badge/MCP-2024--11--05-green.svg)](https://modelcontextprotocol.io)
-[![Tests Passing](https://img.shields.io/badge/Tests-705%2B%20Passing-brightgreen.svg)]()
-[![Version](https://img.shields.io/badge/Version-2.0.0-purple.svg)]()
+[![Tests Passing](https://img.shields.io/badge/Tests-1231%2B%20Passing-brightgreen.svg)]()
+[![Version](https://img.shields.io/badge/Version-3.0.0-purple.svg)]()
 
 ---
 
@@ -278,18 +278,27 @@ The `ctxcut` CLI provides 20 dedicated subcommands:
 ctxcut setup-mcp
 ```
 
-### Complete MCP Tools Suite (10 Tools)
+### Complete MCP Tools Suite (19 Tools)
 
 | Tool Name | Key Parameters | Description |
 | :--- | :--- | :--- |
 | `get_symbol_slice` | `path` (req), `symbol` (req, single/batch), `depth` (opt), `budget` (opt), `no_types` (opt), `no_calls` (opt) | Extracts AST slice with hoisted types, implementors, stitched schemas, and call signatures. |
 | `get_impact_slice` | `symbol` (req), `path` (opt), `root_dir` (opt), `budget` (opt), `limit` (opt) | Reverse impact analysis tracing all upstream call sites of a symbol across the workspace. |
 | `get_trace_slice` | `entry` (req), `root_dir` (opt), `depth` (opt, def 8), `budget` (opt, def 1500) | End-to-end execution pathway tracing from entry points down to database and service sinks. |
+| `get_fullstack_trace` | `entry` (req), `method` (opt), `path` (opt), `budget` (opt) | Cross-boundary execution trace linking frontend API calls to backend handlers and DB DDL. |
+| `get_intent_slice` | `intent` (req), `budget` (opt), `limit` (opt), `root_dir` (opt) | Semantic intent-driven AST slicing combining natural language BM25 matching with AST traversal. |
 | `get_diff_slice` | `path` (opt), `staged` (opt), `budget` (opt) | Extracts contextual AST slices for all functions modified in git working tree or staged changes. |
 | `get_workspace_overview` | `path` (opt), `depth` (opt), `budget` (opt) | High-speed symbol outline of workspace files without reading full bodies (90–95% savings). |
 | `get_route_slice` | `method` (req), `path` (req), `root_dir` (opt), `budget` (opt) | Resolves web API route handler, controllers, DTO schemas, and middleware chains. |
 | `get_test_context` | `path` (req), `symbol` (req), `framework` (opt), `budget` (opt) | Generates isolated test bundle with parameter/return types, mock signatures, and fixtures. |
 | `patch_symbol` | `path` (req), `symbol` (req), `code` (req), `dry_run` (opt) | Surgically replaces a function/class in source code with AST boundary alignment & syntax checks. |
+| `patch_transaction` | `changes` (req), `dry_run` (opt), `typecheck` (opt) | Atomic multi-file batch AST refactoring with compiler dry-run verification and auto-rollback. |
+| `pack_agent_context` | `budget` (opt), `clusters` (opt), `root_dir` (opt) | Partitions repository into isolated, non-overlapping AST context bundles for multi-agent swarms. |
+| `verify_patch` | `target` (req), `code` (req), `dry_run` (opt) | Typecheck dry-run (`cargo check`, `tsc`, `mypy`) with automatic RAII rollback guard. |
+| `semantic_diff` | `path` (opt), `staged` (opt), `budget` (opt) | Token-efficient structural AST diff calculating signature/type deltas & ROI savings. |
+| `refactor_rename` | `target` (req), `to` (req), `dry_run` (opt) | Multi-file AST-accurate symbol renaming updating declarations, usages, and imports. |
+| `index_workspace` | `rebuild` (opt), `stats` (opt) | Manages persistent SQLite index (.ctxcut/index.db) for sub-5ms repository queries. |
+| `query_ast` | `pattern` (opt), `preset` (opt), `lang` (opt) | Structural Tree-sitter S-expression query search with built-in presets. |
 | `analyze_token_stats` | `path` (req), `fast` (opt) | Calculates repository or file token savings and optimization statistics with `.gitignore` compliance. |
 | `get_metrics` | `format` (opt), `clear` (opt) | Inspects cumulative lifetime token reduction telemetry, dollar ROI analytics, and language distributions. |
 
@@ -329,17 +338,17 @@ ctxcut setup-mcp
 
 ## 🧪 Quality, Performance & Test Verification
 
-`ctxcut v2.0` is verified against an extensive 5-tier test matrix:
+`ctxcut v3.0` is verified against an extensive 56-suite test matrix with 1,231 passed tests:
 
 | Test Suite | Scope & Coverage | Tests | Status |
 | :--- | :--- | :---: | :--- |
-| **Tier 1** | Feature Coverage across F1..F15 (Callers, Trace, SFCs, ORMs, Verify, Index, Query) | **298** | ✅ 100% Pass |
-| **Tier 2** | Boundary & Corner Cases (Cycles, empty/large files, syntax fault recovery, Unicode paths) | **250** | ✅ 100% Pass |
-| **Tier 3** | Pairwise Cross-Feature Combinations (Callers+Trace, SFC+Patch, ORM+Diff, Index+Query) | **74** | ✅ 100% Pass |
-| **Tier 4** | Real-World Polyglot Microservices (E-Commerce, Auth, Billing, Inventory, Trace workflows) | **63** | ✅ 100% Pass |
-| **Tier 5** | Telemetry, Ratatui Dashboard, IDE Setup, Adversarial Stress & Concurrency | **20** | ✅ 100% Pass |
-| **Unit & Benches** | Language Adapters, AST Patcher, Schema Stitchers, Criterion benchmarks | **35+** | ✅ 100% Pass |
-| **Total** | **705+ Tests Verified** | **705+** | **✅ 100% Pass** |
+| **Tier 1 (F1..F19)** | Feature Coverage across Callers, Trace, Full-Stack, Intent Slicing, Batch Refactoring, Swarm Partitioning | **480+** | ✅ 100% Pass |
+| **Tier 2** | Boundary & Corner Cases (Cycles, empty/large files, syntax fault recovery, Unicode paths) | **380+** | ✅ 100% Pass |
+| **Tier 3** | Pairwise Cross-Feature Combinations (FullStack+Schema, Intent+Trace, Batch+Verify) | **140+** | ✅ 100% Pass |
+| **Tier 4** | Real-World Polyglot Microservices (E-Commerce, Auth, Billing, Inventory, Trace workflows) | **110+** | ✅ 100% Pass |
+| **Tier 5** | Telemetry, Ratatui Dashboard, IDE Setup, Adversarial Stress & Concurrency | **80+** | ✅ 100% Pass |
+| **Unit & Benches** | Language Adapters, AST Patcher, Schema Stitchers, Criterion benchmarks | **41+** | ✅ 100% Pass |
+| **Total** | **1,231 Tests Verified (56 Suites)** | **1,231** | **✅ 100% Pass** |
 
 ---
 
