@@ -67,7 +67,7 @@ ctxcut/
 | M3 | Multi-Symbol Transactional Refactoring | Batch AST patcher, MultiFileRollbackGuard, compiler dry-runs, AST diagnostic mapping | none | DONE (Implemented & verified in ctxcut_core::refactor::batch) |
 | M4 | Swarm Context Partitioning | Graph clustering, non-overlapping AST slices, boundary contract stub generation | M2 | DONE (Implemented & verified in ctxcut_core::swarm) |
 | M5 | CLI & MCP Tooling Integration | `ctxcut_cli` commands, `ctxcut_mcp` tools, zero Clippy warnings, dogfooding | M1, M2, M3, M4 | DONE (CLI subcommands & 19 MCP tools integrated) |
-| M6 | Release Pipeline & Git Synchronization | Full test pass verification, `cargo install`, conventional commit & GitHub push | M5, E2E | IN_PROGRESS (8fa0e260-45db-4b5b-8ec4-c64729d6c5e0) |
+| M6 | Release Pipeline & Git Synchronization | Full test pass verification, `cargo install`, conventional commit & GitHub push | M5, E2E | DONE (1,123 tests pass, cargo install, commit 4a7598e pushed) |
 
 ## Interface Contracts
 
