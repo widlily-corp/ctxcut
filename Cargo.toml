@@ -80,7 +80,7 @@ name = "e2e_slice_benchmark"
 harness = false
 
 [workspace.package]
-version = "2.0.0"
+version = "2.1.0"
 edition = "2021"
 rust-version = "1.80"
 authors = ["ctxcut contributors"]
@@ -89,9 +89,9 @@ repository = "https://github.com/widlily-corp/ctxcut"
 
 [workspace.dependencies]
 # Internal workspace crates
-ctxcut_core = { path = "crates/ctxcut_core", version = "2.0.0" }
-ctxcut_cli = { path = "crates/ctxcut_cli", version = "2.0.0" }
-ctxcut_mcp = { path = "crates/ctxcut_mcp", version = "2.0.0" }
+ctxcut_core = { path = "crates/ctxcut_core", version = "2.1.0" }
+ctxcut_cli = { path = "crates/ctxcut_cli", version = "2.1.0" }
+ctxcut_mcp = { path = "crates/ctxcut_mcp", version = "2.1.0" }
 
 # AST & Parsing
 tree-sitter = "0.24"
@@ -133,6 +133,13 @@ crossterm = { version = "0.28", features = ["event-stream"] }
 insta = { version = "1.48", features = ["yaml", "json", "redactions"] }
 criterion = { version = "0.5", features = ["html_reports"] }
 tempfile = "3.17"
+
+# Networking & Release Automation
+ureq = { version = "2.10", features = ["tls", "json"] }
+zip = { version = "2.2", default-features = false, features = ["deflate"] }
+tar = "0.4"
+flate2 = "1.0"
+self-replace = "1.5"
 
 [workspace.lints.rust]
 missing_docs = "warn"
