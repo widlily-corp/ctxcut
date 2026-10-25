@@ -32,6 +32,13 @@ impl MarkdownFormatter {
         // Section 1: Target Implementation
         out.push_str("#### 1. Target Implementation (Full Body)\n");
         let _ = writeln!(out, "```{lang_tag}");
+        if let Some(ref header) = result.semantic_header {
+            let comments = header.to_header_comments();
+            if !comments.trim().is_empty() && !sym.body.contains("// [META]") {
+                out.push_str(comments.trim());
+                out.push('\n');
+            }
+        }
         if let Some(ref doc) = sym.doc_comment {
             let trimmed_doc = doc.trim();
             if !trimmed_doc.is_empty() && !sym.body.contains(trimmed_doc) {

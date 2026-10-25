@@ -34,7 +34,14 @@ impl DjangoFastApiAnalyzer {
             let t = line.trim();
 
             // FastAPI route decorators: @app.get("/..."), @router.post("/...")
-            if t.starts_with('@') && (t.contains(".get(") || t.contains(".post(") || t.contains(".put(") || t.contains(".delete(") || t.contains(".patch(") || t.contains(".api_route(")) {
+            if t.starts_with('@')
+                && (t.contains(".get(")
+                    || t.contains(".post(")
+                    || t.contains(".put(")
+                    || t.contains(".delete(")
+                    || t.contains(".patch(")
+                    || t.contains(".api_route("))
+            {
                 for method in &["get", "post", "put", "delete", "patch"] {
                     let pat = format!(".{method}(");
                     if t.contains(&pat) {
@@ -47,13 +54,21 @@ impl DjangoFastApiAnalyzer {
                                     let nt = next_line.trim();
                                     if nt.starts_with("def ") || nt.starts_with("async def ") {
                                         handler_sig = nt.to_string();
-                                        let clean = nt.trim_start_matches("async ").trim_start_matches("def ");
-                                        handler_name = clean.split(['(', ':']).next().unwrap_or("handler").trim().to_string();
+                                        let clean = nt
+                                            .trim_start_matches("async ")
+                                            .trim_start_matches("def ");
+                                        handler_name = clean
+                                            .split(['(', ':'])
+                                            .next()
+                                            .unwrap_or("handler")
+                                            .trim()
+                                            .to_string();
                                         break;
                                     }
                                 }
 
-                                let (req_dto, res_dto) = extract_fastapi_dtos(source, t, &handler_sig, &file_path);
+                                let (req_dto, res_dto) =
+                                    extract_fastapi_dtos(source, t, &handler_sig, &file_path);
 
                                 routes.push(ServerRouteEndpoint {
                                     framework: "fastapi".to_string(),
@@ -113,7 +128,12 @@ fn extract_fastapi_dtos(
             for param in params.split(',') {
                 if let Some((_p_name, p_type)) = param.split_once(':') {
                     let clean_type = p_type.split('=').next().unwrap_or(p_type).trim();
-                    if clean_type.contains("BaseModel") || clean_type.ends_with("Schema") || clean_type.ends_with("Dto") || clean_type.ends_with("Request") || clean_type.ends_with("In") {
+                    if clean_type.contains("BaseModel")
+                        || clean_type.ends_with("Schema")
+                        || clean_type.ends_with("Dto")
+                        || clean_type.ends_with("Request")
+                        || clean_type.ends_with("In")
+                    {
                         req_dto = find_python_model(source, clean_type, file_path);
                     }
                 }

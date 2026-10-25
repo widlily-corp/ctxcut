@@ -39,11 +39,7 @@ fn test_adversarial_deeply_nested_tauri_and_workspace_crates() {
     let tauri_cargo = tauri_app.join("Cargo.toml");
     fs::write(&tauri_cargo, "[package]\nname = \"desktop-tauri\"\n").unwrap();
     let commands_rs = deep_rs_dir.join("commands.rs");
-    fs::write(
-        &commands_rs,
-        "pub fn do_stuff() -> i32 {\n    42\n}\n",
-    )
-    .unwrap();
+    fs::write(&commands_rs, "pub fn do_stuff() -> i32 {\n    42\n}\n").unwrap();
 
     let shared_crate = root.join("crates").join("shared-utils");
     fs::create_dir_all(shared_crate.join("src")).unwrap();
@@ -53,8 +49,9 @@ fn test_adversarial_deeply_nested_tauri_and_workspace_crates() {
     fs::write(&shared_rs, "pub fn helper() {}\n").unwrap();
 
     // 1. Verify deeply nested Tauri Rust file resolves to apps/desktop/src-tauri
-    let tauri_res = TypecheckerDetector::detect_resolution(root, &commands_rs, SupportedLanguage::Rust)
-        .expect("Must resolve deeply nested Tauri Cargo.toml");
+    let tauri_res =
+        TypecheckerDetector::detect_resolution(root, &commands_rs, SupportedLanguage::Rust)
+            .expect("Must resolve deeply nested Tauri Cargo.toml");
     assert_eq!(tauri_res.working_dir, tauri_app);
     assert_eq!(tauri_res.manifest_path, Some(tauri_cargo));
     assert!(tauri_res.command.contains("cargo check"));
@@ -62,8 +59,9 @@ fn test_adversarial_deeply_nested_tauri_and_workspace_crates() {
     assert!(tauri_res.command.contains("Cargo.toml"));
 
     // 2. Verify shared crate Rust file resolves to crates/shared-utils
-    let shared_res = TypecheckerDetector::detect_resolution(root, &shared_rs, SupportedLanguage::Rust)
-        .expect("Must resolve crates/shared-utils Cargo.toml");
+    let shared_res =
+        TypecheckerDetector::detect_resolution(root, &shared_rs, SupportedLanguage::Rust)
+            .expect("Must resolve crates/shared-utils Cargo.toml");
     assert_eq!(shared_res.working_dir, shared_crate);
     assert_eq!(shared_res.manifest_path, Some(shared_cargo));
     assert!(shared_res.command.contains("cargo check"));
@@ -81,7 +79,11 @@ fn test_adversarial_ts_monorepo_priority_hierarchy() {
 
     let client_dir = root.join("packages").join("client");
     fs::create_dir_all(client_dir.join("src").join("components")).unwrap();
-    fs::write(client_dir.join("package.json"), "{\"name\":\"@mono/client\"}").unwrap();
+    fs::write(
+        client_dir.join("package.json"),
+        "{\"name\":\"@mono/client\"}",
+    )
+    .unwrap();
     let client_tsconfig = client_dir.join("tsconfig.json");
     fs::write(&client_tsconfig, "{\"extends\":\"../../tsconfig.json\"}").unwrap();
     let header_tsx = client_dir.join("src").join("components").join("Header.tsx");
@@ -100,19 +102,22 @@ fn test_adversarial_ts_monorepo_priority_hierarchy() {
     fs::write(&shared_ts, "export type ID = string;").unwrap();
 
     // 1. Client TS file must pick closest tsconfig in packages/client
-    let client_res = TypecheckerDetector::detect_resolution(root, &header_tsx, SupportedLanguage::TypeScript)
-        .expect("Must resolve client tsconfig");
+    let client_res =
+        TypecheckerDetector::detect_resolution(root, &header_tsx, SupportedLanguage::TypeScript)
+            .expect("Must resolve client tsconfig");
     assert_eq!(client_res.working_dir, client_dir);
     assert_eq!(client_res.manifest_path, Some(client_tsconfig));
 
     // 2. Server TS file traverses upward and finds root tsconfig.json (priority 1)
-    let server_res = TypecheckerDetector::detect_resolution(root, &server_ts, SupportedLanguage::TypeScript)
-        .expect("Must resolve server ts");
+    let server_res =
+        TypecheckerDetector::detect_resolution(root, &server_ts, SupportedLanguage::TypeScript)
+            .expect("Must resolve server ts");
     assert_eq!(server_res.command, "npx tsc --noEmit");
 
     // 3. Shared TS file finds root tsconfig
-    let shared_res = TypecheckerDetector::detect_resolution(root, &shared_ts, SupportedLanguage::TypeScript)
-        .expect("Must resolve shared ts");
+    let shared_res =
+        TypecheckerDetector::detect_resolution(root, &shared_ts, SupportedLanguage::TypeScript)
+            .expect("Must resolve shared ts");
     assert_eq!(shared_res.working_dir, root);
     assert_eq!(shared_res.manifest_path, Some(root_tsconfig));
 }
@@ -128,7 +133,11 @@ fn test_adversarial_go_multimodule_and_nested_packages() {
     let auth_mod = auth_mod_dir.join("go.mod");
     fs::write(&auth_mod, "module company/auth\n\ngo 1.22\n").unwrap();
     let token_go = crypto_dir.join("token.go");
-    fs::write(&token_go, "package crypto\n\nfunc Gen() string { return \"\" }\n").unwrap();
+    fs::write(
+        &token_go,
+        "package crypto\n\nfunc Gen() string { return \"\" }\n",
+    )
+    .unwrap();
 
     let gw_mod_dir = root.join("services").join("gateway");
     fs::create_dir_all(&gw_mod_dir).unwrap();
@@ -181,8 +190,9 @@ fn test_adversarial_python_relative_path_and_manifest_formats() {
     assert!(ml_res.command.contains("train.py"));
 
     // 2. Setup.py uses python -m py_compile
-    let api_res = TypecheckerDetector::detect_resolution(root, &routes_py, SupportedLanguage::Python)
-        .expect("Must resolve setup.py");
+    let api_res =
+        TypecheckerDetector::detect_resolution(root, &routes_py, SupportedLanguage::Python)
+            .expect("Must resolve setup.py");
     assert_eq!(api_res.working_dir, api_dir);
     assert_eq!(api_res.manifest_path, Some(setup_py));
     assert!(api_res.command.starts_with("python -m py_compile \""));
@@ -202,8 +212,9 @@ fn test_adversarial_other_languages_monorepo() {
     let java_file = java_sub.join("src").join("Service.java");
     fs::write(&java_file, "class Service {}").unwrap();
 
-    let java_res = TypecheckerDetector::detect_resolution(root, &java_file, SupportedLanguage::Java)
-        .expect("Must resolve pom.xml");
+    let java_res =
+        TypecheckerDetector::detect_resolution(root, &java_file, SupportedLanguage::Java)
+            .expect("Must resolve pom.xml");
     assert_eq!(java_res.working_dir, java_sub);
     assert_eq!(java_res.command, "mvn compile -DskipTests");
 
@@ -228,8 +239,9 @@ fn test_adversarial_other_languages_monorepo() {
     let svelte_file = svelte_pkg.join("src").join("App.svelte");
     fs::write(&svelte_file, "<script></script>").unwrap();
 
-    let svelte_res = TypecheckerDetector::detect_resolution(root, &svelte_file, SupportedLanguage::Svelte)
-        .expect("Must resolve svelte tsconfig");
+    let svelte_res =
+        TypecheckerDetector::detect_resolution(root, &svelte_file, SupportedLanguage::Svelte)
+            .expect("Must resolve svelte tsconfig");
     assert_eq!(svelte_res.working_dir, svelte_pkg);
     assert_eq!(svelte_res.command, "npx svelte-check");
 
@@ -241,8 +253,9 @@ fn test_adversarial_other_languages_monorepo() {
     let astro_file = astro_pkg.join("src").join("index.astro");
     fs::write(&astro_file, "---\n---\n<html></html>").unwrap();
 
-    let astro_res = TypecheckerDetector::detect_resolution(root, &astro_file, SupportedLanguage::Astro)
-        .expect("Must resolve astro package.json");
+    let astro_res =
+        TypecheckerDetector::detect_resolution(root, &astro_file, SupportedLanguage::Astro)
+            .expect("Must resolve astro package.json");
     assert_eq!(astro_res.working_dir, astro_pkg);
     assert_eq!(astro_res.command, "npx astro check");
 }
@@ -264,7 +277,11 @@ fn test_adversarial_typechecker_runner_cwd_execution() {
     };
 
     let result = TypecheckerRunner::run(test_cmd, &sub_dir, Duration::from_secs(5));
-    assert!(result.success, "Command should succeed in sub_dir: {:?}", result);
+    assert!(
+        result.success,
+        "Command should succeed in sub_dir: {:?}",
+        result
+    );
     if cfg!(target_os = "windows") {
         assert!(result.stdout.to_lowercase().contains("true"));
     }
@@ -326,21 +343,15 @@ fn test_adversarial_batch_transaction_polyglot_atomic_rollback() {
     assert_eq!(fs::read_to_string(&ts_file).unwrap(), orig_ts);
 
     // Case 2: Transaction apply: true with mock failing typechecker -> must rollback!
-    let fail_cmd = if cfg!(target_os = "windows") {
-        "exit 1"
-    } else {
-        "exit 1"
-    };
+    let fail_cmd = "exit 1";
 
     let req_fail = PatchTransactionRequest {
         workspace_root: Some(root.to_path_buf()),
-        patches: vec![
-            SymbolPatchUnit {
-                file_path: rs_file.clone(),
-                symbol_query: "calculate".to_string(),
-                replacement_code: "pub fn calculate(val: i32) -> i32 {\n    val * 8\n}".to_string(),
-            },
-        ],
+        patches: vec![SymbolPatchUnit {
+            file_path: rs_file.clone(),
+            symbol_query: "calculate".to_string(),
+            replacement_code: "pub fn calculate(val: i32) -> i32 {\n    val * 8\n}".to_string(),
+        }],
         typechecker: Some(fail_cmd.to_string()),
         apply: true, // requested apply, but typechecker fails
         timeout_ms: Some(5000),

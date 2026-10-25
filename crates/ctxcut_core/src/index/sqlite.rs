@@ -393,10 +393,15 @@ impl IndexEngine {
 
         // 2. Process on-disk files
         for disk_path in on_disk_paths {
-            let (lang_opt, lang_str) = if let Some(lang) = SupportedLanguage::from_path(&disk_path) {
+            let (lang_opt, lang_str) = if let Some(lang) = SupportedLanguage::from_path(&disk_path)
+            {
                 (Some(lang), lang.as_str().to_string())
             } else {
-                let ext = disk_path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+                let ext = disk_path
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("")
+                    .to_lowercase();
                 if matches!(ext.as_str(), "sql" | "prisma" | "graphql" | "gql" | "proto") {
                     (None, ext)
                 } else {
@@ -526,7 +531,12 @@ impl IndexEngine {
             .conn
             .query_row("SELECT COUNT(*) FROM clusters", [], |r| r.get(0))
             .unwrap_or(0);
-        if cluster_count == 0 || files_added > 0 || files_updated > 0 || files_deleted > 0 || options.rebuild {
+        if cluster_count == 0
+            || files_added > 0
+            || files_updated > 0
+            || files_deleted > 0
+            || options.rebuild
+        {
             let _ = self.compute_and_persist_swarm_clusters(2);
         }
 
@@ -634,11 +644,13 @@ impl IndexEngine {
                     for (&field, term_map) in &sym_doc.field_term_freqs {
                         let field_len = sym_doc.field_lengths.get(&field).copied().unwrap_or(0);
                         for (term, &freq) in term_map {
-                            let term_id: i64 = tx.query_row(
-                                "SELECT id FROM bm25_terms WHERE term = ?1",
-                                params![term],
-                                |r| r.get(0),
-                            ).unwrap_or(0);
+                            let term_id: i64 = tx
+                                .query_row(
+                                    "SELECT id FROM bm25_terms WHERE term = ?1",
+                                    params![term],
+                                    |r| r.get(0),
+                                )
+                                .unwrap_or(0);
 
                             if term_id > 0 {
                                 let _ = tx.execute(
@@ -717,8 +729,14 @@ impl IndexEngine {
         // 1. Server route extraction
         let routes = extract_server_routes(file_path, content);
         for route in routes {
-            let req_dto_str = route.request_dto_type.as_ref().map(|d| d.definition.clone());
-            let res_dto_str = route.response_dto_type.as_ref().map(|d| d.definition.clone());
+            let req_dto_str = route
+                .request_dto_type
+                .as_ref()
+                .map(|d| d.definition.clone());
+            let res_dto_str = route
+                .response_dto_type
+                .as_ref()
+                .map(|d| d.definition.clone());
             let _ = tx.execute(
                 r#"
                 INSERT INTO routes (file_id, framework, http_method, route_path, handler_symbol, handler_signature, request_dto, response_dto, start_line, end_line)
@@ -792,35 +810,37 @@ impl IndexEngine {
         ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare route query: {e}")))?;
 
         let pattern = format!("%{route_path}%");
-        let rows = stmt.query_map(params![route_path, pattern], |row| {
-            let req_dto: Option<String> = row.get(6)?;
-            let res_dto: Option<String> = row.get(7)?;
-            let file_path: String = row.get(3)?;
+        let rows = stmt
+            .query_map(params![route_path, pattern], |row| {
+                let req_dto: Option<String> = row.get(6)?;
+                let res_dto: Option<String> = row.get(7)?;
+                let file_path: String = row.get(3)?;
 
-            let req_dto_type = req_dto.map(|d| ExtractedType {
-                name: d.clone(),
-                kind: "dto".to_string(),
-                file_path: file_path.clone(),
-                definition: d,
-            });
-            let response_dto_type = res_dto.map(|d| ExtractedType {
-                name: d.clone(),
-                kind: "dto".to_string(),
-                file_path: file_path.clone(),
-                definition: d,
-            });
+                let req_dto_type = req_dto.map(|d| ExtractedType {
+                    name: d.clone(),
+                    kind: "dto".to_string(),
+                    file_path: file_path.clone(),
+                    definition: d,
+                });
+                let response_dto_type = res_dto.map(|d| ExtractedType {
+                    name: d.clone(),
+                    kind: "dto".to_string(),
+                    file_path: file_path.clone(),
+                    definition: d,
+                });
 
-            Ok(ServerRouteEndpoint {
-                framework: row.get(0)?,
-                http_method: row.get(1)?,
-                route_path: row.get(2)?,
-                handler_file: file_path,
-                handler_symbol: row.get(4)?,
-                handler_signature: row.get(5)?,
-                request_dto_type: req_dto_type,
-                response_dto_type,
+                Ok(ServerRouteEndpoint {
+                    framework: row.get(0)?,
+                    http_method: row.get(1)?,
+                    route_path: row.get(2)?,
+                    handler_file: file_path,
+                    handler_symbol: row.get(4)?,
+                    handler_signature: row.get(5)?,
+                    request_dto_type: req_dto_type,
+                    response_dto_type,
+                })
             })
-        }).map_err(|e| CoreError::DatabaseError(format!("Failed to query routes: {e}")))?;
+            .map_err(|e| CoreError::DatabaseError(format!("Failed to query routes: {e}")))?;
 
         let mut results = Vec::new();
         for r in rows.flatten() {
@@ -841,19 +861,23 @@ impl IndexEngine {
         ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare client endpoint query: {e}")))?;
 
         let pattern = format!("%{query}%");
-        let rows = stmt.query_map(params![query, pattern], |row| {
-            Ok(ClientApiCall {
-                client_kind: row.get(0)?,
-                http_method: row.get(1)?,
-                endpoint_url: row.get(2)?,
-                rpc_procedure: row.get(3)?,
-                file_path: row.get(4)?,
-                line_number: row.get::<_, i64>(5)? as usize,
-                call_snippet: row.get(6)?,
-                request_dto: row.get(7)?,
-                response_dto: row.get(8)?,
+        let rows = stmt
+            .query_map(params![query, pattern], |row| {
+                Ok(ClientApiCall {
+                    client_kind: row.get(0)?,
+                    http_method: row.get(1)?,
+                    endpoint_url: row.get(2)?,
+                    rpc_procedure: row.get(3)?,
+                    file_path: row.get(4)?,
+                    line_number: row.get::<_, i64>(5)? as usize,
+                    call_snippet: row.get(6)?,
+                    request_dto: row.get(7)?,
+                    response_dto: row.get(8)?,
+                })
             })
-        }).map_err(|e| CoreError::DatabaseError(format!("Failed to query client endpoints: {e}")))?;
+            .map_err(|e| {
+                CoreError::DatabaseError(format!("Failed to query client endpoints: {e}"))
+            })?;
 
         let mut results = Vec::new();
         for r in rows.flatten() {
@@ -864,24 +888,33 @@ impl IndexEngine {
 
     /// Finds schema entities by entity name or table name in the SQLite index with sub-5ms lookup latency.
     pub fn find_schema_entities(&self, entity_or_table: &str) -> Result<Vec<ExtractedType>> {
-        let mut stmt = self.conn.prepare(
-            r#"
+        let mut stmt = self
+            .conn
+            .prepare(
+                r#"
             SELECT s.entity_name, s.schema_kind, f.path, s.definition
             FROM schema_entities s
             JOIN files f ON s.file_id = f.id
             WHERE s.entity_name = ?1 OR s.table_name = ?1 OR s.entity_name LIKE ?2
             "#,
-        ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare schema query: {e}")))?;
+            )
+            .map_err(|e| {
+                CoreError::DatabaseError(format!("Failed to prepare schema query: {e}"))
+            })?;
 
         let pattern = format!("%{entity_or_table}%");
-        let rows = stmt.query_map(params![entity_or_table, pattern], |row| {
-            Ok(ExtractedType {
-                name: row.get(0)?,
-                kind: row.get(1)?,
-                file_path: row.get(2)?,
-                definition: row.get(3)?,
+        let rows = stmt
+            .query_map(params![entity_or_table, pattern], |row| {
+                Ok(ExtractedType {
+                    name: row.get(0)?,
+                    kind: row.get(1)?,
+                    file_path: row.get(2)?,
+                    definition: row.get(3)?,
+                })
             })
-        }).map_err(|e| CoreError::DatabaseError(format!("Failed to query schema entities: {e}")))?;
+            .map_err(|e| {
+                CoreError::DatabaseError(format!("Failed to query schema entities: {e}"))
+            })?;
 
         let mut results = Vec::new();
         for r in rows.flatten() {
@@ -900,35 +933,37 @@ impl IndexEngine {
             "#,
         ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare get_all_routes query: {e}")))?;
 
-        let rows = stmt.query_map([], |row| {
-            let req_dto: Option<String> = row.get(6)?;
-            let res_dto: Option<String> = row.get(7)?;
-            let file_path: String = row.get(3)?;
+        let rows = stmt
+            .query_map([], |row| {
+                let req_dto: Option<String> = row.get(6)?;
+                let res_dto: Option<String> = row.get(7)?;
+                let file_path: String = row.get(3)?;
 
-            let req_dto_type = req_dto.map(|d| ExtractedType {
-                name: d.clone(),
-                kind: "dto".to_string(),
-                file_path: file_path.clone(),
-                definition: d,
-            });
-            let response_dto_type = res_dto.map(|d| ExtractedType {
-                name: d.clone(),
-                kind: "dto".to_string(),
-                file_path: file_path.clone(),
-                definition: d,
-            });
+                let req_dto_type = req_dto.map(|d| ExtractedType {
+                    name: d.clone(),
+                    kind: "dto".to_string(),
+                    file_path: file_path.clone(),
+                    definition: d,
+                });
+                let response_dto_type = res_dto.map(|d| ExtractedType {
+                    name: d.clone(),
+                    kind: "dto".to_string(),
+                    file_path: file_path.clone(),
+                    definition: d,
+                });
 
-            Ok(ServerRouteEndpoint {
-                framework: row.get(0)?,
-                http_method: row.get(1)?,
-                route_path: row.get(2)?,
-                handler_file: file_path,
-                handler_symbol: row.get(4)?,
-                handler_signature: row.get(5)?,
-                request_dto_type: req_dto_type,
-                response_dto_type,
+                Ok(ServerRouteEndpoint {
+                    framework: row.get(0)?,
+                    http_method: row.get(1)?,
+                    route_path: row.get(2)?,
+                    handler_file: file_path,
+                    handler_symbol: row.get(4)?,
+                    handler_signature: row.get(5)?,
+                    request_dto_type: req_dto_type,
+                    response_dto_type,
+                })
             })
-        }).map_err(|e| CoreError::DatabaseError(format!("Failed to query all routes: {e}")))?;
+            .map_err(|e| CoreError::DatabaseError(format!("Failed to query all routes: {e}")))?;
 
         let mut results = Vec::new();
         for r in rows.flatten() {
@@ -947,19 +982,23 @@ impl IndexEngine {
             "#,
         ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare get_all_client_endpoints query: {e}")))?;
 
-        let rows = stmt.query_map([], |row| {
-            Ok(ClientApiCall {
-                client_kind: row.get(0)?,
-                http_method: row.get(1)?,
-                endpoint_url: row.get(2)?,
-                rpc_procedure: row.get(3)?,
-                file_path: row.get(4)?,
-                line_number: row.get::<_, i64>(5)? as usize,
-                call_snippet: row.get(6)?,
-                request_dto: row.get(7)?,
-                response_dto: row.get(8)?,
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(ClientApiCall {
+                    client_kind: row.get(0)?,
+                    http_method: row.get(1)?,
+                    endpoint_url: row.get(2)?,
+                    rpc_procedure: row.get(3)?,
+                    file_path: row.get(4)?,
+                    line_number: row.get::<_, i64>(5)? as usize,
+                    call_snippet: row.get(6)?,
+                    request_dto: row.get(7)?,
+                    response_dto: row.get(8)?,
+                })
             })
-        }).map_err(|e| CoreError::DatabaseError(format!("Failed to query all client endpoints: {e}")))?;
+            .map_err(|e| {
+                CoreError::DatabaseError(format!("Failed to query all client endpoints: {e}"))
+            })?;
 
         let mut results = Vec::new();
         for r in rows.flatten() {
@@ -969,7 +1008,11 @@ impl IndexEngine {
     }
 
     /// Performs sub-5ms BM25 ranking across persistent indexed symbols in SQLite.
-    pub fn bm25_search_symbols(&self, query: &str, limit: usize) -> Result<Vec<(ExtractedSymbol, f64)>> {
+    pub fn bm25_search_symbols(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<(ExtractedSymbol, f64)>> {
         let keywords = crate::intent::extract_query_keywords(query);
         if keywords.is_empty() {
             return Ok(Vec::new());
@@ -987,12 +1030,19 @@ impl IndexEngine {
         // Compute average field lengths from SQLite
         let mut avg_field_lengths: HashMap<String, f64> = HashMap::new();
         {
-            let mut stmt = self.conn.prepare(
-                "SELECT field, AVG(field_length) FROM bm25_postings GROUP BY field"
-            ).map_err(|e| CoreError::DatabaseError(format!("Failed to query avg field lengths: {e}")))?;
-            let rows = stmt.query_map([], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
-            }).map_err(|e| CoreError::DatabaseError(format!("Failed to read avg field lengths: {e}")))?;
+            let mut stmt = self
+                .conn
+                .prepare("SELECT field, AVG(field_length) FROM bm25_postings GROUP BY field")
+                .map_err(|e| {
+                    CoreError::DatabaseError(format!("Failed to query avg field lengths: {e}"))
+                })?;
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
+                })
+                .map_err(|e| {
+                    CoreError::DatabaseError(format!("Failed to read avg field lengths: {e}"))
+                })?;
             for r in rows.flatten() {
                 avg_field_lengths.insert(r.0, r.1.max(1.0));
             }
@@ -1018,28 +1068,39 @@ impl IndexEngine {
 
             let idf = crate::intent::compute_idf(total_symbols, doc_freq);
 
-            let mut stmt = self.conn.prepare(
-                r#"
+            let mut stmt = self
+                .conn
+                .prepare(
+                    r#"
                 SELECT p.symbol_id, p.field, p.term_freq, p.field_length
                 FROM bm25_postings p
                 JOIN bm25_terms t ON p.term_id = t.id
                 WHERE t.term = ?1
-                "#
-            ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare BM25 query: {e}")))?;
+                "#,
+                )
+                .map_err(|e| {
+                    CoreError::DatabaseError(format!("Failed to prepare BM25 query: {e}"))
+                })?;
 
-            let rows = stmt.query_map(params![term], |row| {
-                Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, i64>(2)? as f64,
-                    row.get::<_, i64>(3)? as f64,
-                ))
-            }).map_err(|e| CoreError::DatabaseError(format!("Failed to execute BM25 query: {e}")))?;
+            let rows = stmt
+                .query_map(params![term], |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, i64>(2)? as f64,
+                        row.get::<_, i64>(3)? as f64,
+                    ))
+                })
+                .map_err(|e| {
+                    CoreError::DatabaseError(format!("Failed to execute BM25 query: {e}"))
+                })?;
 
             for row in rows.flatten() {
                 let (sym_id, field, tf, field_len) = row;
                 let avg_len = avg_field_lengths.get(&field).copied().unwrap_or(1.0);
-                let field_weight = crate::intent::FieldKind::from_field_str(&field).map(|f| f.weight()).unwrap_or(1.0);
+                let field_weight = crate::intent::FieldKind::from_field_str(&field)
+                    .map(|f| f.weight())
+                    .unwrap_or(1.0);
                 let norm = 1.0 - b + b * (field_len / avg_len);
                 let tf_norm = if norm > 0.0 { tf / norm } else { tf };
                 let weighted_tf = field_weight * tf_norm;
@@ -1075,6 +1136,7 @@ impl IndexEngine {
                         doc_comment: row.get(6)?,
                         body: row.get(7)?,
                         language: row.get(8)?,
+                        preprocessor_tag: None,
                     })
                 }
             );
@@ -1094,7 +1156,9 @@ impl IndexEngine {
             .unwrap_or(0);
         let avg_len: f64 = self
             .conn
-            .query_row("SELECT AVG(total_terms) FROM bm25_doc_stats", [], |r| r.get(0))
+            .query_row("SELECT AVG(total_terms) FROM bm25_doc_stats", [], |r| {
+                r.get(0)
+            })
             .unwrap_or(0.0);
         Ok((total_docs, avg_len))
     }
@@ -1120,12 +1184,7 @@ impl IndexEngine {
                     crate::swarm::EdgeKind::Import => "import",
                     crate::swarm::EdgeKind::CoLocated => "colocated",
                 };
-                let _ = edge_stmt.execute(params![
-                    edge.from,
-                    edge.to,
-                    edge.weight,
-                    kind_str,
-                ]);
+                let _ = edge_stmt.execute(params![edge.from, edge.to, edge.weight, kind_str,]);
             }
         }
 
@@ -1206,15 +1265,20 @@ impl IndexEngine {
                 let symbol_count = internal_symbols.len() as i64;
                 let token_count = pack.token_stats.sliced_tokens as i64;
 
-                let mut cluster_stmt = self.conn.prepare(
-                    r#"
+                let mut cluster_stmt = self
+                    .conn
+                    .prepare(
+                        r#"
                     INSERT INTO clusters (
                         total_agents, cluster_index, agent_id, cluster_name, primary_language,
                         symbol_count, token_count, mock_contracts, raw_tokens, sliced_tokens,
                         raw_lines, sliced_lines, created_at
                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
                     "#,
-                ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare cluster insert: {e}")))?;
+                    )
+                    .map_err(|e| {
+                        CoreError::DatabaseError(format!("Failed to prepare cluster insert: {e}"))
+                    })?;
 
                 cluster_stmt.execute(params![
                     target_agents as i64,
@@ -1235,14 +1299,21 @@ impl IndexEngine {
                 let cluster_id = self.conn.last_insert_rowid();
 
                 // Insert cluster symbols
-                let mut sym_stmt = self.conn.prepare(
-                    r#"
+                let mut sym_stmt = self
+                    .conn
+                    .prepare(
+                        r#"
                     INSERT INTO cluster_symbols (
                         cluster_id, symbol_id, symbol_name, file_path, language, signature,
                         doc_comment, body, start_line, end_line, token_count, line_count, is_seed
                     ) VALUES (?1, NULL, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 0)
                     "#,
-                ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare cluster_symbols insert: {e}")))?;
+                    )
+                    .map_err(|e| {
+                        CoreError::DatabaseError(format!(
+                            "Failed to prepare cluster_symbols insert: {e}"
+                        ))
+                    })?;
 
                 for sym in &internal_symbols {
                     let sym_toks = (count_tokens(&sym.signature) + count_tokens(&sym.body)) as i64;
@@ -1268,14 +1339,21 @@ impl IndexEngine {
                 }
 
                 // Insert boundary stubs
-                let mut boundary_stmt = self.conn.prepare(
-                    r#"
+                let mut boundary_stmt = self
+                    .conn
+                    .prepare(
+                        r#"
                     INSERT INTO cluster_boundaries (
                         cluster_id, kind, symbol_name, target_agent_id, content, file_path,
                         start_line, end_line, language, signature, doc_comment
                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
                     "#,
-                ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare cluster_boundaries insert: {e}")))?;
+                    )
+                    .map_err(|e| {
+                        CoreError::DatabaseError(format!(
+                            "Failed to prepare cluster_boundaries insert: {e}"
+                        ))
+                    })?;
 
                 for stub in &boundary_stubs {
                     boundary_stmt.execute(params![
@@ -1328,8 +1406,10 @@ impl IndexEngine {
 
         let target_agents = agents_count.max(1);
 
-        let mut cluster_stmt = self.conn.prepare(
-            r#"
+        let mut cluster_stmt = self
+            .conn
+            .prepare(
+                r#"
             SELECT id, cluster_index, agent_id, cluster_name, primary_language,
                    symbol_count, token_count, mock_contracts, raw_tokens, sliced_tokens,
                    raw_lines, sliced_lines
@@ -1337,7 +1417,10 @@ impl IndexEngine {
             WHERE total_agents = ?1
             ORDER BY cluster_index ASC
             "#,
-        ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare cluster query: {e}")))?;
+            )
+            .map_err(|e| {
+                CoreError::DatabaseError(format!("Failed to prepare cluster query: {e}"))
+            })?;
 
         struct ClusterRow {
             id: i64,
@@ -1423,9 +1506,12 @@ impl IndexEngine {
                         body,
                         start_line: start_line as usize,
                         end_line: end_line as usize,
+                        preprocessor_tag: None,
                     })
                 })
-                .map_err(|e| CoreError::DatabaseError(format!("Failed to query cluster symbols: {e}")))?
+                .map_err(|e| {
+                    CoreError::DatabaseError(format!("Failed to query cluster symbols: {e}"))
+                })?
                 .flatten()
                 .collect();
 
@@ -1447,7 +1533,9 @@ impl IndexEngine {
 
                     Ok((kind, symbol_name, content, file_path, signature))
                 })
-                .map_err(|e| CoreError::DatabaseError(format!("Failed to query boundaries: {e}")))?;
+                .map_err(|e| {
+                    CoreError::DatabaseError(format!("Failed to query boundaries: {e}"))
+                })?;
 
             for item in b_rows.flatten() {
                 let (kind, sym_name, content, file_path, signature) = item;
@@ -1461,7 +1549,11 @@ impl IndexEngine {
                     boundary_stubs.push(CallSignatureStub {
                         name: sym_name,
                         receiver,
-                        file_path: if file_path.is_empty() { None } else { Some(file_path) },
+                        file_path: if file_path.is_empty() {
+                            None
+                        } else {
+                            Some(file_path)
+                        },
                         signature: sig_str,
                     });
                 } else {
@@ -1498,10 +1590,27 @@ impl IndexEngine {
                 if pack.token_stats.sliced_tokens > budget {
                     while pack.token_stats.sliced_tokens > budget && pack.boundary_stubs.len() > 1 {
                         pack.boundary_stubs.pop();
-                        let sliced_t: usize = pack.internal_symbols.iter().map(|s| count_tokens(&s.body)).sum::<usize>()
-                            + pack.boundary_stubs.iter().map(|s| count_tokens(&s.signature)).sum::<usize>()
-                            + pack.boundary_types.iter().map(|t| count_tokens(&t.definition)).sum::<usize>();
-                        pack.token_stats = TokenStats::calculate(pack.token_stats.raw_file_tokens, sliced_t, pack.token_stats.raw_lines, pack.token_stats.sliced_lines);
+                        let sliced_t: usize = pack
+                            .internal_symbols
+                            .iter()
+                            .map(|s| count_tokens(&s.body))
+                            .sum::<usize>()
+                            + pack
+                                .boundary_stubs
+                                .iter()
+                                .map(|s| count_tokens(&s.signature))
+                                .sum::<usize>()
+                            + pack
+                                .boundary_types
+                                .iter()
+                                .map(|t| count_tokens(&t.definition))
+                                .sum::<usize>();
+                        pack.token_stats = TokenStats::calculate(
+                            pack.token_stats.raw_file_tokens,
+                            sliced_t,
+                            pack.token_stats.raw_lines,
+                            pack.token_stats.sliced_lines,
+                        );
                     }
                 }
             }
@@ -1521,25 +1630,35 @@ impl IndexEngine {
     }
 
     /// Returns all caller records where `target_symbol_name` matches.
-    pub fn find_callers_of_symbol(&self, target_symbol_name: &str) -> Result<Vec<(String, String, usize, String)>> {
-        let mut stmt = self.conn.prepare(
-            r#"
+    pub fn find_callers_of_symbol(
+        &self,
+        target_symbol_name: &str,
+    ) -> Result<Vec<(String, String, usize, String)>> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                r#"
             SELECT f.path, c.caller_symbol_name, c.call_line, c.call_snippet
             FROM callers c
             JOIN files f ON c.caller_file_id = f.id
             WHERE c.target_symbol_name = ?1 OR c.target_symbol_name LIKE ?2
             "#,
-        ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare callers query: {e}")))?;
+            )
+            .map_err(|e| {
+                CoreError::DatabaseError(format!("Failed to prepare callers query: {e}"))
+            })?;
 
         let pattern = format!("%{target_symbol_name}%");
-        let rows = stmt.query_map(params![target_symbol_name, pattern], |row| {
-            Ok((
-                row.get(0)?,
-                row.get(1)?,
-                row.get::<_, i64>(2)? as usize,
-                row.get(3)?,
-            ))
-        }).map_err(|e| CoreError::DatabaseError(format!("Failed to query callers: {e}")))?;
+        let rows = stmt
+            .query_map(params![target_symbol_name, pattern], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get::<_, i64>(2)? as usize,
+                    row.get(3)?,
+                ))
+            })
+            .map_err(|e| CoreError::DatabaseError(format!("Failed to query callers: {e}")))?;
 
         let mut results = Vec::new();
         for r in rows.flatten() {
@@ -1550,22 +1669,33 @@ impl IndexEngine {
 
     /// Returns all indexed database and API schema entities.
     pub fn get_all_schema_entities(&self) -> Result<Vec<ExtractedType>> {
-        let mut stmt = self.conn.prepare(
-            r#"
+        let mut stmt = self
+            .conn
+            .prepare(
+                r#"
             SELECT s.entity_name, s.schema_kind, f.path, s.definition
             FROM schema_entities s
             JOIN files f ON s.file_id = f.id
             "#,
-        ).map_err(|e| CoreError::DatabaseError(format!("Failed to prepare get_all_schema_entities query: {e}")))?;
+            )
+            .map_err(|e| {
+                CoreError::DatabaseError(format!(
+                    "Failed to prepare get_all_schema_entities query: {e}"
+                ))
+            })?;
 
-        let rows = stmt.query_map([], |row| {
-            Ok(ExtractedType {
-                name: row.get(0)?,
-                kind: row.get(1)?,
-                file_path: row.get(2)?,
-                definition: row.get(3)?,
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(ExtractedType {
+                    name: row.get(0)?,
+                    kind: row.get(1)?,
+                    file_path: row.get(2)?,
+                    definition: row.get(3)?,
+                })
             })
-        }).map_err(|e| CoreError::DatabaseError(format!("Failed to query all schema entities: {e}")))?;
+            .map_err(|e| {
+                CoreError::DatabaseError(format!("Failed to query all schema entities: {e}"))
+            })?;
 
         let mut results = Vec::new();
         for r in rows.flatten() {

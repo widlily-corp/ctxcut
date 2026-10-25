@@ -50,6 +50,7 @@ impl PaymentGateway for StripeGateway {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice = slicer
@@ -115,6 +116,7 @@ func (p *PaypalProcessor) Charge(amount int) (string, error) {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice = slicer
@@ -171,6 +173,7 @@ export class SlackNotificationService implements NotificationService {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice = slicer
@@ -228,6 +231,7 @@ class S3DataSink(DataSink):
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice = slicer

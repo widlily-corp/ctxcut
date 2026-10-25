@@ -4,13 +4,13 @@
 //! unified diff generation, and atomic live updates.
 
 pub mod formatting;
+pub mod graft;
 pub mod locator;
 pub mod validate;
 
 use crate::error::{CoreError, Result};
 use crate::lang::{LanguageAdapter, LanguageRegistry};
 use crate::model::{PatchResult, SupportedLanguage};
-use crate::parser::ParserManager;
 use std::fs;
 use std::io::Write;
 use std::path::Path;
@@ -19,8 +19,9 @@ pub use formatting::{
     detect_node_base_indentation, generate_unified_diff, normalize_indentation,
     reindent_for_splice, LineEnding,
 };
+pub use graft::{AstGraftEngine, GraftResult, IndentStyle};
 pub use locator::{AstNodeLocator, LocatedNode};
-pub use validate::SyntaxValidator;
+pub use validate::{GraftValidationReport, SyntaxValidator};
 
 /// Bidirectional AST Patcher for surgically replacing functions, classes, and methods.
 pub struct AstPatcher;
@@ -110,51 +111,26 @@ impl AstPatcher {
         symbol_query: &str,
         replacement_code: &str,
     ) -> Result<(PatchResult, String)> {
+        let graft_result = AstGraftEngine::graft_with_adapter(
+            source,
+            adapter,
+            file_path,
+            symbol_query,
+            replacement_code,
+        )?;
+
         let ts_lang = adapter.tree_sitter_language(file_path);
-        let tree = ParserManager::parse_source(source, &ts_lang, file_path)?;
+        let validation_report = SyntaxValidator::validate_graft_in_memory(
+            source,
+            &graft_result.full_patched_source,
+            &ts_lang,
+            file_path,
+        )?;
 
-        let located =
-            AstNodeLocator::locate(tree.root_node(), source, symbol_query, adapter, file_path)?;
+        validation_report.to_result()?;
 
-        let (start, end) = located.byte_range;
-        if start > end || end > source.len() {
-            return Err(CoreError::PatchRangeError {
-                path: file_path.to_path_buf(),
-                start,
-                end,
-                total_bytes: source.len(),
-            });
-        }
-
-        let line_ending = LineEnding::detect(source);
-        let aligned_replacement =
-            reindent_for_splice(replacement_code, &located.base_indentation, line_ending);
-
-        let full_patched_source = format!(
-            "{}{}{}",
-            &source[..start],
-            aligned_replacement,
-            &source[end..]
-        );
-
-        // Pre-write syntax validation guard
-        SyntaxValidator::validate_source(&full_patched_source, &ts_lang, file_path)?;
-
-        // Generate unified diff preview
-        let diff = generate_unified_diff(source, &full_patched_source, file_path, 3);
-        let original_code = source[start..end].to_string();
-
-        let patch_result = PatchResult {
-            file_path: file_path.to_path_buf(),
-            symbol_name: located.symbol_name,
-            original_code,
-            patched_code: aligned_replacement,
-            byte_range: (start, end),
-            diff,
-            applied: false,
-        };
-
-        Ok((patch_result, full_patched_source))
+        let patch_result = graft_result.to_patch_result(false);
+        Ok((patch_result, graft_result.full_patched_source))
     }
 }
 

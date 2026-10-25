@@ -27,6 +27,7 @@ pub fn run_callers_command(
         budget,
         include_types: true,
         include_calls: true,
+        lod: None,
     };
 
     let mut result = ImpactAnalyzer::find_callers(&workspace_root, target, path, &opts)

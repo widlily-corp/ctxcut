@@ -25,6 +25,7 @@ pub fn run_trace_command(
         budget,
         include_types: true,
         include_calls: true,
+        lod: None,
     };
 
     let trace_result = ExecutionTracer::trace(&workspace_root, entry, &opts)

@@ -36,10 +36,7 @@ impl ElectronAnalyzer {
             .and_then(|e| e.to_str())
             .unwrap_or("")
             .to_lowercase();
-        if !matches!(
-            ext.as_str(),
-            "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs"
-        ) {
+        if !matches!(ext.as_str(), "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs") {
             return routes;
         }
 
@@ -70,7 +67,11 @@ impl ElectronAnalyzer {
         let mut unique = Vec::new();
         let mut seen = std::collections::HashSet::new();
         for r in routes {
-            let key = (r.http_method.clone(), r.route_path.clone(), r.handler_symbol.clone());
+            let key = (
+                r.http_method.clone(),
+                r.route_path.clone(),
+                r.handler_symbol.clone(),
+            );
             if seen.insert(key) {
                 unique.push(r);
             }
@@ -131,7 +132,12 @@ impl ElectronAnalyzer {
             "IPC".to_string()
         };
 
-        let sig = format!("ipcMain.{}({:?}, {})", if is_handle { "handle" } else { "on" }, channel_name, handler_symbol);
+        let sig = format!(
+            "ipcMain.{}({:?}, {})",
+            if is_handle { "handle" } else { "on" },
+            channel_name,
+            handler_symbol
+        );
 
         Some(ServerRouteEndpoint {
             framework: "electron".to_string(),
@@ -162,7 +168,8 @@ impl FrameworkAnalyzer for ElectronAnalyzer {
         }
 
         source.contains("ipcMain")
-            || (source.contains("electron") && (source.contains(".handle(") || source.contains(".on(")))
+            || (source.contains("electron")
+                && (source.contains(".handle(") || source.contains(".on(")))
     }
 
     fn enhance_slice(
@@ -187,11 +194,7 @@ fn extract_channel_literal(node: Node<'_>, source: &str) -> Option<String> {
     None
 }
 
-fn scan_electron_fallback(
-    source: &str,
-    file_path: &str,
-    routes: &mut Vec<ServerRouteEndpoint>,
-) {
+fn scan_electron_fallback(source: &str, file_path: &str, routes: &mut Vec<ServerRouteEndpoint>) {
     for line in source.lines() {
         let trimmed = line.trim();
         if trimmed.contains("ipcMain.handle(") || trimmed.contains("ipcMain.handleOnce(") {

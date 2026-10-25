@@ -26,7 +26,10 @@ fn test_adversarial_dynamic_url_templates_and_normalization() {
     // Standard parameter formats
     assert!(matcher.paths_match("/api/v1/users/:id/orders", "/api/v1/users/${id}/orders"));
     assert!(matcher.paths_match("/api/v1/users/{id}/orders", "/api/v1/users/12345/orders"));
-    assert!(matcher.paths_match("/api/v1/users/${userId}/orders", "/api/v1/users/:userId/orders"));
+    assert!(matcher.paths_match(
+        "/api/v1/users/${userId}/orders",
+        "/api/v1/users/:userId/orders"
+    ));
 
     // Deeply nested dynamic segments
     assert!(matcher.paths_match(
@@ -66,10 +69,20 @@ fn test_adversarial_nested_route_groups_polyglot() {
         app.use('/api', v1Router);
     "#;
     let exp_routes = extract_server_routes(Path::new("src/routes/users.ts"), express_code);
-    assert!(exp_routes.len() >= 3, "Expected at least 3 Express routes, found {}", exp_routes.len());
-    assert!(exp_routes.iter().any(|r| r.http_method == "GET" && r.handler_symbol == "getUserOrders"));
-    assert!(exp_routes.iter().any(|r| r.http_method == "POST" && r.handler_symbol == "createOrderHandler"));
-    assert!(exp_routes.iter().any(|r| r.http_method == "DELETE" && r.handler_symbol == "deleteOrderHandler"));
+    assert!(
+        exp_routes.len() >= 3,
+        "Expected at least 3 Express routes, found {}",
+        exp_routes.len()
+    );
+    assert!(exp_routes
+        .iter()
+        .any(|r| r.http_method == "GET" && r.handler_symbol == "getUserOrders"));
+    assert!(exp_routes
+        .iter()
+        .any(|r| r.http_method == "POST" && r.handler_symbol == "createOrderHandler"));
+    assert!(exp_routes
+        .iter()
+        .any(|r| r.http_method == "DELETE" && r.handler_symbol == "deleteOrderHandler"));
 
     // B. Axum nested routers (Rust)
     let axum_nested = r#"
@@ -85,8 +98,12 @@ fn test_adversarial_nested_route_groups_polyglot() {
     "#;
     let axum_routes = extract_server_routes(Path::new("src/user_routes.rs"), axum_nested);
     assert_eq!(axum_routes.len(), 2);
-    assert!(axum_routes.iter().any(|r| r.http_method == "GET" && r.handler_symbol == "get_user_profile"));
-    assert!(axum_routes.iter().any(|r| r.http_method == "POST" && r.handler_symbol == "update_user_profile"));
+    assert!(axum_routes
+        .iter()
+        .any(|r| r.http_method == "GET" && r.handler_symbol == "get_user_profile"));
+    assert!(axum_routes
+        .iter()
+        .any(|r| r.http_method == "POST" && r.handler_symbol == "update_user_profile"));
 
     // C. FastAPI nested router (Python)
     let fastapi_nested = r#"
@@ -129,16 +146,39 @@ fn test_adversarial_custom_client_wrappers_and_trpc() {
         }
     "#;
     let calls = detector.detect_in_file(Path::new("src/services/orders.ts"), client_code);
-    assert_eq!(calls.len(), 3, "Expected 3 detected client calls, found {}", calls.len());
+    assert_eq!(
+        calls.len(),
+        3,
+        "Expected 3 detected client calls, found {}",
+        calls.len()
+    );
 
-    let get_call = calls.iter().find(|c| c.http_method.as_deref() == Some("GET")).unwrap();
-    assert_eq!(get_call.endpoint_url.as_deref(), Some("/api/v1/users/${userId}/orders"));
+    let get_call = calls
+        .iter()
+        .find(|c| c.http_method.as_deref() == Some("GET"))
+        .unwrap();
+    assert_eq!(
+        get_call.endpoint_url.as_deref(),
+        Some("/api/v1/users/${userId}/orders")
+    );
 
-    let post_call = calls.iter().find(|c| c.http_method.as_deref() == Some("POST")).unwrap();
-    assert_eq!(post_call.endpoint_url.as_deref(), Some("/api/v1/users/${userId}/orders"));
+    let post_call = calls
+        .iter()
+        .find(|c| c.http_method.as_deref() == Some("POST"))
+        .unwrap();
+    assert_eq!(
+        post_call.endpoint_url.as_deref(),
+        Some("/api/v1/users/${userId}/orders")
+    );
 
-    let del_call = calls.iter().find(|c| c.http_method.as_deref() == Some("DELETE")).unwrap();
-    assert_eq!(del_call.endpoint_url.as_deref(), Some("/api/v1/orders/${orderId}"));
+    let del_call = calls
+        .iter()
+        .find(|c| c.http_method.as_deref() == Some("DELETE"))
+        .unwrap();
+    assert_eq!(
+        del_call.endpoint_url.as_deref(),
+        Some("/api/v1/orders/${orderId}")
+    );
 
     // B. Nested tRPC Sub-Routers
     let trpc_code = r#"
@@ -153,13 +193,23 @@ fn test_adversarial_custom_client_wrappers_and_trpc() {
         }
     "#;
     let trpc_calls = detector.detect_in_file(Path::new("src/hooks/useBilling.ts"), trpc_code);
-    assert!(trpc_calls.len() >= 3, "Expected at least 3 tRPC calls, found {}", trpc_calls.len());
+    assert!(
+        trpc_calls.len() >= 3,
+        "Expected at least 3 tRPC calls, found {}",
+        trpc_calls.len()
+    );
 
-    let invoice_call = trpc_calls.iter().find(|c| c.rpc_procedure.as_deref() == Some("billing.invoices.getById")).unwrap();
+    let invoice_call = trpc_calls
+        .iter()
+        .find(|c| c.rpc_procedure.as_deref() == Some("billing.invoices.getById"))
+        .unwrap();
     assert_eq!(invoice_call.client_kind, "trpc");
     assert_eq!(invoice_call.http_method.as_deref(), Some("GET"));
 
-    let pay_call = trpc_calls.iter().find(|c| c.rpc_procedure.as_deref() == Some("billing.invoices.pay")).unwrap();
+    let pay_call = trpc_calls
+        .iter()
+        .find(|c| c.rpc_procedure.as_deref() == Some("billing.invoices.pay"))
+        .unwrap();
     assert_eq!(pay_call.client_kind, "trpc");
     assert_eq!(pay_call.http_method.as_deref(), Some("POST"));
 }
@@ -172,20 +222,31 @@ fn test_adversarial_empirical_vulnerabilities_and_edge_cases() {
 
     // Edge Case 1: CamelCase wrapper identifier `customAxios.post` vs `axiosInstance.post`
     // Observation: `customAxios` has uppercase 'A'. `func_text.contains("axios")` is case-sensitive!
-    let camel_case_code = "export async function test() { return customAxios.post('/api/users', {}); }";
+    let camel_case_code =
+        "export async function test() { return customAxios.post('/api/users', {}); }";
     let camel_calls = detector.detect_in_file(Path::new("src/test.ts"), camel_case_code);
     // Documenting empirical behavior:
-    let camel_detected = camel_calls.iter().any(|c| c.endpoint_url.as_deref() == Some("/api/users"));
+    let camel_detected = camel_calls
+        .iter()
+        .any(|c| c.endpoint_url.as_deref() == Some("/api/users"));
 
     // Edge Case 2: Config object axios invocation: axios({ method: 'POST', url: '/api/v1/checkout' })
     let config_obj_code = "export async function checkout() { return axios({ url: '/api/v1/checkout', method: 'POST' }); }";
     let config_calls = detector.detect_in_file(Path::new("src/checkout.ts"), config_obj_code);
-    let config_detected = config_calls.iter().any(|c| c.endpoint_url.as_deref() == Some("/api/v1/checkout"));
+    let config_detected = config_calls
+        .iter()
+        .any(|c| c.endpoint_url.as_deref() == Some("/api/v1/checkout"));
 
     // Edge Case 3: URL template with query parameter: `/api/v1/users/:id/orders?status=active` vs `/api/v1/users/:id/orders`
-    let qp_match = matcher.paths_match("/api/v1/users/:id/orders", "/api/v1/users/123/orders?status=active");
+    let qp_match = matcher.paths_match(
+        "/api/v1/users/:id/orders",
+        "/api/v1/users/123/orders?status=active",
+    );
 
-    println!("Empirical Edge Case Findings: camel_detected={}, config_detected={}, qp_match={}", camel_detected, config_detected, qp_match);
+    println!(
+        "Empirical Edge Case Findings: camel_detected={}, config_detected={}, qp_match={}",
+        camel_detected, config_detected, qp_match
+    );
 }
 
 /// 4. Malformed SQL Migrations, Missing Handlers, and Resilient Degradation
@@ -207,9 +268,13 @@ fn test_adversarial_malformed_sql_and_missing_symbols() {
             unclosed_col VARCHAR(
             ??? INVALID TOKENS !!! ;;;;
         "#
-    ).unwrap();
+    )
+    .unwrap();
 
-    let schemas = extract_schema_entities(mig_dir.join("001_bad_syntax.sql").as_path(), "CREATE TABLE (((( ;;;");
+    let schemas = extract_schema_entities(
+        mig_dir.join("001_bad_syntax.sql").as_path(),
+        "CREATE TABLE (((( ;;;",
+    );
     // Schema parser must not panic; should return empty or gracefully handled entity
     let _ = schemas;
 
@@ -224,7 +289,8 @@ fn test_adversarial_malformed_sql_and_missing_symbols() {
         pub async fn get_status() -> Json<String> {{ Json("ok".into()) }}
         pub fn router() -> Router {{ Router::new().route("/api/v1/health", get(get_status)) }}
         "#
-    ).unwrap();
+    )
+    .unwrap();
 
     let tracer = FullstackExecutionTracer::new();
 
@@ -232,17 +298,28 @@ fn test_adversarial_malformed_sql_and_missing_symbols() {
     let err_res = tracer.trace_api(root, "/api/v1/nonexistent_route_404", Some(1500));
     assert!(err_res.is_err(), "Non-existent route should return error");
     match err_res.unwrap_err() {
-        CoreError::SymbolNotFound { symbol, available_symbols, .. } => {
+        CoreError::SymbolNotFound {
+            symbol,
+            available_symbols,
+            ..
+        } => {
             assert_eq!(symbol, "/api/v1/nonexistent_route_404");
-            assert!(available_symbols.iter().any(|s| s.contains("/api/v1/health")));
+            assert!(available_symbols
+                .iter()
+                .any(|s| s.contains("/api/v1/health")));
         }
         other => panic!("Expected SymbolNotFound error, got {:?}", other),
     }
 
     // D. Tracing with missing client file (backend-only endpoint)
-    let valid_trace = tracer.trace_api(root, "/api/v1/health", Some(1500)).unwrap();
+    let valid_trace = tracer
+        .trace_api(root, "/api/v1/health", Some(1500))
+        .unwrap();
     assert_eq!(valid_trace.query_endpoint, "/api/v1/health");
-    assert!(valid_trace.total_steps >= 5, "Should generate execution steps gracefully even without frontend caller");
+    assert!(
+        valid_trace.total_steps >= 5,
+        "Should generate execution steps gracefully even without frontend caller"
+    );
     assert_eq!(valid_trace.server_route.route_path, "/api/v1/health");
 }
 
@@ -291,7 +368,8 @@ fn test_adversarial_extreme_token_budgets() {
             Router::new().route("/api/v1/large", post(process_large_payload))
         }}
         "#
-    ).unwrap();
+    )
+    .unwrap();
 
     let tracer = FullstackExecutionTracer::new();
 
@@ -304,7 +382,9 @@ fn test_adversarial_extreme_token_budgets() {
     }
 
     // B. Extreme large budget: 10,000 tokens
-    let trace_large = tracer.trace_api(root, "/api/v1/large", Some(10000)).unwrap();
+    let trace_large = tracer
+        .trace_api(root, "/api/v1/large", Some(10000))
+        .unwrap();
     assert_eq!(trace_large.total_steps, trace_large.steps.len());
     assert!(trace_large.stats.sliced_tokens <= 10000);
 
@@ -322,7 +402,11 @@ fn test_adversarial_sqlite_cache_reopen_and_concurrency() {
     let src = root.join("src");
     fs::create_dir_all(&src).unwrap();
     let mut api_file = File::create(src.join("api.ts")).unwrap();
-    writeln!(api_file, "export async function queryData() {{ return fetch('/api/v1/data'); }}").unwrap();
+    writeln!(
+        api_file,
+        "export async function queryData() {{ return fetch('/api/v1/data'); }}"
+    )
+    .unwrap();
 
     // Initialize and sync
     {
@@ -334,8 +418,13 @@ fn test_adversarial_sqlite_cache_reopen_and_concurrency() {
     // Reopen from SQLite database disk file and query
     {
         let engine = IndexEngine::open_or_create(root).unwrap();
-        let clients = engine.find_client_endpoints_by_url_or_proc("/api/v1/data").unwrap();
-        assert!(!clients.is_empty(), "Reopened index must retain cached client calls");
+        let clients = engine
+            .find_client_endpoints_by_url_or_proc("/api/v1/data")
+            .unwrap();
+        assert!(
+            !clients.is_empty(),
+            "Reopened index must retain cached client calls"
+        );
         assert_eq!(clients[0].endpoint_url.as_deref(), Some("/api/v1/data"));
     }
 }

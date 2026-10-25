@@ -509,6 +509,7 @@ fn build_kotlin_symbol(
         signature,
         body,
         language: "kotlin".to_string(),
+        preprocessor_tag: None,
     }
 }
 
@@ -585,6 +586,7 @@ fn fallback_kotlin_source_scan(
                     signature,
                     body,
                     language: "kotlin".to_string(),
+                    preprocessor_tag: None,
                 });
             }
         }

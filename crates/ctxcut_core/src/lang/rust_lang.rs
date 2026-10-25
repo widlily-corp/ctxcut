@@ -568,6 +568,7 @@ fn build_rust_symbol(
         signature,
         body,
         language: "rust".to_string(),
+        preprocessor_tag: None,
     }
 }
 

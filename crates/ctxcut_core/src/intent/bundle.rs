@@ -2,9 +2,7 @@
 
 use crate::error::Result;
 use crate::lang::LanguageRegistry;
-use crate::model::{
-    ExtractedSymbol, ExtractedType, ImpactCallerItem, SliceOptions, TokenStats,
-};
+use crate::model::{ExtractedSymbol, ExtractedType, ImpactCallerItem, SliceOptions, TokenStats};
 use crate::parser::ParserManager;
 use crate::schema::extract_schema_entities;
 use crate::tokenizer::{calculate_savings_percentage, count_lines, count_tokens};
@@ -144,6 +142,7 @@ pub fn assemble_critical_bundle(
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     // 1. Hoist types and find direct AST relationships for each target symbol
@@ -165,9 +164,13 @@ pub fn assemble_critical_bundle(
                     if let Ok((_extracted, target_node)) =
                         adapter.locate_symbol(root, &source, &sym.name, &path_to_read)
                     {
-                        if let Ok(types) =
-                            adapter.hoist_types(target_node, root, &source, &path_to_read, &slice_opts)
-                        {
+                        if let Ok(types) = adapter.hoist_types(
+                            target_node,
+                            root,
+                            &source,
+                            &path_to_read,
+                            &slice_opts,
+                        ) {
                             for ty in types {
                                 if seen_type_names.insert(ty.name.clone()) {
                                     hoisted_types.push(ty);
@@ -226,10 +229,12 @@ pub fn assemble_critical_bundle(
             for ent in entities {
                 // Check if entity name or table matches any target symbol or hoisted type
                 let ent_name_lower = ent.entity_name.to_lowercase();
-                let matches_target = target_symbols
+                let matches_target = target_symbols.iter().any(|s| {
+                    s.name.to_lowercase().contains(&ent_name_lower)
+                        || ent_name_lower.contains(&s.name.to_lowercase())
+                }) || hoisted_types
                     .iter()
-                    .any(|s| s.name.to_lowercase().contains(&ent_name_lower) || ent_name_lower.contains(&s.name.to_lowercase()))
-                    || hoisted_types.iter().any(|t| t.name.to_lowercase().contains(&ent_name_lower));
+                    .any(|t| t.name.to_lowercase().contains(&ent_name_lower));
 
                 if matches_target && seen_schema_names.insert(ent.entity_name.clone()) {
                     database_schemas.push(ExtractedType {

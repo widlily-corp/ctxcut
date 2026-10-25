@@ -27,10 +27,14 @@ pub mod gin_chi;
 pub mod next_action;
 /// React and Next.js framework analyzers.
 pub mod react_next;
+/// Semantic metadata bridge model.
+pub mod semantic_bridge;
 /// Tauri IPC framework analyzer.
 pub mod tauri;
 /// tRPC framework analyzer.
 pub mod trpc;
+/// Unity and GameDev C# framework analyzer.
+pub mod unity_analyzer;
 
 pub use aspnetcore::AspNetCoreAnalyzer;
 pub use axum_actix::AxumActixAnalyzer;
@@ -43,8 +47,14 @@ pub use flask::FlaskAnalyzer;
 pub use gin_chi::GinChiAnalyzer;
 pub use next_action::NextServerActionAnalyzer;
 pub use react_next::ReactNextAnalyzer;
+pub use semantic_bridge::{EventMetadata, GcAllocReport, SemanticMetadataHeader};
 pub use tauri::TauriAnalyzer;
 pub use trpc::TrpcAnalyzer;
+pub use unity_analyzer::{
+    analyze_allocations, build_semantic_header, detect_event_declarations,
+    detect_event_invocations, detect_event_subscribers, DetectedEventDecl, DetectedEventInvocation,
+    DetectedEventSubscription, UnityAnalyzer,
+};
 
 use crate::error::Result;
 use crate::fullstack::model::ServerRouteEndpoint;
@@ -108,6 +118,7 @@ impl FrameworkRegistry {
         registry.register(Box::new(ElectronAnalyzer));
         registry.register(Box::new(TrpcAnalyzer));
         registry.register(Box::new(NextServerActionAnalyzer));
+        registry.register(Box::new(UnityAnalyzer));
         registry
     }
 

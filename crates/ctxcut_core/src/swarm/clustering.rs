@@ -104,7 +104,9 @@ fn seeded_min_cut_partition(
         unassigned_candidates.sort_by(|a, b| {
             let deg_a = graph.node_degree(a);
             let deg_b = graph.node_degree(b);
-            deg_b.partial_cmp(&deg_a).unwrap_or(std::cmp::Ordering::Equal)
+            deg_b
+                .partial_cmp(&deg_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         let mut candidate_iter = unassigned_candidates.into_iter();
@@ -130,7 +132,9 @@ fn seeded_min_cut_partition(
     unassigned.sort_by(|a, b| {
         let deg_a = graph.node_degree(a);
         let deg_b = graph.node_degree(b);
-        deg_b.partial_cmp(&deg_a).unwrap_or(std::cmp::Ordering::Equal)
+        deg_b
+            .partial_cmp(&deg_a)
+            .unwrap_or(std::cmp::Ordering::Equal)
     });
 
     for node_id in unassigned {
@@ -155,7 +159,8 @@ fn seeded_min_cut_partition(
             }
 
             // Penalize clusters that exceed the balanced token target
-            let size_ratio = (cluster_tokens + node_tokens) as f64 / target_tokens_per_cluster as f64;
+            let size_ratio =
+                (cluster_tokens + node_tokens) as f64 / target_tokens_per_cluster as f64;
             let size_penalty = if size_ratio > 1.2 {
                 (size_ratio - 1.2) * 5.0
             } else {
@@ -192,7 +197,12 @@ fn seeded_min_cut_partition(
 
     // 4. Refinement pass: Kernighan-Lin style boundary swapping
     let anchored_seeds: HashSet<String> = resolved_seed_nodes.into_iter().collect();
-    refine_cluster_boundaries(graph, &mut clusters, target_tokens_per_cluster, &anchored_seeds);
+    refine_cluster_boundaries(
+        graph,
+        &mut clusters,
+        target_tokens_per_cluster,
+        &anchored_seeds,
+    );
 
     finalize_clusters(clusters)
 }
@@ -240,9 +250,9 @@ fn louvain_modularity_partition(
             comm_tot_weight
                 .entry(current_comm)
                 .and_modify(|w| *w -= k_i);
-            comm_to_nodes
-                .entry(current_comm)
-                .and_modify(|set| { set.remove(node_id); });
+            comm_to_nodes.entry(current_comm).and_modify(|set| {
+                set.remove(node_id);
+            });
 
             // Find candidate neighbor communities
             let mut neighbor_comms: HashSet<usize> = HashSet::new();
@@ -285,9 +295,7 @@ fn louvain_modularity_partition(
                 .entry(best_comm)
                 .or_default()
                 .insert(node_id.clone());
-            comm_tot_weight
-                .entry(best_comm)
-                .and_modify(|w| *w += k_i);
+            comm_tot_weight.entry(best_comm).and_modify(|w| *w += k_i);
             node_to_comm.insert(node_id.clone(), best_comm);
 
             if best_comm != current_comm {
@@ -380,7 +388,12 @@ fn adjust_to_k_clusters(
     let total_tokens: usize = graph.nodes.values().map(|n| n.token_count).sum();
     let target_tokens_per_cluster = (total_tokens / target_k.max(1)).max(1);
 
-    refine_cluster_boundaries(graph, &mut clusters, target_tokens_per_cluster, &HashSet::new());
+    refine_cluster_boundaries(
+        graph,
+        &mut clusters,
+        target_tokens_per_cluster,
+        &HashSet::new(),
+    );
     finalize_clusters(clusters)
 }
 
@@ -467,7 +480,11 @@ fn refine_cluster_boundaries(
                     .iter()
                     .filter_map(|m| graph.nodes.get(m).map(|n| n.token_count))
                     .sum();
-                let node_tokens = graph.nodes.get(node_id).map(|n| n.token_count).unwrap_or(10);
+                let node_tokens = graph
+                    .nodes
+                    .get(node_id)
+                    .map(|n| n.token_count)
+                    .unwrap_or(10);
 
                 for (dst_idx, dst_cluster) in clusters.iter().enumerate().take(k) {
                     if dst_idx == src_idx {

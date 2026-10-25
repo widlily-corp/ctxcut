@@ -111,6 +111,7 @@ impl FrameworkAnalyzer for ReactNextAnalyzer {
                     include_types: true,
                     include_calls: true,
                     budget: None,
+                    lod: None,
                 };
                 if let Ok(mut hoisted) = TypeHoister::hoist_types(
                     target_node,

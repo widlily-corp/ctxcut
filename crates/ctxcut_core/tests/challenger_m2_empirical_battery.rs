@@ -96,6 +96,7 @@ export function fnD(): string {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     // Slicing fnA from a.ts must terminate without stack overflow or deadlock
@@ -194,6 +195,7 @@ def helper_d() -> str:
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice = slicer
@@ -255,6 +257,7 @@ export function processTree(root: TreeNode, start: MutualA): number {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let ts_slice = slicer
@@ -343,6 +346,7 @@ export function runPipeline(input: AliasedSchema): boolean {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice = slicer
@@ -404,6 +408,7 @@ export function handleAction(item: LocalType, ghost: MissingType): boolean {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     // Slicing must NOT panic or error when foreign imports are unresolvable
@@ -496,6 +501,7 @@ export function initializeApp(cfg: AppConfig, btn: ButtonProps): ApiResponse {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice = slicer
@@ -715,6 +721,7 @@ export function executeHop(l: LocalType, h: TypeHop1): boolean {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
     let slice0 = slicer
         .slice_symbol(&consumer_ts, "executeHop", &opts0)
@@ -738,6 +745,7 @@ export function executeHop(l: LocalType, h: TypeHop1): boolean {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
     let slice1 = slicer
         .slice_symbol(&consumer_ts, "executeHop", &opts1)
@@ -764,6 +772,7 @@ export function executeHop(l: LocalType, h: TypeHop1): boolean {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
     let slice2 = slicer
         .slice_symbol(&consumer_ts, "executeHop", &opts2)
@@ -790,6 +799,7 @@ export function executeHop(l: LocalType, h: TypeHop1): boolean {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
     let slice3 = slicer
         .slice_symbol(&consumer_ts, "executeHop", &opts3)

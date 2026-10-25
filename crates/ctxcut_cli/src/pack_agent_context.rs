@@ -73,8 +73,16 @@ pub fn run_pack_agent_context_command(
     }
 
     // Record Telemetry
-    let total_raw: usize = manifest.packs.iter().map(|p| p.token_stats.raw_file_tokens).sum();
-    let total_sliced: usize = manifest.packs.iter().map(|p| p.token_stats.sliced_tokens).sum();
+    let total_raw: usize = manifest
+        .packs
+        .iter()
+        .map(|p| p.token_stats.raw_file_tokens)
+        .sum();
+    let total_sliced: usize = manifest
+        .packs
+        .iter()
+        .map(|p| p.token_stats.sliced_tokens)
+        .sum();
     let saved_tokens = total_raw.saturating_sub(total_sliced);
     TelemetryLogger::record_operation(
         "pack_agent_context",

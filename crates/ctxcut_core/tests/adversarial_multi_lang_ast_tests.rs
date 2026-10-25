@@ -16,6 +16,7 @@ fn test_adversarial_python_async_decorators_and_pydantic() {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -63,6 +64,7 @@ def calculate_distance[T: float](p1: Coordinate[T], p2: Coordinate[T]) -> float:
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -110,6 +112,7 @@ fn test_adversarial_go_sibling_multi_file_package() {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -139,6 +142,7 @@ fn test_adversarial_rust_generics_lifetimes_where_clauses() {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -176,6 +180,7 @@ fn test_adversarial_cross_language_circular_references() {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     // 1. Python circular

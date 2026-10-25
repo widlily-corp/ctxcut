@@ -36,10 +36,7 @@ impl NextServerActionAnalyzer {
             .and_then(|e| e.to_str())
             .unwrap_or("")
             .to_lowercase();
-        if !matches!(
-            ext.as_str(),
-            "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs"
-        ) {
+        if !matches!(ext.as_str(), "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs") {
             return routes;
         }
 
@@ -73,7 +70,11 @@ impl NextServerActionAnalyzer {
         let mut unique = Vec::new();
         let mut seen = std::collections::HashSet::new();
         for r in routes {
-            let key = (r.framework.clone(), r.http_method.clone(), r.handler_symbol.clone());
+            let key = (
+                r.framework.clone(),
+                r.http_method.clone(),
+                r.handler_symbol.clone(),
+            );
             if seen.insert(key) {
                 unique.push(r);
             }
@@ -98,7 +99,8 @@ impl NextServerActionAnalyzer {
                         let fn_name = AstUtils::node_text(fn_name_node, source).trim().to_string();
                         if !fn_name.is_empty() {
                             let sig = AstUtils::extract_signature_header(fn_decl, source);
-                            let (req_dto, res_dto) = extract_action_dtos(fn_decl, source, file_path);
+                            let (req_dto, res_dto) =
+                                extract_action_dtos(fn_decl, source, file_path);
                             routes.push(ServerRouteEndpoint {
                                 framework: "nextjs_server_action".to_string(),
                                 http_method: "ACTION".to_string(),
@@ -141,7 +143,8 @@ impl NextServerActionAnalyzer {
                         let fn_name = AstUtils::node_text(name_node, source).trim().to_string();
                         if !fn_name.is_empty() {
                             let sig = AstUtils::extract_signature_header(fn_node, source);
-                            let (req_dto, res_dto) = extract_action_dtos(fn_node, source, file_path);
+                            let (req_dto, res_dto) =
+                                extract_action_dtos(fn_node, source, file_path);
                             routes.push(ServerRouteEndpoint {
                                 framework: "nextjs_server_action".to_string(),
                                 http_method: "ACTION".to_string(),
@@ -192,7 +195,11 @@ impl FrameworkAnalyzer for NextServerActionAnalyzer {
 fn is_module_level_use_server(source: &str) -> bool {
     for line in source.lines() {
         let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with("//") || trimmed.starts_with("/*") || trimmed.starts_with('*') {
+        if trimmed.is_empty()
+            || trimmed.starts_with("//")
+            || trimmed.starts_with("/*")
+            || trimmed.starts_with('*')
+        {
             continue;
         }
         return trimmed == "'use server';"
@@ -214,7 +221,10 @@ fn extract_action_dtos(
     if let Some(params_node) = fn_node.child_by_field_name("parameters") {
         for param in params_node.named_children(&mut params_node.walk()) {
             if let Some(type_node) = param.child_by_field_name("type") {
-                let type_text = AstUtils::node_text(type_node, source).trim().trim_start_matches(':').trim();
+                let type_text = AstUtils::node_text(type_node, source)
+                    .trim()
+                    .trim_start_matches(':')
+                    .trim();
                 if !type_text.is_empty() && type_text != "FormData" && !is_ts_primitive(type_text) {
                     if req_dto.is_none() {
                         req_dto = find_ts_type(source, type_text, file_path);
@@ -225,7 +235,10 @@ fn extract_action_dtos(
     }
 
     if let Some(ret_node) = fn_node.child_by_field_name("return_type") {
-        let ret_text = AstUtils::node_text(ret_node, source).trim().trim_start_matches(':').trim();
+        let ret_text = AstUtils::node_text(ret_node, source)
+            .trim()
+            .trim_start_matches(':')
+            .trim();
         let unwrapped = unwrap_promise_type(ret_text);
         if !unwrapped.is_empty() && !is_ts_primitive(&unwrapped) {
             res_dto = find_ts_type(source, &unwrapped, file_path);
@@ -250,8 +263,19 @@ fn unwrap_promise_type(s: &str) -> String {
 fn is_ts_primitive(t: &str) -> bool {
     matches!(
         t,
-        "string" | "number" | "boolean" | "void" | "null" | "undefined" | "any" | "unknown" | "never"
-            | "FormData" | "Request" | "Response" | "Record<string, any>"
+        "string"
+            | "number"
+            | "boolean"
+            | "void"
+            | "null"
+            | "undefined"
+            | "any"
+            | "unknown"
+            | "never"
+            | "FormData"
+            | "Request"
+            | "Response"
+            | "Record<string, any>"
     )
 }
 
@@ -265,7 +289,11 @@ fn find_ts_type(source: &str, type_name: &str, file_path: &str) -> Option<Extrac
         {
             return Some(ExtractedType {
                 name: type_name.to_string(),
-                kind: if trimmed.contains("interface") { "interface".to_string() } else { "type".to_string() },
+                kind: if trimmed.contains("interface") {
+                    "interface".to_string()
+                } else {
+                    "type".to_string()
+                },
                 file_path: file_path.to_string(),
                 definition: trimmed.to_string(),
             });
@@ -287,7 +315,8 @@ fn scan_actions_fallback(
     for line in source.lines() {
         let trimmed = line.trim();
         if is_module_server {
-            if (trimmed.starts_with("export async function ") || trimmed.starts_with("export function "))
+            if (trimmed.starts_with("export async function ")
+                || trimmed.starts_with("export function "))
                 && trimmed.contains('(')
             {
                 let after = if let Some(a) = trimmed.strip_prefix("export async function ") {

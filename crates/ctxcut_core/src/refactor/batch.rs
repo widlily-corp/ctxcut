@@ -8,9 +8,7 @@ use crate::error::{CoreError, Result};
 use crate::lang::LanguageRegistry;
 use crate::model::{SupportedLanguage, SyntaxErrorDetail, VerifyDiagnostic};
 use crate::parser::ParserManager;
-use crate::patch::formatting::{
-    generate_unified_diff, reindent_for_splice, LineEnding,
-};
+use crate::patch::formatting::{generate_unified_diff, reindent_for_splice, LineEnding};
 use crate::patch::locator::AstNodeLocator;
 use crate::patch::validate::SyntaxValidator;
 use crate::verify::ast_mapper::{
@@ -394,7 +392,10 @@ impl BatchAstPatcher {
             }
 
             let diff = generate_unified_diff(&original_source, &patched_source, file_path, 3);
-            let symbols_patched = located_targets.iter().map(|t| t.symbol_name.clone()).collect();
+            let symbols_patched = located_targets
+                .iter()
+                .map(|t| t.symbol_name.clone())
+                .collect();
 
             prepared_files.push(PreparedFilePatch {
                 file_path: file_path.clone(),
@@ -575,12 +576,14 @@ mod tests {
                 SymbolPatchUnit {
                     file_path: file_path.clone(),
                     symbol_query: "add".to_string(),
-                    replacement_code: "pub fn add(a: i32, b: i32) -> i32 {\n    (a + b).max(0)\n}".to_string(),
+                    replacement_code: "pub fn add(a: i32, b: i32) -> i32 {\n    (a + b).max(0)\n}"
+                        .to_string(),
                 },
                 SymbolPatchUnit {
                     file_path: file_path.clone(),
                     symbol_query: "mul".to_string(),
-                    replacement_code: "pub fn mul(a: i32, b: i32) -> i32 {\n    (a * b).max(0)\n}".to_string(),
+                    replacement_code: "pub fn mul(a: i32, b: i32) -> i32 {\n    (a * b).max(0)\n}"
+                        .to_string(),
                 },
             ],
             typechecker: None,
@@ -618,12 +621,14 @@ mod tests {
                 SymbolPatchUnit {
                     file_path: file1.clone(),
                     symbol_query: "fetchUsers".to_string(),
-                    replacement_code: "export function fetchUsers() {\n    return [{ id: 1 }];\n}".to_string(),
+                    replacement_code: "export function fetchUsers() {\n    return [{ id: 1 }];\n}"
+                        .to_string(),
                 },
                 SymbolPatchUnit {
                     file_path: file2.clone(),
                     symbol_query: "handleRequest".to_string(),
-                    replacement_code: "export function handleRequest() {\n    return 'handled';\n}".to_string(),
+                    replacement_code: "export function handleRequest() {\n    return 'handled';\n}"
+                        .to_string(),
                 },
             ],
             typechecker: None,

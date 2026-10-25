@@ -66,19 +66,22 @@ impl GinChiAnalyzer {
                     let method = extract_go_http_method(fn_text);
 
                     if let Some(args) = call.child_by_field_name("arguments") {
-                        let arg_nodes: Vec<Node<'_>> = args.named_children(&mut args.walk()).collect();
+                        let arg_nodes: Vec<Node<'_>> =
+                            args.named_children(&mut args.walk()).collect();
                         if arg_nodes.len() >= 2 {
                             let path_node = arg_nodes[0];
                             let handler_node = arg_nodes[arg_nodes.len() - 1];
 
                             let raw_path = AstUtils::node_text(path_node, source).trim();
                             let clean_path = raw_path.trim_matches(['"', '`']).to_string();
-                            let handler_name = AstUtils::node_text(handler_node, source).trim().to_string();
+                            let handler_name =
+                                AstUtils::node_text(handler_node, source).trim().to_string();
 
                             if clean_path.starts_with('/') && !handler_name.is_empty() {
                                 let sig = find_go_fn_signature(source, &handler_name)
                                     .unwrap_or_else(|| format!("func {handler_name}(...)"));
-                                let (req_dto, res_dto) = find_go_dtos(source, &handler_name, &file_path);
+                                let (req_dto, res_dto) =
+                                    find_go_dtos(source, &handler_name, &file_path);
 
                                 routes.push(ServerRouteEndpoint {
                                     framework: framework.to_string(),
@@ -104,7 +107,11 @@ impl GinChiAnalyzer {
         let mut unique = Vec::new();
         let mut seen = std::collections::HashSet::new();
         for r in routes {
-            let key = (r.http_method.clone(), r.route_path.clone(), r.handler_symbol.clone());
+            let key = (
+                r.http_method.clone(),
+                r.route_path.clone(),
+                r.handler_symbol.clone(),
+            );
             if seen.insert(key) {
                 unique.push(r);
             }
@@ -142,7 +149,8 @@ impl GinChiAnalyzer {
                                 if !handler.is_empty() {
                                     let sig = find_go_fn_signature(source, handler)
                                         .unwrap_or_else(|| format!("func {handler}(...)"));
-                                    let (req_dto, res_dto) = find_go_dtos(source, handler, file_path);
+                                    let (req_dto, res_dto) =
+                                        find_go_dtos(source, handler, file_path);
                                     routes.push(ServerRouteEndpoint {
                                         framework: framework.to_string(),
                                         http_method: method.to_uppercase(),
@@ -218,7 +226,9 @@ fn extract_go_http_method(fn_text: &str) -> String {
 
 fn find_go_fn_signature(source: &str, fn_name: &str) -> Option<String> {
     for line in source.lines() {
-        if line.contains(&format!("func {fn_name}")) || (line.contains("func (") && line.contains(fn_name)) {
+        if line.contains(&format!("func {fn_name}"))
+            || (line.contains("func (") && line.contains(fn_name))
+        {
             return Some(line.trim().to_string());
         }
     }
@@ -239,7 +249,10 @@ fn find_go_dtos(
             in_handler = true;
         }
         if in_handler {
-            if line.contains("ShouldBindJSON(&") || line.contains("BindJSON(&") || line.contains("Decode(&") {
+            if line.contains("ShouldBindJSON(&")
+                || line.contains("BindJSON(&")
+                || line.contains("Decode(&")
+            {
                 if let Some(pos) = line.find("(&") {
                     let after = &line[pos + 2..];
                     let var_name = after.split(')').next().unwrap_or("").trim();
@@ -257,7 +270,11 @@ fn find_go_dtos(
     (req_dto, res_dto)
 }
 
-fn find_go_struct_in_source(source: &str, var_or_type_name: &str, file_path: &str) -> Option<ExtractedType> {
+fn find_go_struct_in_source(
+    source: &str,
+    var_or_type_name: &str,
+    file_path: &str,
+) -> Option<ExtractedType> {
     for line in source.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with(&format!("type {var_or_type_name} struct")) {

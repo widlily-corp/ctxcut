@@ -233,7 +233,8 @@ export function safeFunction(): boolean {
     fs::write(&file_path, initial).unwrap();
 
     // Act: Attempt to apply malformed replacement with unclosed bracket
-    let invalid_code = "export function safeFunction(): boolean {\n    return true;\n    // missing closing brace";
+    let invalid_code =
+        "export function safeFunction(): boolean {\n    return true;\n    // missing closing brace";
     let runner = CliRunner::new();
     let target = format!("{}:safeFunction", file_path.display());
     let res = runner.run_in_dir(dir.path(), &["patch", &target, "--code", invalid_code]);
@@ -256,11 +257,7 @@ fn test_f18_batch_refactor_json_report_contract() {
     // Arrange: Target file
     let dir = TempDir::new().expect("Failed to create tempdir");
     let file_path = dir.path().join("json_patch.ts");
-    fs::write(
-        &file_path,
-        "export function getValue() { return 10; }\n",
-    )
-    .unwrap();
+    fs::write(&file_path, "export function getValue() { return 10; }\n").unwrap();
 
     // Act: Slice with JSON format
     let runner = CliRunner::new();

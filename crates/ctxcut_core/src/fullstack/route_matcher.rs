@@ -96,7 +96,8 @@ impl RouteMatcher {
                 || target_lower.contains(&symbol_clean)
                 || (!path_stem.is_empty() && target_lower.contains(path_stem))
                 || (!symbol_stem.is_empty() && target_lower.contains(symbol_stem))
-                || (!target_stem.is_empty() && (path_clean.contains(target_stem) || symbol_clean.contains(target_stem)));
+                || (!target_stem.is_empty()
+                    && (path_clean.contains(target_stem) || symbol_clean.contains(target_stem)));
 
             if matches {
                 if let Some(method) = &method_opt {
@@ -126,7 +127,9 @@ impl RouteMatcher {
                     Some(m) => methods_compatible(m, &route.http_method),
                     None => true,
                 };
-                if method_matches && identifiers_match(&clean_proc, &route.handler_symbol, &route.route_path) {
+                if method_matches
+                    && identifiers_match(&clean_proc, &route.handler_symbol, &route.route_path)
+                {
                     return Some(route);
                 }
             }
@@ -153,7 +156,9 @@ impl RouteMatcher {
                     Some(m) => methods_compatible(m, &route.http_method),
                     None => true,
                 };
-                if method_matches && identifiers_match(&clean_endpoint, &route.handler_symbol, &route.route_path) {
+                if method_matches
+                    && identifiers_match(&clean_endpoint, &route.handler_symbol, &route.route_path)
+                {
                     return Some(route);
                 }
             }
@@ -257,8 +262,22 @@ pub fn camel_to_snake(s: &str) -> String {
 fn parse_query_method_and_path(query: &str) -> (Option<String>, String) {
     let clean = query.trim();
     for method in &[
-        "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD",
-        "IPC_HANDLE", "IPC_ON", "IPC", "QUERY", "MUTATION", "SUBSCRIPTION", "ACTION", "RPC", "ANY"
+        "GET",
+        "POST",
+        "PUT",
+        "DELETE",
+        "PATCH",
+        "OPTIONS",
+        "HEAD",
+        "IPC_HANDLE",
+        "IPC_ON",
+        "IPC",
+        "QUERY",
+        "MUTATION",
+        "SUBSCRIPTION",
+        "ACTION",
+        "RPC",
+        "ANY",
     ] {
         if clean.to_uppercase().starts_with(method) {
             let after = clean[method.len()..].trim();
@@ -272,7 +291,16 @@ fn parse_query_method_and_path(query: &str) -> (Option<String>, String) {
 
 fn clean_route_identifier(s: &str) -> String {
     let mut clean = s.trim();
-    for prefix in &["tauri://", "electron://", "action://", "rpc://", "/trpc/", "trpc/", "/grpc/", "grpc/"] {
+    for prefix in &[
+        "tauri://",
+        "electron://",
+        "action://",
+        "rpc://",
+        "/trpc/",
+        "trpc/",
+        "/grpc/",
+        "grpc/",
+    ] {
         if clean.starts_with(prefix) {
             clean = &clean[prefix.len()..];
         }
@@ -285,7 +313,9 @@ fn identifiers_match(query_ident: &str, handler_symbol: &str, route_path: &str) 
     let clean_path = clean_route_identifier(route_path);
 
     // 1. Direct case-insensitive match
-    if query_ident.eq_ignore_ascii_case(&clean_symbol) || query_ident.eq_ignore_ascii_case(&clean_path) {
+    if query_ident.eq_ignore_ascii_case(&clean_symbol)
+        || query_ident.eq_ignore_ascii_case(&clean_path)
+    {
         return true;
     }
 
@@ -293,8 +323,10 @@ fn identifiers_match(query_ident: &str, handler_symbol: &str, route_path: &str) 
     let query_camel = snake_to_camel(query_ident);
     let query_snake = camel_to_snake(query_ident);
 
-    if clean_symbol == query_camel || clean_symbol == query_snake
-        || clean_path == query_camel || clean_path == query_snake
+    if clean_symbol == query_camel
+        || clean_symbol == query_snake
+        || clean_path == query_camel
+        || clean_path == query_snake
     {
         return true;
     }
@@ -309,7 +341,9 @@ fn identifiers_match(query_ident: &str, handler_symbol: &str, route_path: &str) 
     // 3. Dot-separated namespace matching (e.g. "user.getById" <-> "getById")
     if let Some(pos) = query_ident.rfind('.') {
         let after_dot = &query_ident[pos + 1..];
-        if after_dot.eq_ignore_ascii_case(&clean_symbol) || after_dot.eq_ignore_ascii_case(&clean_path) {
+        if after_dot.eq_ignore_ascii_case(&clean_symbol)
+            || after_dot.eq_ignore_ascii_case(&clean_path)
+        {
             return true;
         }
     }
@@ -340,7 +374,9 @@ fn methods_compatible(query_method: &str, route_method: &str) -> bool {
         return true;
     }
 
-    if q == "RPC" && (r == "QUERY" || r == "MUTATION" || r == "SUBSCRIPTION" || r == "RPC" || r == "IPC") {
+    if q == "RPC"
+        && (r == "QUERY" || r == "MUTATION" || r == "SUBSCRIPTION" || r == "RPC" || r == "IPC")
+    {
         return true;
     }
 

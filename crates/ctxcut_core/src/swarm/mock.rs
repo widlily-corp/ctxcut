@@ -39,9 +39,7 @@ impl MockContractGenerator {
             SupportedLanguage::Python => {
                 generate_python_mocks(agent_id, boundary_stubs, boundary_types)
             }
-            SupportedLanguage::Go => {
-                generate_go_mocks(agent_id, boundary_stubs, boundary_types)
-            }
+            SupportedLanguage::Go => generate_go_mocks(agent_id, boundary_stubs, boundary_types),
             SupportedLanguage::CSharp => {
                 generate_csharp_mocks(agent_id, boundary_stubs, boundary_types)
             }
@@ -245,9 +243,7 @@ fn generate_c_cpp_mocks(
 
     for stub in stubs {
         let fn_name = &stub.name;
-        out.push_str(&format!(
-            "inline int mock_{fn_name}() {{ return 1; }}\n"
-        ));
+        out.push_str(&format!("inline int mock_{fn_name}() {{ return 1; }}\n"));
     }
 
     out

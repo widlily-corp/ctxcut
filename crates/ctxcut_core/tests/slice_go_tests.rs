@@ -83,6 +83,7 @@ fn test_slice_go_struct_and_interface_hoisting() {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -115,6 +116,7 @@ fn test_slice_go_sibling_package_resolution() {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -159,6 +161,7 @@ fn test_slice_go_call_stripping() {
         include_types: false,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -192,6 +195,7 @@ fn test_slice_go_circular_types_cycle_protection() {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -277,6 +281,7 @@ fn test_slice_go_disabled_options() {
         include_types: false,
         include_calls: false,
         budget: None,
+        lod: None,
     };
 
     let result = slicer

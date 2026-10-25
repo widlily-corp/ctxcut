@@ -37,10 +37,21 @@ fn test_mcp_get_route_slice_tauri() {
     let (response, _metrics, error_opt, _tokens) =
         execute_tool_with_timeout("get_route_slice", &args, 5000);
 
-    assert!(error_opt.is_none(), "Expected no error, got: {:?}", error_opt);
+    assert!(
+        error_opt.is_none(),
+        "Expected no error, got: {:?}",
+        error_opt
+    );
     let text = response["content"][0]["text"].as_str().unwrap_or("");
-    assert!(text.contains("register_user"), "Expected text to contain register_user handler, got: {}", text);
-    assert!(text.contains("UserPayload"), "Expected hoisted type UserPayload in slice");
+    assert!(
+        text.contains("register_user"),
+        "Expected text to contain register_user handler, got: {}",
+        text
+    );
+    assert!(
+        text.contains("UserPayload"),
+        "Expected hoisted type UserPayload in slice"
+    );
 }
 
 #[test]
@@ -72,9 +83,16 @@ fn test_mcp_get_route_slice_electron() {
     let (response, _metrics, error_opt, _tokens) =
         execute_tool_with_timeout("get_route_slice", &args, 5000);
 
-    assert!(error_opt.is_none(), "Expected no error, got: {:?}", error_opt);
+    assert!(
+        error_opt.is_none(),
+        "Expected no error, got: {:?}",
+        error_opt
+    );
     let text = response["content"][0]["text"].as_str().unwrap_or("");
-    assert!(text.contains("fetchSystemMetrics"), "Expected fetchSystemMetrics symbol in slice");
+    assert!(
+        text.contains("fetchSystemMetrics"),
+        "Expected fetchSystemMetrics symbol in slice"
+    );
 }
 
 #[test]
@@ -110,9 +128,16 @@ fn test_mcp_get_route_slice_trpc() {
     let (response, _metrics, error_opt, _tokens) =
         execute_tool_with_timeout("get_route_slice", &args, 5000);
 
-    assert!(error_opt.is_none(), "Expected no error, got: {:?}", error_opt);
+    assert!(
+        error_opt.is_none(),
+        "Expected no error, got: {:?}",
+        error_opt
+    );
     let text = response["content"][0]["text"].as_str().unwrap_or("");
-    assert!(text.contains("getHealth"), "Expected getHealth procedure in slice");
+    assert!(
+        text.contains("getHealth"),
+        "Expected getHealth procedure in slice"
+    );
 }
 
 #[test]
@@ -143,7 +168,14 @@ fn test_mcp_get_route_slice_next_server_action() {
     let (response, _metrics, error_opt, _tokens) =
         execute_tool_with_timeout("get_route_slice", &args, 5000);
 
-    assert!(error_opt.is_none(), "Expected no error, got: {:?}", error_opt);
+    assert!(
+        error_opt.is_none(),
+        "Expected no error, got: {:?}",
+        error_opt
+    );
     let text = response["content"][0]["text"].as_str().unwrap_or("");
-    assert!(text.contains("logoutUser"), "Expected logoutUser action in slice");
+    assert!(
+        text.contains("logoutUser"),
+        "Expected logoutUser action in slice"
+    );
 }

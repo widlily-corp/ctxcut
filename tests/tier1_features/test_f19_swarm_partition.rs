@@ -266,7 +266,9 @@ fn test_f19_swarm_partition_multi_language_polyglot_swarm() {
     // Assert: Overview discovers polyglot agent capabilities
     output.assert_success();
     assert!(output.stdout.contains("renderDashboard") || output.stdout.contains("frontend.ts"));
-    assert!(output.stdout.contains("serve_telemetry_metrics") || output.stdout.contains("backend.rs"));
+    assert!(
+        output.stdout.contains("serve_telemetry_metrics") || output.stdout.contains("backend.rs")
+    );
 }
 
 #[test]
@@ -374,7 +376,10 @@ export function checkoutCart(token: string, total: number): boolean {
     // Act 1: Build SQLite index with precomputed community clusters
     let mut engine = IndexEngine::open_or_create(dir.path()).expect("Failed to open index engine");
     let sync_result = engine
-        .sync_incremental(&IndexOptions { rebuild: true, max_depth: None })
+        .sync_incremental(&IndexOptions {
+            rebuild: true,
+            max_depth: None,
+        })
         .expect("Failed to sync index");
     assert!(sync_result.files_added >= 3);
 
@@ -383,19 +388,28 @@ export function checkoutCart(token: string, total: number): boolean {
         .connection()
         .query_row("SELECT COUNT(*) FROM clusters", [], |r| r.get(0))
         .expect("Query clusters failed");
-    assert!(cluster_count > 0, "Clusters table should contain pre-computed partitions");
+    assert!(
+        cluster_count > 0,
+        "Clusters table should contain pre-computed partitions"
+    );
 
     let cluster_sym_count: usize = engine
         .connection()
         .query_row("SELECT COUNT(*) FROM cluster_symbols", [], |r| r.get(0))
         .expect("Query cluster_symbols failed");
-    assert!(cluster_sym_count > 0, "Cluster symbols table should contain mapped symbols");
+    assert!(
+        cluster_sym_count > 0,
+        "Cluster symbols table should contain mapped symbols"
+    );
 
     let edge_count: usize = engine
         .connection()
         .query_row("SELECT COUNT(*) FROM graph_edges", [], |r| r.get(0))
         .expect("Query graph_edges failed");
-    assert!(edge_count > 0, "Graph edges cache table should contain dependency edges");
+    assert!(
+        edge_count > 0,
+        "Graph edges cache table should contain dependency edges"
+    );
 
     // Act 2: Retrieve precomputed swarm manifest via IndexEngine in O(1) time (<10ms)
     let start = std::time::Instant::now();
@@ -403,8 +417,15 @@ export function checkoutCart(token: string, total: number): boolean {
         .get_precomputed_swarm_manifest(2, &[], None)
         .expect("Failed to get precomputed manifest");
     let elapsed = start.elapsed();
-    assert!(manifest_opt.is_some(), "Precomputed manifest should be retrieved");
-    assert!(elapsed.as_millis() < 50, "SQLite precomputed manifest query should be sub-50ms (took {}ms)", elapsed.as_millis());
+    assert!(
+        manifest_opt.is_some(),
+        "Precomputed manifest should be retrieved"
+    );
+    assert!(
+        elapsed.as_millis() < 50,
+        "SQLite precomputed manifest query should be sub-50ms (took {}ms)",
+        elapsed.as_millis()
+    );
 
     let manifest = manifest_opt.unwrap();
     assert_eq!(manifest.total_agents, 2);
@@ -419,14 +440,31 @@ export function checkoutCart(token: string, total: number): boolean {
         .expect("Failed to partition workspace");
     let swarm_elapsed = swarm_start.elapsed();
     assert_eq!(p_manifest.total_agents, 2);
-    assert!(swarm_elapsed.as_millis() < 100, "partition_workspace should complete sub-100ms via cache (took {}ms)", swarm_elapsed.as_millis());
+    assert!(
+        swarm_elapsed.as_millis() < 100,
+        "partition_workspace should complete sub-100ms via cache (took {}ms)",
+        swarm_elapsed.as_millis()
+    );
 
     // Act 4: CLI pack-agent-context command verification
     let runner = CliRunner::new();
     let output = runner
-        .run_in_dir(dir.path(), &["pack-agent-context", "--root", dir.path().to_str().unwrap(), "--format", "markdown"])
+        .run_in_dir(
+            dir.path(),
+            &[
+                "pack-agent-context",
+                "--root",
+                dir.path().to_str().unwrap(),
+                "--format",
+                "markdown",
+            ],
+        )
         .expect("CLI pack-agent-context failed");
     output.assert_success();
-    assert!(output.stdout.contains("Swarm Multi-Agent Context Partition Manifest") || output.stdout.contains("Agent `agent_0`"));
+    assert!(
+        output
+            .stdout
+            .contains("Swarm Multi-Agent Context Partition Manifest")
+            || output.stdout.contains("Agent `agent_0`")
+    );
 }
-

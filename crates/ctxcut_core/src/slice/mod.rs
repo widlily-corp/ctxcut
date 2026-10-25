@@ -1,10 +1,12 @@
 //! Context slicing orchestrator module.
 
 pub mod budget;
+pub mod lod;
+pub mod skeleton;
 
 use crate::error::{CoreError, Result};
 use crate::formatter::MarkdownFormatter;
-use crate::lang::LanguageRegistry;
+use crate::lang::{LanguageRegistry, PreprocessorContextDetector};
 use crate::model::{BatchSliceResult, SliceOptions, SliceResult, SupportedLanguage, TokenStats};
 use crate::parser::ParserManager;
 use crate::tokenizer::compute_stats;
@@ -13,6 +15,11 @@ use std::fs;
 use std::path::Path;
 
 pub use budget::{BudgetCompressor, DegradationReport};
+pub use lod::{LodLevel, LodSliceResult};
+pub use skeleton::{
+    ClassSkeleton, SkeletonField, SkeletonMethod, COLLAPSED_CONTEXT_COMMENT, MAX_HELPER_LINES,
+    TARGET_SYMBOL_COMMENT, TRANSITIVE_HELPER_COMMENT,
+};
 
 /// Context slicer engine coordinating parsing, symbol location, type hoisting,
 /// signature stripping, formatting, and token reduction metrics.
@@ -54,8 +61,37 @@ impl ContextSlicer {
         let root = tree.root_node();
 
         // 1. Locate target symbol
-        let (target_symbol, target_node) =
+        let (mut target_symbol, target_node) =
             adapter.locate_symbol(root, &source, symbol_name, file_path)?;
+
+        let is_csharp = file_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.eq_ignore_ascii_case("cs"))
+            .unwrap_or(false);
+
+        // 1.1. Level of Detail (LOD) handling for C#
+        if is_csharp {
+            if let Some(lod) = opts.lod {
+                if let Ok(lod_res) =
+                    crate::lang::csharp_lod::CSharpLodEngine::slice_lod(&source, symbol_name, lod)
+                {
+                    target_symbol.body = lod_res.content;
+                }
+            }
+        }
+
+        // 1.2. Preprocessor context detection for C#
+        if is_csharp {
+            let detector =
+                crate::lang::csharp_preproc::CSharpPreprocessorDetector::from_ast(root, &source);
+            if let Some(ctx) = detector.detect_context_for_node(target_node, &source) {
+                target_symbol.preprocessor_tag = Some(ctx.tag.clone());
+                if !target_symbol.body.starts_with("// [Active under:") {
+                    target_symbol.body = format!("{}\n{}", ctx.tag, target_symbol.body);
+                }
+            }
+        }
 
         // 2. Hoist referenced types
         let hoisted_types = if opts.include_types {
@@ -87,12 +123,80 @@ impl ContextSlicer {
             Vec::new()
         };
 
+        // 3.5. Build semantic metadata header for C# files
+        let semantic_header = if is_csharp {
+            let ws_root = find_workspace_root(file_path);
+            let callers = if let Ok(impact) = crate::resolver::ImpactAnalyzer::find_callers(
+                &ws_root,
+                symbol_name,
+                Some(file_path),
+                opts,
+            ) {
+                impact
+                    .callers
+                    .into_iter()
+                    .take(5)
+                    .map(|c| {
+                        let file_name = Path::new(&c.file_path)
+                            .file_name()
+                            .and_then(|f| f.to_str())
+                            .unwrap_or(&c.file_path);
+                        format!("{file_name}:{}", c.line_number)
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
+            let invocations =
+                crate::framework::unity_analyzer::detect_event_invocations(&target_symbol.body);
+            let mut known_subscribers = Vec::new();
+            if !invocations.is_empty() {
+                for f in crate::traversal::ProjectWalker::collect_files(
+                    &ws_root,
+                    &crate::traversal::TraversalConfig::default(),
+                ) {
+                    if f.extension()
+                        .and_then(|e| e.to_str())
+                        .map(|e| e.eq_ignore_ascii_case("cs"))
+                        .unwrap_or(false)
+                    {
+                        if let Ok(src) = fs::read_to_string(&f) {
+                            let file_name = f
+                                .file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or("")
+                                .to_string();
+                            let subs = crate::framework::unity_analyzer::detect_event_subscribers(
+                                &src, &file_name,
+                            );
+                            for s in subs {
+                                known_subscribers.push((s.event_name, s.subscriber_file));
+                            }
+                        }
+                    }
+                }
+            }
+
+            Some(
+                crate::framework::unity_analyzer::UnityAnalyzer::build_semantic_header(
+                    Some(&target_symbol.name),
+                    &target_symbol.body,
+                    callers,
+                    &known_subscribers,
+                ),
+            )
+        } else {
+            None
+        };
+
         // 4. Create initial result structure with placeholder stats
         let mut result = SliceResult {
             target_symbol,
             hoisted_types,
             hoisted_implementors,
             stripped_calls,
+            semantic_header,
             stats: TokenStats::calculate(0, 0, 0, 0),
         };
 
@@ -229,6 +333,7 @@ impl ContextSlicer {
                 hoisted_types: Vec::new(),
                 hoisted_implementors: Vec::new(),
                 stripped_calls: Vec::new(),
+                semantic_header: None,
                 stats: TokenStats::calculate(0, 0, 0, 0),
             };
             let _ = framework_registry.enhance_slice(

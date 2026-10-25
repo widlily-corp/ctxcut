@@ -40,7 +40,8 @@ impl BoundaryStubGenerator {
                                 }
                                 EdgeKind::TypeRef | EdgeKind::Import => {
                                     // Check if target symbol is a type definition
-                                    if let Some(ty) = graph.type_definitions.get(&target_node.name) {
+                                    if let Some(ty) = graph.type_definitions.get(&target_node.name)
+                                    {
                                         if !seen_type_names.contains(&ty.name) {
                                             seen_type_names.insert(ty.name.clone());
                                             types.push(ty.clone());
@@ -169,7 +170,11 @@ fn format_stripped_signature(raw_sig: &str, lang: SupportedLanguage) -> String {
                 format!("{trimmed}: ...")
             }
         }
-        SupportedLanguage::C | SupportedLanguage::Cpp | SupportedLanguage::CSharp | SupportedLanguage::Java | SupportedLanguage::Kotlin => {
+        SupportedLanguage::C
+        | SupportedLanguage::Cpp
+        | SupportedLanguage::CSharp
+        | SupportedLanguage::Java
+        | SupportedLanguage::Kotlin => {
             if trimmed.ends_with(';') {
                 trimmed.to_string()
             } else {

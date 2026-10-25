@@ -32,7 +32,13 @@ impl FlaskAnalyzer {
             let trimmed = line.trim();
 
             // @app.route('/api/...', methods=['GET', 'POST']) or @bp.route(...)
-            if trimmed.starts_with('@') && (trimmed.contains(".route(") || trimmed.contains(".get(") || trimmed.contains(".post(") || trimmed.contains(".put(") || trimmed.contains(".delete(")) {
+            if trimmed.starts_with('@')
+                && (trimmed.contains(".route(")
+                    || trimmed.contains(".get(")
+                    || trimmed.contains(".post(")
+                    || trimmed.contains(".put(")
+                    || trimmed.contains(".delete("))
+            {
                 let (path_opt, methods) = parse_flask_decorator(trimmed);
                 if let Some(route_path) = path_opt {
                     // Find following def handler_name(...)
@@ -43,7 +49,12 @@ impl FlaskAnalyzer {
                         if t.starts_with("def ") || t.starts_with("async def ") {
                             handler_sig = t.to_string();
                             let clean = t.trim_start_matches("async ").trim_start_matches("def ");
-                            handler_name = clean.split(['(', ':']).next().unwrap_or("handler").trim().to_string();
+                            handler_name = clean
+                                .split(['(', ':'])
+                                .next()
+                                .unwrap_or("handler")
+                                .trim()
+                                .to_string();
                             break;
                         }
                     }
@@ -68,7 +79,11 @@ impl FlaskAnalyzer {
         let mut unique = Vec::new();
         let mut seen = std::collections::HashSet::new();
         for r in routes {
-            let key = (r.http_method.clone(), r.route_path.clone(), r.handler_symbol.clone());
+            let key = (
+                r.http_method.clone(),
+                r.route_path.clone(),
+                r.handler_symbol.clone(),
+            );
             if seen.insert(key) {
                 unique.push(r);
             }

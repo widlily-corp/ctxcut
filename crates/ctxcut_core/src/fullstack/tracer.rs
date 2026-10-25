@@ -48,7 +48,11 @@ impl FullstackExecutionTracer {
     pub fn scan_workspace(
         &self,
         root_dir: &Path,
-    ) -> (Vec<ServerRouteEndpoint>, Vec<ClientApiCall>, Vec<ExtractedType>) {
+    ) -> (
+        Vec<ServerRouteEndpoint>,
+        Vec<ClientApiCall>,
+        Vec<ExtractedType>,
+    ) {
         let mut server_routes = Vec::new();
         let mut client_calls = Vec::new();
         let mut schemas = Vec::new();
@@ -67,7 +71,10 @@ impl FullstackExecutionTracer {
                 client_calls.extend(calls);
 
                 // 3. Extract schemas
-                if let Ok(stitched) = self.schema_stitcher.stitch_schemas(root_dir, &path, &source) {
+                if let Ok(stitched) = self
+                    .schema_stitcher
+                    .stitch_schemas(root_dir, &path, &source)
+                {
                     schemas.extend(stitched);
                 }
             }
@@ -116,7 +123,11 @@ impl FullstackExecutionTracer {
                         || c.rpc_procedure.as_deref() == Some(endpoint_or_proc)
                         || endpoint_or_proc.contains(c.endpoint_url.as_deref().unwrap_or(""))
                 });
-                matching_client.and_then(|c| self.route_matcher.match_client_to_server(c, &routes).cloned())
+                matching_client.and_then(|c| {
+                    self.route_matcher
+                        .match_client_to_server(c, &routes)
+                        .cloned()
+                })
             })
             .or_else(|| {
                 // Backward Path C: Start from database schema / DDL entity / Repository / Service symbol
@@ -132,7 +143,9 @@ impl FullstackExecutionTracer {
                         || (!target_stem.is_empty() && s.name.to_lowercase().contains(target_stem))
                 });
 
-                if matched_schema.is_none() && (endpoint_or_proc.starts_with('/') || endpoint_or_proc.contains('/')) {
+                if matched_schema.is_none()
+                    && (endpoint_or_proc.starts_with('/') || endpoint_or_proc.contains('/'))
+                {
                     return None;
                 }
 
@@ -153,7 +166,8 @@ impl FullstackExecutionTracer {
                                 return Some(r.clone());
                             }
                             // Backward Hop 2: find callers of the intermediate caller
-                            if let Ok(callers_2) = engine.find_callers(&caller.caller_symbol, None) {
+                            if let Ok(callers_2) = engine.find_callers(&caller.caller_symbol, None)
+                            {
                                 for c2 in &callers_2 {
                                     if let Some(r) = routes.iter().find(|r| {
                                         r.handler_symbol.eq_ignore_ascii_case(&c2.caller_symbol)
@@ -185,38 +199,78 @@ impl FullstackExecutionTracer {
 
                 // Fallback backward check in routes collection (only when matched_schema was found)
                 if matched_schema.is_some() {
-                    routes.iter().find(|r| {
-                        let r_path = r.route_path.to_lowercase();
-                        let r_sym = r.handler_symbol.to_lowercase();
-                        let t_lower = target_symbol.to_lowercase();
-                        let t_stem = t_lower.trim_end_matches('s');
-                        let r_path_parts: Vec<&str> = r_path.split(['/', '_', '-']).filter(|p| !p.is_empty() && !matches!(*p, "api" | "v1" | "v2" | "v3" | "v4" | "v5" | "rest" | "http")).collect();
-                        let r_sym_parts: Vec<&str> = r_sym.split(['/', '_', '-']).filter(|p| !p.is_empty() && !matches!(*p, "api" | "v1" | "v2" | "v3" | "v4" | "v5" | "rest" | "http")).collect();
+                    routes
+                        .iter()
+                        .find(|r| {
+                            let r_path = r.route_path.to_lowercase();
+                            let r_sym = r.handler_symbol.to_lowercase();
+                            let t_lower = target_symbol.to_lowercase();
+                            let t_stem = t_lower.trim_end_matches('s');
+                            let r_path_parts: Vec<&str> = r_path
+                                .split(['/', '_', '-'])
+                                .filter(|p| {
+                                    !p.is_empty()
+                                        && !matches!(
+                                            *p,
+                                            "api"
+                                                | "v1"
+                                                | "v2"
+                                                | "v3"
+                                                | "v4"
+                                                | "v5"
+                                                | "rest"
+                                                | "http"
+                                        )
+                                })
+                                .collect();
+                            let r_sym_parts: Vec<&str> = r_sym
+                                .split(['/', '_', '-'])
+                                .filter(|p| {
+                                    !p.is_empty()
+                                        && !matches!(
+                                            *p,
+                                            "api"
+                                                | "v1"
+                                                | "v2"
+                                                | "v3"
+                                                | "v4"
+                                                | "v5"
+                                                | "rest"
+                                                | "http"
+                                        )
+                                })
+                                .collect();
 
-                        r_sym.contains(&t_lower)
-                            || r_path.contains(&t_lower)
-                            || t_lower.contains(&r_sym)
-                            || t_lower.contains(&r_path)
-                            || r_path_parts.iter().any(|part| {
-                                let part_stem = part.trim_end_matches('s');
-                                !part_stem.is_empty() && (t_lower.contains(part_stem) || (!t_stem.is_empty() && part.contains(t_stem)))
-                            })
-                            || r_sym_parts.iter().any(|part| {
-                                let part_stem = part.trim_end_matches('s');
-                                !part_stem.is_empty() && (t_lower.contains(part_stem) || (!t_stem.is_empty() && part.contains(t_stem)))
-                            })
-                    }).cloned()
+                            r_sym.contains(&t_lower)
+                                || r_path.contains(&t_lower)
+                                || t_lower.contains(&r_sym)
+                                || t_lower.contains(&r_path)
+                                || r_path_parts.iter().any(|part| {
+                                    let part_stem = part.trim_end_matches('s');
+                                    !part_stem.is_empty()
+                                        && (t_lower.contains(part_stem)
+                                            || (!t_stem.is_empty() && part.contains(t_stem)))
+                                })
+                                || r_sym_parts.iter().any(|part| {
+                                    let part_stem = part.trim_end_matches('s');
+                                    !part_stem.is_empty()
+                                        && (t_lower.contains(part_stem)
+                                            || (!t_stem.is_empty() && part.contains(t_stem)))
+                                })
+                        })
+                        .cloned()
                 } else {
                     None
                 }
             });
 
-        let server_route = server_route_opt.ok_or_else(|| {
-            CoreError::SymbolNotFound {
-                symbol: endpoint_or_proc.to_string(),
-                path: root_dir.to_path_buf(),
-                available_symbols: routes.iter().map(|r| format!("{} {}", r.http_method, r.route_path)).collect(),
-            }
+        let server_route = server_route_opt.ok_or_else(|| CoreError::SymbolNotFound {
+            symbol: endpoint_or_proc.to_string(),
+            path: root_dir.to_path_buf(),
+            available_symbols: routes
+                .iter()
+                .map(|r| format!("{} {}", r.http_method, r.route_path))
+                .collect(),
         })?;
 
         // 3. Match client call
@@ -248,7 +302,10 @@ impl FullstackExecutionTracer {
                 end_line: client.line_number + client.call_snippet.lines().count().max(1) - 1,
                 language: lang,
                 snippet: client.call_snippet.clone(),
-                schema_contract: client.request_dto.clone().or_else(|| client.response_dto.clone()),
+                schema_contract: client
+                    .request_dto
+                    .clone()
+                    .or_else(|| client.response_dto.clone()),
             });
         }
 
@@ -268,13 +325,20 @@ impl FullstackExecutionTracer {
         steps.push(FullstackTraceStep {
             step_number: step_num,
             layer: "route_handler".to_string(),
-            title: format!("{} Route Handler: {}", capitalize_first(&server_route.framework), server_route.handler_symbol),
+            title: format!(
+                "{} Route Handler: {}",
+                capitalize_first(&server_route.framework),
+                server_route.handler_symbol
+            ),
             file_path: server_route.handler_file.clone(),
             start_line,
             end_line,
             language: handler_lang.clone(),
             snippet: handler_snippet.clone(),
-            schema_contract: server_route.request_dto_type.as_ref().map(|d| d.definition.clone()),
+            schema_contract: server_route
+                .request_dto_type
+                .as_ref()
+                .map(|d| d.definition.clone()),
         });
 
         // Step 3: Middleware & Guard
@@ -288,7 +352,10 @@ impl FullstackExecutionTracer {
         steps.push(FullstackTraceStep {
             step_number: step_num,
             layer: "middleware_guard".to_string(),
-            title: format!("{} Guards & Extractors", capitalize_first(&server_route.framework)),
+            title: format!(
+                "{} Guards & Extractors",
+                capitalize_first(&server_route.framework)
+            ),
             file_path: server_route.handler_file.clone(),
             start_line,
             end_line: start_line + guard_snippet.lines().count().max(1) - 1,
@@ -360,7 +427,10 @@ impl FullstackExecutionTracer {
         steps.push(FullstackTraceStep {
             step_number: step_num,
             layer: "schema_ddl".to_string(),
-            title: format!("Database Table DDL: {}", ddl_name.unwrap_or_else(|| "schema".to_string())),
+            title: format!(
+                "Database Table DDL: {}",
+                ddl_name.unwrap_or_else(|| "schema".to_string())
+            ),
             file_path: ddl_file.unwrap_or_else(|| "migrations/schema.sql".to_string()),
             start_line: 1,
             end_line: ddl_snippet.lines().count().max(1),
@@ -434,15 +504,30 @@ impl FullstackTracer for FullstackExecutionTracer {
     }
 }
 
-fn locate_symbol_snippet(_file_path: &str, source: &str, symbol_name: &str) -> (String, usize, usize) {
+fn locate_symbol_snippet(
+    _file_path: &str,
+    source: &str,
+    symbol_name: &str,
+) -> (String, usize, usize) {
     let lines: Vec<&str> = source.lines().collect();
     for (i, line) in lines.iter().enumerate() {
-        if line.contains(symbol_name) && (line.contains("fn ") || line.contains("def ") || line.contains("func ") || line.contains("public ") || line.contains("class ")) {
+        if line.contains(symbol_name)
+            && (line.contains("fn ")
+                || line.contains("def ")
+                || line.contains("func ")
+                || line.contains("public ")
+                || line.contains("class "))
+        {
             let start = i + 1;
             let mut end = (start + 25).min(lines.len());
             // find closing brace or return
             for (j, l) in lines.iter().enumerate().skip(i) {
-                if j > i && (l.starts_with('}') || (l.starts_with("def ") || l.starts_with("fn ") || l.starts_with("func "))) {
+                if j > i
+                    && (l.starts_with('}')
+                        || (l.starts_with("def ")
+                            || l.starts_with("fn ")
+                            || l.starts_with("func ")))
+                {
                     end = j + 1;
                     break;
                 }
@@ -512,19 +597,32 @@ fn trace_service_layer(
     let mut candidate_method_name = None;
     for line in handler_snippet.lines() {
         let t = line.trim();
-        if (t.contains("Service.") || t.contains("Service::") || t.contains("service.") || t.contains("service::"))
+        if (t.contains("Service.")
+            || t.contains("Service::")
+            || t.contains("service.")
+            || t.contains("service::"))
             && (t.contains('(') || t.contains(".await"))
         {
             service_candidate = Some(t.to_string());
             if let Some(pos) = t.find('.') {
                 let after = &t[pos + 1..];
-                let method = after.split('(').next().unwrap_or("").trim_end_matches(".await").trim();
+                let method = after
+                    .split('(')
+                    .next()
+                    .unwrap_or("")
+                    .trim_end_matches(".await")
+                    .trim();
                 if !method.is_empty() {
                     candidate_method_name = Some(method.to_string());
                 }
             } else if let Some(pos) = t.find("::") {
                 let after = &t[pos + 2..];
-                let method = after.split('(').next().unwrap_or("").trim_end_matches(".await").trim();
+                let method = after
+                    .split('(')
+                    .next()
+                    .unwrap_or("")
+                    .trim_end_matches(".await")
+                    .trim();
                 if !method.is_empty() {
                     candidate_method_name = Some(method.to_string());
                 }
@@ -536,8 +634,16 @@ fn trace_service_layer(
     if let Some(method_name) = &candidate_method_name {
         if let Some(engine) = index_engine {
             if let Ok(syms) = engine.find_symbols_by_name(method_name) {
-                if let Some(sym) = syms.into_iter().find(|s| s.file_path.to_lowercase().contains("service") || s.name == *method_name) {
-                    return (sym.body, Some(sym.file_path), sym.start_line, sym.end_line, Some(sym.language));
+                if let Some(sym) = syms.into_iter().find(|s| {
+                    s.file_path.to_lowercase().contains("service") || s.name == *method_name
+                }) {
+                    return (
+                        sym.body,
+                        Some(sym.file_path),
+                        sym.start_line,
+                        sym.end_line,
+                        Some(sym.language),
+                    );
                 }
             }
         }
@@ -551,14 +657,27 @@ fn trace_service_layer(
                 if let Ok(src) = fs::read_to_string(&file_path) {
                     let lines: Vec<&str> = src.lines().collect();
                     for (idx, l) in lines.iter().enumerate() {
-                        if (l.contains("fn ") || l.contains("def ") || l.contains("func ") || l.contains("public "))
-                            && (l.contains("create") || l.contains("get") || l.contains("reserve") || l.contains("process") || l.contains("handle"))
+                        if (l.contains("fn ")
+                            || l.contains("def ")
+                            || l.contains("func ")
+                            || l.contains("public "))
+                            && (l.contains("create")
+                                || l.contains("get")
+                                || l.contains("reserve")
+                                || l.contains("process")
+                                || l.contains("handle"))
                         {
                             let end = (idx + 20).min(lines.len());
                             let snippet = lines[idx..end].join("\n");
                             let lang = SupportedLanguage::from_path(&file_path)
                                 .map(|l| l.as_str().to_string());
-                            return (snippet, Some(file_path.to_string_lossy().to_string()), idx + 1, end, lang);
+                            return (
+                                snippet,
+                                Some(file_path.to_string_lossy().to_string()),
+                                idx + 1,
+                                end,
+                                lang,
+                            );
                         }
                     }
                 }
@@ -587,7 +706,13 @@ fn trace_data_access_layer(
     let combined = format!("{service_snippet}\n{handler_snippet}");
     for line in combined.lines() {
         let t = line.trim();
-        if t.contains("query!") || t.contains("db.") || t.contains("repository.") || t.contains("prisma.") || t.contains("_context.") || t.contains("save(") {
+        if t.contains("query!")
+            || t.contains("db.")
+            || t.contains("repository.")
+            || t.contains("prisma.")
+            || t.contains("_context.")
+            || t.contains("save(")
+        {
             return (t.to_string(), Some(handler_file.to_string()), 1, 3, None);
         }
     }
@@ -596,7 +721,13 @@ fn trace_data_access_layer(
         for keyword in ["repository", "repo", "dao", "store"] {
             if let Ok(syms) = engine.find_symbols_by_name(keyword) {
                 if let Some(sym) = syms.into_iter().next() {
-                    return (sym.body, Some(sym.file_path), sym.start_line, sym.end_line, Some(sym.language));
+                    return (
+                        sym.body,
+                        Some(sym.file_path),
+                        sym.start_line,
+                        sym.end_line,
+                        Some(sym.language),
+                    );
                 }
             }
         }
@@ -606,19 +737,30 @@ fn trace_data_access_layer(
     let config = TraversalConfig::default();
     for file_path in ProjectWalker::walk(root_dir, &config) {
         let p_str = file_path.to_string_lossy().to_lowercase();
-        if p_str.contains("repo") || p_str.contains("dao") || p_str.contains("model") || p_str.contains("entity") {
+        if p_str.contains("repo")
+            || p_str.contains("dao")
+            || p_str.contains("model")
+            || p_str.contains("entity")
+        {
             if let Ok(src) = fs::read_to_string(&file_path) {
                 let lines: Vec<&str> = src.lines().collect();
                 let end = lines.len().min(15);
                 let snippet = lines[..end].join("\n");
                 let lang = SupportedLanguage::from_path(&file_path).map(|l| l.as_str().to_string());
-                return (snippet, Some(file_path.to_string_lossy().to_string()), 1, end, lang);
+                return (
+                    snippet,
+                    Some(file_path.to_string_lossy().to_string()),
+                    1,
+                    end,
+                    lang,
+                );
             }
         }
     }
 
     (
-        "// Database Access\n// Executes persistence operations against primary storage backend.".to_string(),
+        "// Database Access\n// Executes persistence operations against primary storage backend."
+            .to_string(),
         Some(handler_file.to_string()),
         1,
         2,
@@ -634,23 +776,42 @@ fn match_schema_ddl(
     index_engine: Option<&crate::index::IndexEngine>,
 ) -> (String, Option<String>, Option<String>) {
     // 1. Match from already stitched / indexed schemas
-    let route_keyword = route_path.trim_matches('/').split('/').next_back().unwrap_or("").trim_end_matches('s');
+    let route_keyword = route_path
+        .trim_matches('/')
+        .split('/')
+        .next_back()
+        .unwrap_or("")
+        .trim_end_matches('s');
     for s in schemas {
         if s.name.eq_ignore_ascii_case(route_keyword)
-            || handler_symbol.to_lowercase().contains(&s.name.to_lowercase())
+            || handler_symbol
+                .to_lowercase()
+                .contains(&s.name.to_lowercase())
         {
-            return (s.definition.clone(), Some(s.file_path.clone()), Some(s.name.clone()));
+            return (
+                s.definition.clone(),
+                Some(s.file_path.clone()),
+                Some(s.name.clone()),
+            );
         }
     }
 
     if let Some(first) = schemas.first() {
-        return (first.definition.clone(), Some(first.file_path.clone()), Some(first.name.clone()));
+        return (
+            first.definition.clone(),
+            Some(first.file_path.clone()),
+            Some(first.name.clone()),
+        );
     }
 
     if let Some(engine) = index_engine {
         if let Ok(ents) = engine.find_schema_entities(route_keyword) {
             if let Some(ent) = ents.first() {
-                return (ent.definition.clone(), Some(ent.file_path.clone()), Some(ent.name.clone()));
+                return (
+                    ent.definition.clone(),
+                    Some(ent.file_path.clone()),
+                    Some(ent.name.clone()),
+                );
             }
         }
     }
@@ -664,7 +825,11 @@ fn match_schema_ddl(
                 let lines: Vec<&str> = src.lines().collect();
                 let end = lines.len().min(25);
                 let snippet = lines[..end].join("\n");
-                return (snippet, Some(file_path.to_string_lossy().to_string()), Some("db_schema".to_string()));
+                return (
+                    snippet,
+                    Some(file_path.to_string_lossy().to_string()),
+                    Some("db_schema".to_string()),
+                );
             }
         }
     }
@@ -689,7 +854,10 @@ fn apply_adaptive_budget(steps: &mut [FullstackTraceStep], budget: usize) {
             .lines()
             .filter(|l| {
                 let t = l.trim();
-                !t.starts_with("///") && !t.starts_with("//!") && !t.starts_with("/*") && !t.starts_with('*')
+                !t.starts_with("///")
+                    && !t.starts_with("//!")
+                    && !t.starts_with("/*")
+                    && !t.starts_with('*')
             })
             .collect();
         step.snippet = clean_lines.join("\n");
@@ -706,7 +874,11 @@ fn apply_adaptive_budget(steps: &mut [FullstackTraceStep], budget: usize) {
         if lines.len() > 12 {
             let head = &lines[..5];
             let tail = &lines[lines.len() - 4..];
-            step.snippet = format!("{}\n    // ... [compressed for budget] ...\n{}", head.join("\n"), tail.join("\n"));
+            step.snippet = format!(
+                "{}\n    // ... [compressed for budget] ...\n{}",
+                head.join("\n"),
+                tail.join("\n")
+            );
         }
     }
 }

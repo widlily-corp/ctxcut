@@ -96,12 +96,16 @@ impl Bm25Index {
                 *total_field_lengths.entry(field).or_insert(0) += field_len;
 
                 for (term, &freq) in terms {
-                    index.postings.entry(term.clone()).or_default().push(Posting {
-                        doc_id,
-                        field,
-                        term_freq: freq,
-                        field_length: field_len,
-                    });
+                    index
+                        .postings
+                        .entry(term.clone())
+                        .or_default()
+                        .push(Posting {
+                            doc_id,
+                            field,
+                            term_freq: freq,
+                            field_length: field_len,
+                        });
                     *doc_seen_terms.entry(term.clone()).or_insert(0) += 1;
                 }
             }
@@ -144,11 +148,7 @@ impl Bm25Index {
             let mut weighted_tf = 0.0;
             for p in postings {
                 if p.doc_id == doc_id {
-                    let avg_len = self
-                        .avg_field_lengths
-                        .get(&p.field)
-                        .copied()
-                        .unwrap_or(1.0);
+                    let avg_len = self.avg_field_lengths.get(&p.field).copied().unwrap_or(1.0);
                     let field_len = p.field_length as f64;
                     let norm = 1.0 - self.params.b + self.params.b * (field_len / avg_len);
                     let tf_norm = if norm > 0.0 {
@@ -210,7 +210,11 @@ mod tests {
         let docs = vec![doc1, doc2];
         let index = Bm25Index::build_from_documents(&docs, Bm25Params::default());
 
-        let query = vec!["validate".to_string(), "jwt".to_string(), "token".to_string()];
+        let query = vec![
+            "validate".to_string(),
+            "jwt".to_string(),
+            "token".to_string(),
+        ];
         let ranks = index.rank(&query);
 
         assert!(!ranks.is_empty());

@@ -3,9 +3,7 @@
 use anyhow::{bail, Context, Result};
 use arboard::Clipboard;
 use colored::Colorize;
-use ctxcut_core::refactor::batch::{
-    BatchAstPatcher, PatchTransactionRequest, SymbolPatchUnit,
-};
+use ctxcut_core::refactor::batch::{BatchAstPatcher, PatchTransactionRequest, SymbolPatchUnit};
 use ctxcut_core::refactor::SymbolRenamer;
 use std::fs;
 use std::path::Path;
@@ -146,8 +144,9 @@ pub fn run_refactor_batch(opts: RefactorBatchOptions) -> Result<()> {
                 .with_context(|| format!("Failed to parse JSON patches in `{}`", f.display()))?
         }
     } else if let Some(p_str) = opts.patches {
-        serde_json::from_str::<Vec<SymbolPatchUnit>>(p_str)
-            .with_context(|| "Failed to parse `--patches` JSON string. Expected array of SymbolPatchUnit.")?
+        serde_json::from_str::<Vec<SymbolPatchUnit>>(p_str).with_context(|| {
+            "Failed to parse `--patches` JSON string. Expected array of SymbolPatchUnit."
+        })?
     } else {
         bail!("Missing patch instructions. Provide `--patches <JSON>` or `--file <PATH>`");
     };

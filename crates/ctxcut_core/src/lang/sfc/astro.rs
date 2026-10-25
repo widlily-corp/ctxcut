@@ -115,6 +115,7 @@ fn find_astro_props_symbol(frontmatter: &str, file_path: &Path) -> Option<Extrac
                 signature,
                 body,
                 language: "astro".to_string(),
+                preprocessor_tag: None,
             });
         }
     }

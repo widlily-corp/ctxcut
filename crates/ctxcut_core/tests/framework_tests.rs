@@ -32,11 +32,13 @@ fn create_dummy_slice(name: &str, body: &str, file_path: &Path, language: &str) 
             signature: format!("fn {name}()"),
             body: body.to_string(),
             language: language.to_string(),
+            preprocessor_tag: None,
         },
         hoisted_types: Vec::new(),
         hoisted_implementors: Vec::new(),
         stripped_calls: Vec::new(),
         stats: TokenStats::calculate(0, 0, 0, 0),
+        semantic_header: None,
     }
 }
 

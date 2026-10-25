@@ -495,6 +495,7 @@ impl SemanticDiffEngine {
             include_types: true,
             include_calls: true,
             depth: 1,
+            lod: None,
         };
 
         for key in old_keys.intersection(&new_keys) {

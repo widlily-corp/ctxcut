@@ -1164,6 +1164,7 @@ fn build_extracted_symbol(
         signature,
         body,
         language: "python".to_string(),
+        preprocessor_tag: None,
     }
 }
 

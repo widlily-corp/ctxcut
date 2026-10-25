@@ -95,6 +95,7 @@ def caller_function(holder: ConfigHolder) -> Dict[str, Any]:
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -204,6 +205,7 @@ pub fn run_pipeline(ctx: &ProcessingContext<String>) {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -306,6 +308,7 @@ export async function handleUserLogin(session: UserSession): Promise<boolean> {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -450,6 +453,7 @@ export function runClientWorkflow(entity: FinalEntity): string {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let start = Instant::now();
@@ -572,6 +576,7 @@ export function stepC(input: TypeC, depth: number): string {
             include_types: true,
             include_calls: true,
             budget: None,
+            lod: None,
         };
 
         let start = Instant::now();
@@ -776,6 +781,7 @@ export class ExistingClass {
             include_types: true,
             include_calls: true,
             budget,
+            lod: None,
         };
         let b_res = slicer.slice_symbol(&valid_ts, "existingFunction", &b_opts);
         assert!(b_res.is_ok(), "Budget {:?} must not panic or crash", budget);
@@ -866,6 +872,7 @@ export function targetWorkflowFunction(item: ItemSchema_10, ctrl: ServiceControl
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let start = Instant::now();

@@ -36,10 +36,13 @@ pub use diff::{
 pub use error::{CoreError, Result};
 pub use formatter::{normalize_language_tag, Formatter, JsonFormatter, MarkdownFormatter};
 pub use framework::{
-    extract_server_routes, AspNetCoreAnalyzer, AxumActixAnalyzer, DjangoFastApiAnalyzer,
-    ElectronAnalyzer, ExpressAnalyzer, ExpressNestSpringAnalyzer, FlaskAnalyzer, FrameworkAnalyzer,
-    FrameworkRegistry, GinChiAnalyzer, NestJsAnalyzer, NextServerActionAnalyzer, ReactNextAnalyzer,
-    SpringAnalyzer, TauriAnalyzer, TrpcAnalyzer,
+    analyze_allocations, build_semantic_header, detect_event_declarations,
+    detect_event_invocations, detect_event_subscribers, extract_server_routes, AspNetCoreAnalyzer,
+    AxumActixAnalyzer, DetectedEventDecl, DetectedEventInvocation, DetectedEventSubscription,
+    DjangoFastApiAnalyzer, ElectronAnalyzer, EventMetadata, ExpressAnalyzer,
+    ExpressNestSpringAnalyzer, FlaskAnalyzer, FrameworkAnalyzer, FrameworkRegistry, GcAllocReport,
+    GinChiAnalyzer, NestJsAnalyzer, NextServerActionAnalyzer, ReactNextAnalyzer,
+    SemanticMetadataHeader, SpringAnalyzer, TauriAnalyzer, TrpcAnalyzer, UnityAnalyzer,
 };
 pub use fullstack::{
     ClientApiCall, ClientDetector, FullstackExecutionTracer, FullstackTraceResult,
@@ -54,7 +57,9 @@ pub use intent::{
     SymbolTokenDocument,
 };
 pub use lang::{
-    GoAdapter, LanguageAdapter, LanguageRegistry, PythonAdapter, RustAdapter, TypeScriptAdapter,
+    format_preprocessor_tag, slice_csharp_lod, CAdapter, CSharpAdapter, CSharpLodEngine,
+    CSharpPreprocessorDetector, CppAdapter, GoAdapter, LanguageAdapter, LanguageRegistry,
+    PreprocessorContextDetector, PythonAdapter, RustAdapter, TypeScriptAdapter,
 };
 pub use model::{
     BatchSliceResult, CallSignatureStub, DiscoveredFixture, ExtractedImplementor, ExtractedSymbol,
@@ -65,7 +70,9 @@ pub use model::{
 };
 pub use overview::{format_overview_markdown, WorkspaceOverviewGenerator};
 pub use parser::{AstUtils, ParserManager};
-pub use patch::AstPatcher;
+pub use patch::{
+    AstGraftEngine, AstPatcher, GraftResult, GraftValidationReport, IndentStyle, SyntaxValidator,
+};
 pub use query::{AstQueryEngine, AstQueryReport, MatchCapture, PresetRegistry, QueryMatchResult};
 pub use refactor::{
     FileRenameResult, MultiFileRenameResult, RenameTargetKind, SymbolRenameOccurrence,
@@ -77,12 +84,16 @@ pub use resolver::{
     TypeHoister,
 };
 pub use schema::{extract_schema_entities, SchemaEntityRecord, SchemaStitcher};
-pub use slice::{budget::BudgetCompressor, budget::DegradationReport, ContextSlicer};
+pub use slice::{
+    budget::BudgetCompressor, budget::DegradationReport, ClassSkeleton, ContextSlicer, LodLevel,
+    LodSliceResult, SkeletonField, SkeletonMethod, COLLAPSED_CONTEXT_COMMENT, MAX_HELPER_LINES,
+    TARGET_SYMBOL_COMMENT, TRANSITIVE_HELPER_COMMENT,
+};
 pub use swarm::{
     BoundaryStubGenerator, CommunityClusterer, DefaultSwarmPartitionEngine,
-    DefaultSwarmPartitioner, EdgeKind, GraphEdge, GraphNode, MockContractGenerator,
-    SwarmAgentPack, SwarmBudgetEngine, SwarmPartitionEngine, SwarmPartitionManifest,
-    WorkspaceGraph, WorkspaceGraphBuilder,
+    DefaultSwarmPartitioner, EdgeKind, GraphEdge, GraphNode, MockContractGenerator, SwarmAgentPack,
+    SwarmBudgetEngine, SwarmPartitionEngine, SwarmPartitionManifest, WorkspaceGraph,
+    WorkspaceGraphBuilder,
 };
 pub use telemetry::{
     current_rfc3339_timestamp, format_rfc3339, LanguageMetric, ModelTierSavings, SourceMetric,

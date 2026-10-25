@@ -218,6 +218,7 @@ fn validate_account(account: &UserAccount) -> bool {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     // Batch query for 3 functions sharing UserAccount and TransactionPayload
@@ -325,6 +326,7 @@ def refresh_session(session: UserSession) -> UserSession:
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let batch = slicer
@@ -391,6 +393,7 @@ func (c *Client) Disconnect(force bool) bool {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let batch = slicer
@@ -470,6 +473,7 @@ fn helper_fn(val: i32) -> bool {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
     let uncompressed_batch = slicer
         .slice_batch(&file, &["calculate_a", "calculate_b"], &uncompressed_opts)
@@ -480,6 +484,7 @@ fn helper_fn(val: i32) -> bool {
         include_types: true,
         include_calls: true,
         budget: Some(50),
+        lod: None,
     };
     let compressed_batch = slicer
         .slice_batch(&file, &["calculate_a", "calculate_b"], &tight_budget_opts)

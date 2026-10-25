@@ -7,7 +7,9 @@
 //! - Next.js Server Actions (module-level and function-level `'use server'`) and JSX `<form action={...}>` / `useActionState`
 
 use ctxcut_core::framework::extract_server_routes;
-use ctxcut_core::fullstack::{ClientDetector, FullstackExecutionTracer, FullstackTracer, RouteMatcher};
+use ctxcut_core::fullstack::{
+    ClientDetector, FullstackExecutionTracer, FullstackTracer, RouteMatcher,
+};
 use ctxcut_core::model::SliceOptions;
 use std::fs;
 use std::path::Path;
@@ -60,22 +62,42 @@ fn test_tauri_command_extraction_and_dto_hoisting() {
     "#;
 
     let routes = extract_server_routes(Path::new("src-tauri/src/commands.rs"), rust_code);
-    assert_eq!(routes.len(), 3, "Expected 3 Tauri routes, found {}", routes.len());
+    assert_eq!(
+        routes.len(),
+        3,
+        "Expected 3 Tauri routes, found {}",
+        routes.len()
+    );
 
     let greet = routes.iter().find(|r| r.handler_symbol == "greet").unwrap();
     assert_eq!(greet.framework, "tauri");
     assert_eq!(greet.http_method, "IPC");
 
-    let calc = routes.iter().find(|r| r.handler_symbol == "calculate_tax").unwrap();
+    let calc = routes
+        .iter()
+        .find(|r| r.handler_symbol == "calculate_tax")
+        .unwrap();
     assert_eq!(calc.framework, "tauri");
     assert_eq!(calc.http_method, "IPC");
     assert_eq!(calc.route_path, "calculate_tax");
-    assert!(calc.request_dto_type.is_some(), "Expected request DTO for calculate_tax");
-    assert_eq!(calc.request_dto_type.as_ref().unwrap().name, "CalculateTaxRequest");
-    assert!(calc.response_dto_type.is_some(), "Expected response DTO for calculate_tax");
+    assert!(
+        calc.request_dto_type.is_some(),
+        "Expected request DTO for calculate_tax"
+    );
+    assert_eq!(
+        calc.request_dto_type.as_ref().unwrap().name,
+        "CalculateTaxRequest"
+    );
+    assert!(
+        calc.response_dto_type.is_some(),
+        "Expected response DTO for calculate_tax"
+    );
     assert_eq!(calc.response_dto_type.as_ref().unwrap().name, "TaxSummary");
 
-    let close = routes.iter().find(|r| r.handler_symbol == "close_application").unwrap();
+    let close = routes
+        .iter()
+        .find(|r| r.handler_symbol == "close_application")
+        .unwrap();
     assert_eq!(close.framework, "tauri");
     assert_eq!(close.http_method, "IPC");
 }
@@ -105,9 +127,16 @@ fn test_tauri_frontend_client_detection_and_casing_matching() {
 
     let detector = ClientDetector::new();
     let calls = detector.detect_in_file(Path::new("src/services/tauriClient.ts"), ts_code);
-    assert!(calls.len() >= 3, "Expected at least 3 Tauri calls, found {}", calls.len());
+    assert!(
+        calls.len() >= 3,
+        "Expected at least 3 Tauri calls, found {}",
+        calls.len()
+    );
 
-    let calc_call = calls.iter().find(|c| c.rpc_procedure.as_deref() == Some("calculateTax")).unwrap();
+    let calc_call = calls
+        .iter()
+        .find(|c| c.rpc_procedure.as_deref() == Some("calculateTax"))
+        .unwrap();
     assert_eq!(calc_call.client_kind, "tauri");
     assert_eq!(calc_call.http_method.as_deref(), Some("IPC"));
     assert_eq!(calc_call.response_dto.as_deref(), Some("TaxSummary"));
@@ -124,7 +153,10 @@ fn test_tauri_frontend_client_detection_and_casing_matching() {
 
     let matcher = RouteMatcher::new();
     let matched = matcher.match_client_to_server(calc_call, &routes);
-    assert!(matched.is_some(), "Expected client invoke('calculateTax') to match server calculate_tax");
+    assert!(
+        matched.is_some(),
+        "Expected client invoke('calculateTax') to match server calculate_tax"
+    );
     assert_eq!(matched.unwrap().handler_symbol, "calculate_tax");
 
     // Also test find_best_server_route with queries
@@ -159,13 +191,24 @@ fn test_electron_ipc_extraction_and_resolution() {
     "#;
 
     let routes = extract_server_routes(Path::new("electron/main.ts"), main_code);
-    assert_eq!(routes.len(), 3, "Expected 3 Electron IPC routes, found {}", routes.len());
+    assert_eq!(
+        routes.len(),
+        3,
+        "Expected 3 Electron IPC routes, found {}",
+        routes.len()
+    );
 
-    let open_file = routes.iter().find(|r| r.route_path == "dialog:openFile").unwrap();
+    let open_file = routes
+        .iter()
+        .find(|r| r.route_path == "dialog:openFile")
+        .unwrap();
     assert_eq!(open_file.framework, "electron");
     assert_eq!(open_file.http_method, "IPC_HANDLE");
 
-    let get_ver = routes.iter().find(|r| r.route_path == "app:get-version").unwrap();
+    let get_ver = routes
+        .iter()
+        .find(|r| r.route_path == "app:get-version")
+        .unwrap();
     assert_eq!(get_ver.framework, "electron");
     assert_eq!(get_ver.http_method, "IPC_HANDLE");
 
@@ -187,9 +230,16 @@ fn test_electron_ipc_extraction_and_resolution() {
 
     let detector = ClientDetector::new();
     let calls = detector.detect_in_file(Path::new("src/renderer.ts"), renderer_code);
-    assert!(calls.len() >= 3, "Expected at least 3 Electron client calls, found {}", calls.len());
+    assert!(
+        calls.len() >= 3,
+        "Expected at least 3 Electron client calls, found {}",
+        calls.len()
+    );
 
-    let invoke_open = calls.iter().find(|c| c.rpc_procedure.as_deref() == Some("dialog:openFile")).unwrap();
+    let invoke_open = calls
+        .iter()
+        .find(|c| c.rpc_procedure.as_deref() == Some("dialog:openFile"))
+        .unwrap();
     assert_eq!(invoke_open.client_kind, "electron");
     assert_eq!(invoke_open.http_method.as_deref(), Some("IPC_HANDLE"));
 
@@ -229,16 +279,30 @@ fn test_trpc_router_extraction_and_resolution() {
     "#;
 
     let routes = extract_server_routes(Path::new("src/server/routers/app.ts"), backend_code);
-    assert_eq!(routes.len(), 2, "Expected 2 tRPC routes, found {}", routes.len());
+    assert_eq!(
+        routes.len(),
+        2,
+        "Expected 2 tRPC routes, found {}",
+        routes.len()
+    );
 
-    let get_user = routes.iter().find(|r| r.handler_symbol == "getUser").unwrap();
+    let get_user = routes
+        .iter()
+        .find(|r| r.handler_symbol == "getUser")
+        .unwrap();
     assert_eq!(get_user.framework, "trpc");
     assert_eq!(get_user.http_method, "QUERY");
     assert_eq!(get_user.route_path, "/trpc/getUser");
     assert!(get_user.request_dto_type.is_some());
-    assert_eq!(get_user.request_dto_type.as_ref().unwrap().name, "UserSchema");
+    assert_eq!(
+        get_user.request_dto_type.as_ref().unwrap().name,
+        "UserSchema"
+    );
 
-    let create_user = routes.iter().find(|r| r.handler_symbol == "createUser").unwrap();
+    let create_user = routes
+        .iter()
+        .find(|r| r.handler_symbol == "createUser")
+        .unwrap();
     assert_eq!(create_user.framework, "trpc");
     assert_eq!(create_user.http_method, "MUTATION");
     assert_eq!(create_user.route_path, "/trpc/createUser");
@@ -256,12 +320,22 @@ fn test_trpc_router_extraction_and_resolution() {
 
     let detector = ClientDetector::new();
     let calls = detector.detect_in_file(Path::new("src/components/UserProfile.tsx"), frontend_code);
-    assert!(calls.len() >= 2, "Expected at least 2 tRPC client calls, found {}", calls.len());
+    assert!(
+        calls.len() >= 2,
+        "Expected at least 2 tRPC client calls, found {}",
+        calls.len()
+    );
 
     let matcher = RouteMatcher::new();
-    let query_call = calls.iter().find(|c| c.rpc_procedure.as_deref() == Some("user.getUser")).unwrap();
+    let query_call = calls
+        .iter()
+        .find(|c| c.rpc_procedure.as_deref() == Some("user.getUser"))
+        .unwrap();
     let matched = matcher.match_client_to_server(query_call, &routes);
-    assert!(matched.is_some(), "Expected tRPC client call to match server procedure");
+    assert!(
+        matched.is_some(),
+        "Expected tRPC client call to match server procedure"
+    );
     assert_eq!(matched.unwrap().handler_symbol, "getUser");
 }
 
@@ -291,14 +365,25 @@ fn test_nextjs_server_actions_extraction_and_resolution() {
     "#;
 
     let routes = extract_server_routes(Path::new("app/actions/profile.ts"), action_file);
-    assert_eq!(routes.len(), 2, "Expected 2 Server Actions, found {}", routes.len());
+    assert_eq!(
+        routes.len(),
+        2,
+        "Expected 2 Server Actions, found {}",
+        routes.len()
+    );
 
-    let update = routes.iter().find(|r| r.handler_symbol == "updateProfile").unwrap();
+    let update = routes
+        .iter()
+        .find(|r| r.handler_symbol == "updateProfile")
+        .unwrap();
     assert_eq!(update.framework, "nextjs_server_action");
     assert_eq!(update.http_method, "ACTION");
     assert_eq!(update.route_path, "action://updateProfile");
 
-    let delete = routes.iter().find(|r| r.handler_symbol == "deleteAccount").unwrap();
+    let delete = routes
+        .iter()
+        .find(|r| r.handler_symbol == "deleteAccount")
+        .unwrap();
     assert_eq!(delete.framework, "nextjs_server_action");
     assert_eq!(delete.http_method, "ACTION");
 
@@ -327,10 +412,18 @@ fn test_nextjs_server_actions_extraction_and_resolution() {
     "#;
 
     let detector = ClientDetector::new();
-    let calls = detector.detect_in_file(Path::new("app/components/ProfileForm.tsx"), component_file);
-    assert!(calls.len() >= 2, "Expected at least 2 Server Action client invocations, found {}", calls.len());
+    let calls =
+        detector.detect_in_file(Path::new("app/components/ProfileForm.tsx"), component_file);
+    assert!(
+        calls.len() >= 2,
+        "Expected at least 2 Server Action client invocations, found {}",
+        calls.len()
+    );
 
-    let update_call = calls.iter().find(|c| c.rpc_procedure.as_deref() == Some("updateProfile")).unwrap();
+    let update_call = calls
+        .iter()
+        .find(|c| c.rpc_procedure.as_deref() == Some("updateProfile"))
+        .unwrap();
     assert_eq!(update_call.client_kind, "nextjs_server_action");
     assert_eq!(update_call.http_method.as_deref(), Some("ACTION"));
 
@@ -374,7 +467,8 @@ fn test_fullstack_tracer_tauri_end_to_end() {
             })
         }
         "#,
-    ).unwrap();
+    )
+    .unwrap();
 
     // 2. React frontend
     let ui_dir = root.join("src").join("ui");
@@ -393,7 +487,8 @@ fn test_fullstack_tracer_tauri_end_to_end() {
             return receipt;
         }
         "#,
-    ).unwrap();
+    )
+    .unwrap();
 
     // 3. Trace execution
     let tracer = FullstackExecutionTracer::new();
@@ -401,14 +496,19 @@ fn test_fullstack_tracer_tauri_end_to_end() {
 
     assert_eq!(result.server_route.framework, "tauri");
     assert_eq!(result.server_route.handler_symbol, "submit_order");
-    assert!(result.client_call.is_some(), "Expected client call to be discovered and linked");
+    assert!(
+        result.client_call.is_some(),
+        "Expected client call to be discovered and linked"
+    );
     assert_eq!(result.client_call.as_ref().unwrap().client_kind, "tauri");
     assert!(!result.steps.is_empty(), "Expected execution steps");
 
     // Slicing via ContextSlicer
     let opts = SliceOptions::default();
     let slicer = ctxcut_core::slice::ContextSlicer::new();
-    let slice = slicer.slice_symbol(&commands_rs, "submit_order", &opts).unwrap();
+    let slice = slicer
+        .slice_symbol(&commands_rs, "submit_order", &opts)
+        .unwrap();
     assert_eq!(slice.target_symbol.name, "submit_order");
     assert!(slice.target_symbol.body.contains("submit_order"));
 }

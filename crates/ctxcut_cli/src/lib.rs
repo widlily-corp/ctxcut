@@ -82,6 +82,10 @@ pub enum Commands {
         /// Target symbol query in format `path/to/file.ts:symbolName` or `path/to/file.ts:sym1,sym2`.
         target: String,
 
+        /// Level of Detail: 0 = signature only + XML-doc, 1 = class skeleton with collapsed neighbor methods, 2 = method + transitive private helpers <= 15 lines.
+        #[arg(long)]
+        lod: Option<String>,
+
         /// Adaptive token budget limit (progressive semantic degradation).
         #[arg(long)]
         budget: Option<usize>,
@@ -760,6 +764,7 @@ where
 
         Some(Commands::Slice {
             target,
+            lod,
             budget,
             clip,
             output,
@@ -768,11 +773,19 @@ where
             no_types,
             no_calls,
         }) => {
+            let parsed_lod = match lod.as_deref() {
+                Some(s) => Some(
+                    s.parse::<ctxcut_core::LodLevel>()
+                        .map_err(|e| anyhow::anyhow!("{e}"))?,
+                ),
+                None => None,
+            };
             let opts = SliceOptions {
                 depth,
                 include_types: !no_types,
                 include_calls: !no_calls,
                 budget,
+                lod: parsed_lod,
             };
 
             handle_slice_and_output(&target, &opts, &format, clip, output.as_deref())
@@ -1127,7 +1140,15 @@ where
             clip,
             output,
             format,
-        }) => run_trace_api_command(&entry, root, budget, depth, clip, output.as_deref(), &format),
+        }) => run_trace_api_command(
+            &entry,
+            root,
+            budget,
+            depth,
+            clip,
+            output.as_deref(),
+            &format,
+        ),
 
         Some(Commands::SliceIntent {
             prompt,
@@ -1339,6 +1360,7 @@ fn handle_slice_and_output(
                 hoisted_types: Vec::new(),
                 hoisted_implementors: Vec::new(),
                 stripped_calls: Vec::new(),
+                semantic_header: None,
                 stats: batch.stats.clone(),
             };
             TelemetryLogger::record_slice(&single_slice, "cli_slice", None);

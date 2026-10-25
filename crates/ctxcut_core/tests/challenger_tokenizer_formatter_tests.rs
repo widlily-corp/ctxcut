@@ -207,6 +207,7 @@ fn test_markdown_formatter_fidelity_and_code_fence_balance() {
             signature: "export async function executeOrder(order: OrderDto): Promise<OrderReceipt>".to_string(),
             body: "export async function executeOrder(order: OrderDto): Promise<OrderReceipt> {\n    validateOrder(order);\n    return broker.submit(order);\n}".to_string(),
             language: "typescript".to_string(),
+            preprocessor_tag: None,
         },
         hoisted_types: vec![
             ExtractedType {
@@ -238,6 +239,7 @@ fn test_markdown_formatter_fidelity_and_code_fence_balance() {
             },
         ],
         stats: TokenStats::calculate(1500, 250, 120, 25),
+        semantic_header: None,
     };
 
     let md = MarkdownFormatter::format(&mock_result);
@@ -287,11 +289,13 @@ fn test_markdown_formatter_none_fallbacks_and_empty_doc_comments() {
             signature: "export function pureMath(x: number): number".to_string(),
             body: "export function pureMath(x: number): number {\n    return x * 2;\n}".to_string(),
             language: "typescript".to_string(),
+            preprocessor_tag: None,
         },
         hoisted_types: vec![],
         hoisted_implementors: vec![],
         stripped_calls: vec![],
         stats: TokenStats::calculate(50, 15, 5, 3),
+        semantic_header: None,
     };
 
     let md = MarkdownFormatter::format(&empty_deps_result);
@@ -326,11 +330,13 @@ fn test_markdown_batch_formatting() {
             signature: "function fn1()".to_string(),
             body: "function fn1() {}".to_string(),
             language: "ts".to_string(),
+            preprocessor_tag: None,
         },
         hoisted_types: vec![],
         hoisted_implementors: vec![],
         stripped_calls: vec![],
         stats: TokenStats::calculate(10, 5, 2, 1),
+        semantic_header: None,
     };
     let r2 = SliceResult {
         target_symbol: ExtractedSymbol {
@@ -343,11 +349,13 @@ fn test_markdown_batch_formatting() {
             signature: "function fn2()".to_string(),
             body: "function fn2() {}".to_string(),
             language: "ts".to_string(),
+            preprocessor_tag: None,
         },
         hoisted_types: vec![],
         hoisted_implementors: vec![],
         stripped_calls: vec![],
         stats: TokenStats::calculate(10, 5, 2, 1),
+        semantic_header: None,
     };
 
     let batch_md = MarkdownFormatter::format_batch(&[r1, r2]);
@@ -387,6 +395,7 @@ fn test_json_serialization_and_roundtrip_integrity() {
             signature: "export async function complexHandler(req: Request<User>): Promise<Response<User>>".to_string(),
             body: "export async function complexHandler(req: Request<User>): Promise<Response<User>> {\n    // unicode: 🚀 Привет\n    return res;\n}".to_string(),
             language: "typescript".to_string(),
+            preprocessor_tag: None,
         },
         hoisted_types: vec![
             ExtractedType {
@@ -406,6 +415,7 @@ fn test_json_serialization_and_roundtrip_integrity() {
             }
         ],
         stats: TokenStats::calculate(800, 120, 80, 15),
+        semantic_header: None,
     };
 
     // 1. Pretty JSON roundtrip

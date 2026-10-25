@@ -298,7 +298,9 @@ mod tests {
 
     #[test]
     fn test_extract_query_keywords() {
-        let kw = extract_query_keywords("Find validateJwtToken function and check UserSession expiresAt");
+        let kw = extract_query_keywords(
+            "Find validateJwtToken function and check UserSession expiresAt",
+        );
         assert!(kw.contains(&"validate".to_string()));
         assert!(kw.contains(&"jwt".to_string()));
         assert!(kw.contains(&"token".to_string()));

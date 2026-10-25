@@ -199,8 +199,14 @@ mod tests {
             // guard dropped here without commit
         }
 
-        assert_eq!(fs::read_to_string(&file1).unwrap(), "fn one() -> i32 { 1 }\n");
-        assert_eq!(fs::read_to_string(&file2).unwrap(), "fn two() -> i32 { 2 }\n");
+        assert_eq!(
+            fs::read_to_string(&file1).unwrap(),
+            "fn one() -> i32 { 1 }\n"
+        );
+        assert_eq!(
+            fs::read_to_string(&file2).unwrap(),
+            "fn two() -> i32 { 2 }\n"
+        );
     }
 
     #[test]

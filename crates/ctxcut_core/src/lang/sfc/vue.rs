@@ -179,6 +179,7 @@ fn find_vue_props_symbol(script_source: &str, file_path: &Path) -> Option<Extrac
                 signature,
                 body,
                 language: "vue".to_string(),
+                preprocessor_tag: None,
             });
         }
     }

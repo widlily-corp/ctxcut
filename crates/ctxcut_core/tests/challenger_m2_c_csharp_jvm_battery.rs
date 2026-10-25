@@ -114,6 +114,7 @@ AccountEntity AccountManager::TransferFunds(uint64_t from_id, uint64_t to_id, do
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     // Slicing out-of-line method AccountManager::TransferFunds
@@ -196,6 +197,7 @@ Numeric FastCompute(Numeric a, Numeric b, Vector3D offset) {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     // 1. Template function FastCompute
@@ -337,6 +339,7 @@ public class CustomersController : ControllerBase
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     // 1. Slice action GetCustomerById
@@ -541,6 +544,7 @@ public class ProductController {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     // 1. Slice Java Spring controller method getProduct
@@ -669,6 +673,7 @@ class UserServiceImpl(private val userStore: Map<String, User>) : IUserService {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     // 1. Slice Kotlin suspend function UserServiceImpl.authenticate

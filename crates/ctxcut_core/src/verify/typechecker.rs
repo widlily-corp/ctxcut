@@ -58,10 +58,7 @@ impl TypecheckerDetector {
                     }
                 })?;
 
-                let working_dir = manifest
-                    .parent()
-                    .unwrap_or(workspace_root)
-                    .to_path_buf();
+                let working_dir = manifest.parent().unwrap_or(workspace_root).to_path_buf();
 
                 let command = if working_dir != workspace_root {
                     format!(
@@ -88,10 +85,7 @@ impl TypecheckerDetector {
                         None
                     }
                 }) {
-                    let working_dir = manifest
-                        .parent()
-                        .unwrap_or(workspace_root)
-                        .to_path_buf();
+                    let working_dir = manifest.parent().unwrap_or(workspace_root).to_path_buf();
                     return Some(TypecheckerResolution {
                         command: "npx tsc --noEmit".to_string(),
                         working_dir,
@@ -108,10 +102,7 @@ impl TypecheckerDetector {
                         None
                     }
                 }) {
-                    let working_dir = manifest
-                        .parent()
-                        .unwrap_or(workspace_root)
-                        .to_path_buf();
+                    let working_dir = manifest.parent().unwrap_or(workspace_root).to_path_buf();
                     return Some(TypecheckerResolution {
                         command: "npx tsc --noEmit".to_string(),
                         working_dir,
@@ -132,10 +123,7 @@ impl TypecheckerDetector {
                     }
                 })?;
 
-                let working_dir = manifest
-                    .parent()
-                    .unwrap_or(workspace_root)
-                    .to_path_buf();
+                let working_dir = manifest.parent().unwrap_or(workspace_root).to_path_buf();
 
                 Some(TypecheckerResolution {
                     command: "go vet ./...".to_string(),
@@ -202,14 +190,10 @@ impl TypecheckerDetector {
             }
             SupportedLanguage::CSharp => {
                 // Find closest *.csproj or *.sln upward
-                let manifest = find_file_matching_upward(&abs_file, is_csharp_manifest).or_else(
-                    || find_matching_file_in_dir(workspace_root, is_csharp_manifest),
-                )?;
+                let manifest = find_file_matching_upward(&abs_file, is_csharp_manifest)
+                    .or_else(|| find_matching_file_in_dir(workspace_root, is_csharp_manifest))?;
 
-                let working_dir = manifest
-                    .parent()
-                    .unwrap_or(workspace_root)
-                    .to_path_buf();
+                let working_dir = manifest.parent().unwrap_or(workspace_root).to_path_buf();
 
                 Some(TypecheckerResolution {
                     command: "dotnet build".to_string(),
@@ -227,10 +211,7 @@ impl TypecheckerDetector {
                         None
                     }
                 }) {
-                    let working_dir = manifest
-                        .parent()
-                        .unwrap_or(workspace_root)
-                        .to_path_buf();
+                    let working_dir = manifest.parent().unwrap_or(workspace_root).to_path_buf();
                     return Some(TypecheckerResolution {
                         command: "mvn compile -DskipTests".to_string(),
                         working_dir,
@@ -258,10 +239,7 @@ impl TypecheckerDetector {
                         }
                     })
                 {
-                    let working_dir = manifest
-                        .parent()
-                        .unwrap_or(workspace_root)
-                        .to_path_buf();
+                    let working_dir = manifest.parent().unwrap_or(workspace_root).to_path_buf();
                     return Some(TypecheckerResolution {
                         command: "gradle compileJava".to_string(),
                         working_dir,
@@ -292,10 +270,7 @@ impl TypecheckerDetector {
                         }
                     })
                 {
-                    let working_dir = manifest
-                        .parent()
-                        .unwrap_or(workspace_root)
-                        .to_path_buf();
+                    let working_dir = manifest.parent().unwrap_or(workspace_root).to_path_buf();
                     return Some(TypecheckerResolution {
                         command: "gradle compileKotlin".to_string(),
                         working_dir,
@@ -312,10 +287,7 @@ impl TypecheckerDetector {
                         None
                     }
                 }) {
-                    let working_dir = manifest
-                        .parent()
-                        .unwrap_or(workspace_root)
-                        .to_path_buf();
+                    let working_dir = manifest.parent().unwrap_or(workspace_root).to_path_buf();
                     return Some(TypecheckerResolution {
                         command: "mvn compile -DskipTests".to_string(),
                         working_dir,
@@ -560,7 +532,6 @@ fn is_csharp_manifest(path: &Path) -> bool {
         false
     }
 }
-
 
 /// Output from executing a typechecker command.
 #[derive(Debug, Clone)]
@@ -831,8 +802,9 @@ mod tests {
         let target_file = tauri_dir.join("src").join("main.rs");
         fs::write(&target_file, "fn main() {}\n").unwrap();
 
-        let res = TypecheckerDetector::detect_resolution(root, &target_file, SupportedLanguage::Rust)
-            .expect("Should resolve nested Tauri Cargo.toml");
+        let res =
+            TypecheckerDetector::detect_resolution(root, &target_file, SupportedLanguage::Rust)
+                .expect("Should resolve nested Tauri Cargo.toml");
 
         assert_eq!(res.working_dir, tauri_dir);
         assert_eq!(res.manifest_path, Some(cargo_toml.clone()));
@@ -851,8 +823,9 @@ mod tests {
         fs::create_dir_all(root.join("src")).unwrap();
         fs::write(&target_file, "pub fn run() {}\n").unwrap();
 
-        let res = TypecheckerDetector::detect_resolution(root, &target_file, SupportedLanguage::Rust)
-            .expect("Should resolve root Cargo.toml");
+        let res =
+            TypecheckerDetector::detect_resolution(root, &target_file, SupportedLanguage::Rust)
+                .expect("Should resolve root Cargo.toml");
 
         assert_eq!(res.working_dir, root);
         assert_eq!(res.manifest_path, Some(cargo_toml));
@@ -871,8 +844,12 @@ mod tests {
         let target_file = pkg_dir.join("src").join("index.ts");
         fs::write(&target_file, "export const x = 1;").unwrap();
 
-        let res = TypecheckerDetector::detect_resolution(root, &target_file, SupportedLanguage::TypeScript)
-            .expect("Should resolve package tsconfig.json");
+        let res = TypecheckerDetector::detect_resolution(
+            root,
+            &target_file,
+            SupportedLanguage::TypeScript,
+        )
+        .expect("Should resolve package tsconfig.json");
 
         assert_eq!(res.working_dir, pkg_dir);
         assert_eq!(res.manifest_path, Some(tsconfig));
@@ -911,8 +888,9 @@ mod tests {
         let target_file = service_dir.join("src").join("task.py");
         fs::write(&target_file, "def work(): pass\n").unwrap();
 
-        let res = TypecheckerDetector::detect_resolution(root, &target_file, SupportedLanguage::Python)
-            .expect("Should resolve nested pyproject.toml");
+        let res =
+            TypecheckerDetector::detect_resolution(root, &target_file, SupportedLanguage::Python)
+                .expect("Should resolve nested pyproject.toml");
 
         assert_eq!(res.working_dir, service_dir);
         assert_eq!(res.manifest_path, Some(pyproject));
@@ -931,8 +909,9 @@ mod tests {
         let target_file = api_dir.join("Controllers").join("UserController.cs");
         fs::write(&target_file, "public class UserController {}").unwrap();
 
-        let res = TypecheckerDetector::detect_resolution(root, &target_file, SupportedLanguage::CSharp)
-            .expect("Should resolve nested .csproj");
+        let res =
+            TypecheckerDetector::detect_resolution(root, &target_file, SupportedLanguage::CSharp)
+                .expect("Should resolve nested .csproj");
 
         assert_eq!(res.working_dir, api_dir);
         assert_eq!(res.manifest_path, Some(csproj));
@@ -948,11 +927,16 @@ mod tests {
         fs::create_dir_all(core_dir.join("src").join("main").join("java")).unwrap();
         let pom = core_dir.join("pom.xml");
         fs::write(&pom, "<project></project>").unwrap();
-        let target_file = core_dir.join("src").join("main").join("java").join("App.java");
+        let target_file = core_dir
+            .join("src")
+            .join("main")
+            .join("java")
+            .join("App.java");
         fs::write(&target_file, "public class App {}").unwrap();
 
-        let res = TypecheckerDetector::detect_resolution(root, &target_file, SupportedLanguage::Java)
-            .expect("Should resolve nested pom.xml");
+        let res =
+            TypecheckerDetector::detect_resolution(root, &target_file, SupportedLanguage::Java)
+                .expect("Should resolve nested pom.xml");
 
         assert_eq!(res.working_dir, core_dir);
         assert_eq!(res.manifest_path, Some(pom));
@@ -971,12 +955,12 @@ mod tests {
         let target_file = app_dir.join("src").join("Main.kt");
         fs::write(&target_file, "fun main() {}").unwrap();
 
-        let res = TypecheckerDetector::detect_resolution(root, &target_file, SupportedLanguage::Kotlin)
-            .expect("Should resolve nested build.gradle.kts");
+        let res =
+            TypecheckerDetector::detect_resolution(root, &target_file, SupportedLanguage::Kotlin)
+                .expect("Should resolve nested build.gradle.kts");
 
         assert_eq!(res.working_dir, app_dir);
         assert_eq!(res.manifest_path, Some(gradle));
         assert_eq!(res.command, "gradle compileKotlin");
     }
 }
-

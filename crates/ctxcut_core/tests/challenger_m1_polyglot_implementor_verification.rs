@@ -74,6 +74,7 @@ impl<T: Clone + Send> StorageEngine<T> for RedisStore {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let start = Instant::now();
@@ -183,6 +184,7 @@ type RandomData struct {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     // 1. Empty interface must NOT match all structs
@@ -294,6 +296,7 @@ export class UnrelatedClass {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice = slicer
@@ -358,6 +361,7 @@ def dispatch_event(sink: EventSink, name: str, data: dict) -> bool:
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice = slicer
@@ -417,6 +421,7 @@ pub fn run_service_0(s: &dyn Service_0) -> u32 {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     // Warmup

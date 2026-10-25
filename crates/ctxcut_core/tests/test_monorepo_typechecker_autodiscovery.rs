@@ -30,7 +30,11 @@ fn test_tauri_hybrid_repo_autodiscovery() {
     let tauri_dir = root.join("src-tauri");
     fs::create_dir_all(tauri_dir.join("src")).unwrap();
     let cargo_toml = tauri_dir.join("Cargo.toml");
-    fs::write(&cargo_toml, "[package]\nname = \"tauri-backend\"\nversion = \"0.1.0\"\n").unwrap();
+    fs::write(
+        &cargo_toml,
+        "[package]\nname = \"tauri-backend\"\nversion = \"0.1.0\"\n",
+    )
+    .unwrap();
     let rs_file = tauri_dir.join("src").join("main.rs");
     fs::write(
         &rs_file,
@@ -47,8 +51,9 @@ fn test_tauri_hybrid_repo_autodiscovery() {
     assert!(rust_res.command.contains("Cargo.toml"));
 
     // 2. Verify TypeScript file discovers root package.json
-    let ts_res = TypecheckerDetector::detect_resolution(root, &ts_file, SupportedLanguage::TypeScript)
-        .expect("Should resolve root package.json for frontend");
+    let ts_res =
+        TypecheckerDetector::detect_resolution(root, &ts_file, SupportedLanguage::TypeScript)
+            .expect("Should resolve root package.json for frontend");
     assert_eq!(ts_res.working_dir, root);
     assert_eq!(ts_res.command, "npx tsc --noEmit");
 
@@ -86,7 +91,11 @@ fn test_typescript_turborepo_monorepo_discovery() {
     //       package.json
     //       src/
     //         utils.ts
-    fs::write(root.join("package.json"), "{\"workspaces\":[\"packages/*\"]}").unwrap();
+    fs::write(
+        root.join("package.json"),
+        "{\"workspaces\":[\"packages/*\"]}",
+    )
+    .unwrap();
 
     let ui_dir = root.join("packages").join("ui");
     fs::create_dir_all(ui_dir.join("src")).unwrap();
@@ -111,15 +120,17 @@ fn test_typescript_turborepo_monorepo_discovery() {
     .unwrap();
 
     // 1. Check UI package resolves to packages/ui with tsconfig.json
-    let ui_res = TypecheckerDetector::detect_resolution(root, &ui_file, SupportedLanguage::TypeScript)
-        .expect("Should resolve packages/ui tsconfig");
+    let ui_res =
+        TypecheckerDetector::detect_resolution(root, &ui_file, SupportedLanguage::TypeScript)
+            .expect("Should resolve packages/ui tsconfig");
     assert_eq!(ui_res.working_dir, ui_dir);
     assert_eq!(ui_res.manifest_path, Some(ui_tsconfig));
     assert_eq!(ui_res.command, "npx tsc --noEmit");
 
     // 2. Check Core package resolves to packages/core with package.json
-    let core_res = TypecheckerDetector::detect_resolution(root, &core_file, SupportedLanguage::TypeScript)
-        .expect("Should resolve packages/core package.json");
+    let core_res =
+        TypecheckerDetector::detect_resolution(root, &core_file, SupportedLanguage::TypeScript)
+            .expect("Should resolve packages/core package.json");
     assert_eq!(core_res.working_dir, core_dir);
     assert_eq!(core_res.manifest_path, Some(core_pkg));
     assert_eq!(core_res.command, "npx tsc --noEmit");
@@ -185,8 +196,9 @@ fn test_go_multi_module_monorepo_discovery() {
     assert_eq!(auth_res.manifest_path, Some(auth_mod));
     assert_eq!(auth_res.command, "go vet ./...");
 
-    let billing_res = TypecheckerDetector::detect_resolution(root, &billing_main, SupportedLanguage::Go)
-        .expect("Should resolve billing go.mod");
+    let billing_res =
+        TypecheckerDetector::detect_resolution(root, &billing_main, SupportedLanguage::Go)
+            .expect("Should resolve billing go.mod");
     assert_eq!(billing_res.working_dir, billing_dir);
     assert_eq!(billing_res.manifest_path, Some(billing_mod));
     assert_eq!(billing_res.command, "go vet ./...");
@@ -226,20 +238,23 @@ fn test_python_polyglot_and_services_discovery() {
     fs::create_dir_all(root.join("scripts")).unwrap();
     fs::write(&script_file, "print('Deploying')\n").unwrap();
 
-    let api_res = TypecheckerDetector::detect_resolution(root, &api_file, SupportedLanguage::Python)
-        .expect("Should resolve api pyproject.toml");
+    let api_res =
+        TypecheckerDetector::detect_resolution(root, &api_file, SupportedLanguage::Python)
+            .expect("Should resolve api pyproject.toml");
     assert_eq!(api_res.working_dir, api_dir);
     assert_eq!(api_res.manifest_path, Some(api_toml));
     assert_eq!(api_res.command, "mypy \"app.py\"");
 
-    let worker_res = TypecheckerDetector::detect_resolution(root, &worker_file, SupportedLanguage::Python)
-        .expect("Should resolve worker mypy.ini");
+    let worker_res =
+        TypecheckerDetector::detect_resolution(root, &worker_file, SupportedLanguage::Python)
+            .expect("Should resolve worker mypy.ini");
     assert_eq!(worker_res.working_dir, worker_dir);
     assert_eq!(worker_res.manifest_path, Some(worker_ini));
     assert_eq!(worker_res.command, "mypy \"tasks.py\"");
 
-    let script_res = TypecheckerDetector::detect_resolution(root, &script_file, SupportedLanguage::Python)
-        .expect("Should resolve scripts fallback");
+    let script_res =
+        TypecheckerDetector::detect_resolution(root, &script_file, SupportedLanguage::Python)
+            .expect("Should resolve scripts fallback");
     assert_eq!(script_res.working_dir, root);
     assert_eq!(script_res.manifest_path, None);
     assert!(script_res.command.contains("python -m py_compile"));
@@ -257,16 +272,25 @@ fn test_csharp_multi_project_sln_discovery() {
     //     Orders/
     //       Orders.csproj
     //       OrderService.cs
-    fs::write(root.join("Company.sln"), "Microsoft Visual Studio Solution File").unwrap();
+    fs::write(
+        root.join("Company.sln"),
+        "Microsoft Visual Studio Solution File",
+    )
+    .unwrap();
     let orders_dir = root.join("src").join("Orders");
     fs::create_dir_all(&orders_dir).unwrap();
     let orders_csproj = orders_dir.join("Orders.csproj");
-    fs::write(&orders_csproj, "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>").unwrap();
+    fs::write(
+        &orders_csproj,
+        "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>",
+    )
+    .unwrap();
     let order_service = orders_dir.join("OrderService.cs");
     fs::write(&order_service, "public class OrderService {}").unwrap();
 
-    let res = TypecheckerDetector::detect_resolution(root, &order_service, SupportedLanguage::CSharp)
-        .expect("Should resolve closest csproj");
+    let res =
+        TypecheckerDetector::detect_resolution(root, &order_service, SupportedLanguage::CSharp)
+            .expect("Should resolve closest csproj");
     assert_eq!(res.working_dir, orders_dir);
     assert_eq!(res.manifest_path, Some(orders_csproj));
     assert_eq!(res.command, "dotnet build");
@@ -279,13 +303,13 @@ fn test_custom_typechecker_override_preserves_discovered_cwd() {
 
     let tauri_dir = root.join("src-tauri");
     fs::create_dir_all(tauri_dir.join("src")).unwrap();
-    fs::write(tauri_dir.join("Cargo.toml"), "[package]\nname = \"tauri\"\n").unwrap();
-    let rs_file = tauri_dir.join("src").join("main.rs");
     fs::write(
-        &rs_file,
-        "pub fn compute(x: i32) -> i32 {\n    x * 2\n}\n",
+        tauri_dir.join("Cargo.toml"),
+        "[package]\nname = \"tauri\"\n",
     )
     .unwrap();
+    let rs_file = tauri_dir.join("src").join("main.rs");
+    fs::write(&rs_file, "pub fn compute(x: i32) -> i32 {\n    x * 2\n}\n").unwrap();
 
     // Verify custom typechecker override with PatchVerifier
     let patch_target = format!("{}:compute", rs_file.to_string_lossy());
@@ -300,6 +324,9 @@ fn test_custom_typechecker_override_preserves_discovered_cwd() {
     )
     .expect("verify_patch with override should succeed");
 
-    assert_eq!(res.typechecker_command, Some("cargo clippy --fix".to_string()));
+    assert_eq!(
+        res.typechecker_command,
+        Some("cargo clippy --fix".to_string())
+    );
     assert!(res.diff.contains("+    x * 4"));
 }

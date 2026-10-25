@@ -262,6 +262,7 @@ export function coreAction() {
         include_types: true,
         include_calls: true,
         budget: Some(200), // Strict budget forcing compression
+        lod: None,
     };
 
     let result = ImpactAnalyzer::find_callers(ws, "coreAction", Some(&target_file), &opts)

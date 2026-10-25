@@ -7,7 +7,9 @@ use super::graph::WorkspaceGraphBuilder;
 use super::mock::MockContractGenerator;
 use super::stubs::BoundaryStubGenerator;
 use crate::error::Result;
-use crate::model::{CallSignatureStub, ExtractedSymbol, ExtractedType, SupportedLanguage, TokenStats};
+use crate::model::{
+    CallSignatureStub, ExtractedSymbol, ExtractedType, SupportedLanguage, TokenStats,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;

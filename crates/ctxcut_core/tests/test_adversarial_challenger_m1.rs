@@ -371,6 +371,7 @@ export class Step10DbSink {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let trace =
@@ -417,6 +418,7 @@ export class Step10DbSink {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
     let trace_depth5 = ExecutionTracer::trace(ws, "Step1Controller.handleEntry", &opts_depth5)
         .expect("trace 5 hops");
@@ -485,6 +487,7 @@ export class Hop{i}Service {{
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let trace = ExecutionTracer::trace(ws, "Hop1Controller.runHop1", &opts).expect("trace cycle");
@@ -561,6 +564,7 @@ export class PipelineB {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let trace = ExecutionTracer::trace(ws, "Controller.handle", &opts).expect("trace pipeline");
@@ -606,6 +610,7 @@ def parse_terms(terms):
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let trace =
@@ -708,6 +713,7 @@ export class HeavyStep8DbSink {{
         include_types: true,
         include_calls: true,
         budget: Some(2000),
+        lod: None,
     };
     let trace_2000 =
         ExecutionTracer::trace(ws, "HeavyStep1Controller.handleMassiveRequest", &opts_2000)
@@ -729,6 +735,7 @@ export class HeavyStep8DbSink {{
         include_types: true,
         include_calls: true,
         budget: Some(1500),
+        lod: None,
     };
     let trace_1500 =
         ExecutionTracer::trace(ws, "HeavyStep1Controller.handleMassiveRequest", &opts_1500)
@@ -750,6 +757,7 @@ export class HeavyStep8DbSink {{
         include_types: true,
         include_calls: true,
         budget: Some(1100),
+        lod: None,
     };
     let trace_1100 =
         ExecutionTracer::trace(ws, "HeavyStep1Controller.handleMassiveRequest", &opts_1100)
@@ -849,6 +857,7 @@ impl EntityRepository for RedisCacheRepo {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice = slicer

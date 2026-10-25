@@ -64,13 +64,24 @@ fn test_client_detector_react_query_and_trpc() {
     "#;
 
     let calls = detector.detect_in_file(Path::new("src/hooks/useUser.tsx"), code);
-    assert!(calls.len() >= 3, "Expected at least 3 calls, found {}", calls.len());
+    assert!(
+        calls.len() >= 3,
+        "Expected at least 3 calls, found {}",
+        calls.len()
+    );
 
-    let has_trpc = calls.iter().any(|c| c.client_kind == "trpc" && c.rpc_procedure.as_deref() == Some("user.getById"));
+    let has_trpc = calls
+        .iter()
+        .any(|c| c.client_kind == "trpc" && c.rpc_procedure.as_deref() == Some("user.getById"));
     assert!(has_trpc, "Should detect trpc.user.getById call");
 
-    let has_react_query = calls.iter().any(|c| c.client_kind == "react_query" || c.client_kind == "fetch");
-    assert!(has_react_query, "Should detect React Query or fetch invocation");
+    let has_react_query = calls
+        .iter()
+        .any(|c| c.client_kind == "react_query" || c.client_kind == "fetch");
+    assert!(
+        has_react_query,
+        "Should detect React Query or fetch invocation"
+    );
 }
 
 #[test]
@@ -93,7 +104,10 @@ fn test_client_detector_graphql_and_grpc() {
     "#;
 
     let calls = detector.detect_in_file(Path::new("src/components/UserProfile.tsx"), code);
-    assert!(!calls.is_empty(), "Should extract GraphQL and/or gRPC calls");
+    assert!(
+        !calls.is_empty(),
+        "Should extract GraphQL and/or gRPC calls"
+    );
 
     let has_graphql = calls.iter().any(|c| c.client_kind == "graphql");
     assert!(has_graphql, "Should identify GraphQL query");
@@ -115,8 +129,12 @@ fn test_server_route_extractors_polyglot() {
     "#;
     let axum_routes = extract_server_routes(Path::new("src/routes.rs"), axum_code);
     assert_eq!(axum_routes.len(), 2);
-    assert!(axum_routes.iter().any(|r| r.framework == "axum" && r.http_method == "GET" && r.route_path == "/api/users"));
-    assert!(axum_routes.iter().any(|r| r.framework == "axum" && r.http_method == "POST" && r.handler_symbol == "create_user"));
+    assert!(axum_routes
+        .iter()
+        .any(|r| r.framework == "axum" && r.http_method == "GET" && r.route_path == "/api/users"));
+    assert!(axum_routes.iter().any(|r| r.framework == "axum"
+        && r.http_method == "POST"
+        && r.handler_symbol == "create_user"));
 
     // 2. Actix-web (Rust)
     let actix_code = r#"
@@ -180,7 +198,8 @@ fn test_server_route_extractors_polyglot() {
             public async Task<IActionResult> CreateUser([FromBody] CreateUserDto dto) { ... }
         }
     "#;
-    let aspnet_routes = extract_server_routes(Path::new("Controllers/UsersController.cs"), aspnet_code);
+    let aspnet_routes =
+        extract_server_routes(Path::new("Controllers/UsersController.cs"), aspnet_code);
     assert_eq!(aspnet_routes.len(), 2);
     assert_eq!(aspnet_routes[0].framework, "aspnetcore");
 
@@ -199,7 +218,10 @@ fn test_server_route_extractors_polyglot() {
             public ProductDto createProduct(@RequestBody CreateProductDto dto) { ... }
         }
     "#;
-    let spring_routes = extract_server_routes(Path::new("src/main/java/ProductController.java"), spring_code);
+    let spring_routes = extract_server_routes(
+        Path::new("src/main/java/ProductController.java"),
+        spring_code,
+    );
     assert_eq!(spring_routes.len(), 2);
     assert_eq!(spring_routes[0].framework, "spring_boot");
 }
@@ -215,7 +237,8 @@ fn test_schema_entities_extraction() {
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
     "#;
-    let sql_schemas = extract_schema_entities(Path::new("migrations/001_create_users.sql"), sql_ddl);
+    let sql_schemas =
+        extract_schema_entities(Path::new("migrations/001_create_users.sql"), sql_ddl);
     assert_eq!(sql_schemas.len(), 1);
     assert_eq!(sql_schemas[0].schema_kind, "sql_table");
     assert_eq!(sql_schemas[0].entity_name, "users");
@@ -256,7 +279,10 @@ fn test_route_matcher_normalization() {
     assert!(matcher.paths_match("/api/users/:id", "/api/users/123"));
     assert!(matcher.paths_match("/api/users/{id}", "/api/users/456"));
     assert!(matcher.paths_match("/api/v1/orders/${orderId}", "/api/v1/orders/abc-999"));
-    assert!(matcher.paths_match("/api/posts/:postId/comments/:commentId", "/api/posts/10/comments/20"));
+    assert!(matcher.paths_match(
+        "/api/posts/:postId/comments/:commentId",
+        "/api/posts/10/comments/20"
+    ));
     assert!(!matcher.paths_match("/api/users", "/api/products"));
 }
 
@@ -278,7 +304,8 @@ fn test_end_to_end_6_step_fullstack_trace() {
             return resp.data;
         }}
         "#
-    ).unwrap();
+    )
+    .unwrap();
 
     // 2. Create server route handler file
     let server_dir = root.join("backend/src");
@@ -303,7 +330,8 @@ fn test_end_to_end_6_step_fullstack_trace() {
             Router::new().route("/api/v1/users", post(create_user))
         }}
         "#
-    ).unwrap();
+    )
+    .unwrap();
 
     // 3. Create service file
     let mut service_file = File::create(server_dir.join("service.rs")).unwrap();
@@ -318,7 +346,8 @@ fn test_end_to_end_6_step_fullstack_trace() {
             }}
         }}
         "#
-    ).unwrap();
+    )
+    .unwrap();
 
     // 4. Create repository file
     let mut repo_file = File::create(server_dir.join("repository.rs")).unwrap();
@@ -333,7 +362,8 @@ fn test_end_to_end_6_step_fullstack_trace() {
             }}
         }}
         "#
-    ).unwrap();
+    )
+    .unwrap();
 
     // 5. Create SQL migration DDL file
     let mig_dir = root.join("migrations");
@@ -348,14 +378,18 @@ fn test_end_to_end_6_step_fullstack_trace() {
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         );
         "#
-    ).unwrap();
+    )
+    .unwrap();
 
     // Trace the API endpoint
     let tracer = FullstackExecutionTracer::new();
     let trace_result = tracer.trace_api(root, "/api/v1/users", Some(1800)).unwrap();
 
     assert_eq!(trace_result.query_endpoint, "/api/v1/users");
-    assert_eq!(trace_result.total_steps, 6, "Must produce a complete 6-step execution flow");
+    assert_eq!(
+        trace_result.total_steps, 6,
+        "Must produce a complete 6-step execution flow"
+    );
     assert_eq!(trace_result.steps.len(), 6);
 
     // Verify all 6 layers are populated in order
@@ -368,8 +402,15 @@ fn test_end_to_end_6_step_fullstack_trace() {
 
     // Check token budget (1,500 - 2,000 tokens)
     let total_tokens = trace_result.stats.sliced_tokens;
-    assert!(total_tokens <= 2000, "Token count {} should be <= 2000 tokens budget", total_tokens);
-    assert!(trace_result.stats.savings_percentage > 0.0, "Should achieve token reduction vs raw files");
+    assert!(
+        total_tokens <= 2000,
+        "Token count {} should be <= 2000 tokens budget",
+        total_tokens
+    );
+    assert!(
+        trace_result.stats.savings_percentage > 0.0,
+        "Should achieve token reduction vs raw files"
+    );
 }
 
 #[test]
@@ -389,7 +430,8 @@ fn test_sqlite_persistent_caching_sub_5ms() {
         pub async fn list_items() -> Json<Vec<String>> {{ Json(vec![]) }}
         pub fn router() -> Router {{ Router::new().route("/api/v1/items", get(list_items)) }}
         "#
-    ).unwrap();
+    )
+    .unwrap();
 
     let mut client_file = File::create(src_dir.join("client.ts")).unwrap();
     writeln!(
@@ -399,7 +441,8 @@ fn test_sqlite_persistent_caching_sub_5ms() {
             return fetch('/api/v1/items');
         }}
         "#
-    ).unwrap();
+    )
+    .unwrap();
 
     let mig_dir = ws_root.join("migrations");
     fs::create_dir_all(&mig_dir).unwrap();
@@ -407,7 +450,8 @@ fn test_sqlite_persistent_caching_sub_5ms() {
     writeln!(
         ddl_file,
         "CREATE TABLE items ( id SERIAL PRIMARY KEY, name TEXT NOT NULL );"
-    ).unwrap();
+    )
+    .unwrap();
 
     // Initialize IndexEngine
     let mut engine = IndexEngine::open_or_create(ws_root).unwrap();
@@ -419,19 +463,33 @@ fn test_sqlite_persistent_caching_sub_5ms() {
     let routes = engine.find_routes_by_path("/api/v1/items").unwrap();
     let d_routes = t0.elapsed();
     assert!(!routes.is_empty(), "Should find indexed route");
-    assert!(d_routes.as_millis() < 5, "Route lookup should be sub-5ms, was {:?}", d_routes);
+    assert!(
+        d_routes.as_millis() < 5,
+        "Route lookup should be sub-5ms, was {:?}",
+        d_routes
+    );
 
     // Measure lookup latency for find_client_endpoints_by_url_or_proc
     let t1 = Instant::now();
-    let clients = engine.find_client_endpoints_by_url_or_proc("/api/v1/items").unwrap();
+    let clients = engine
+        .find_client_endpoints_by_url_or_proc("/api/v1/items")
+        .unwrap();
     let d_clients = t1.elapsed();
     assert!(!clients.is_empty(), "Should find indexed client endpoint");
-    assert!(d_clients.as_millis() < 5, "Client lookup should be sub-5ms, was {:?}", d_clients);
+    assert!(
+        d_clients.as_millis() < 5,
+        "Client lookup should be sub-5ms, was {:?}",
+        d_clients
+    );
 
     // Measure lookup latency for find_schema_entities
     let t2 = Instant::now();
     let schemas = engine.find_schema_entities("items").unwrap();
     let d_schemas = t2.elapsed();
     assert!(!schemas.is_empty(), "Should find indexed schema entity");
-    assert!(d_schemas.as_millis() < 5, "Schema lookup should be sub-5ms, was {:?}", d_schemas);
+    assert!(
+        d_schemas.as_millis() < 5,
+        "Schema lookup should be sub-5ms, was {:?}",
+        d_schemas
+    );
 }

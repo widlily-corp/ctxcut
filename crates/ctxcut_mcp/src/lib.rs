@@ -9,16 +9,13 @@ pub mod logger;
 pub use logger::{format_rfc3339, McpFileLogger, ToolLogRecord};
 
 use anyhow::Result;
-use ctxcut_core::refactor::batch::{
-    BatchAstPatcher, PatchTransactionRequest, SymbolPatchUnit,
-};
+use ctxcut_core::refactor::batch::{BatchAstPatcher, PatchTransactionRequest, SymbolPatchUnit};
 use ctxcut_core::{
-    AstPatcher, AstQueryEngine, ContextSlicer, DefaultIntentSlicer, DefaultSwarmPartitioner,
-    ExecutionTracer, FullstackExecutionTracer, ImpactAnalyzer, IndexEngine,
-    IndexOptions, IntentSliceOptions, IntentSlicer, MarkdownFormatter, OverviewOptions,
-    PatchVerifier, SemanticDiffEngine, SliceOptions, SliceResult, SupportedLanguage,
-    SwarmPartitionEngine, SymbolRenamer, TelemetryLogger, TestContextGenerator,
-    WorkspaceOverviewGenerator,
+    AstQueryEngine, ContextSlicer, DefaultIntentSlicer, DefaultSwarmPartitioner, ExecutionTracer,
+    FullstackExecutionTracer, ImpactAnalyzer, IndexEngine, IndexOptions, IntentSliceOptions,
+    IntentSlicer, MarkdownFormatter, OverviewOptions, PatchVerifier, SemanticDiffEngine,
+    SliceOptions, SliceResult, SupportedLanguage, SwarmPartitionEngine, SymbolRenamer,
+    TelemetryLogger, TestContextGenerator, WorkspaceOverviewGenerator,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -224,6 +221,11 @@ fn build_tools_list_response() -> Value {
                         "no_calls": {
                             "type": "boolean",
                             "description": "Disable signature stripping for external calls (default: false)"
+                        },
+                        "lod": {
+                            "type": "string",
+                            "enum": ["0", "1", "2", "lod0", "lod1", "lod2"],
+                            "description": "Level of Detail: 0 = signature only + XML-doc, 1 = class skeleton with collapsed neighbor methods, 2 = method + transitive private helpers <= 15 lines"
                         }
                     },
                     "required": ["path", "symbol"]
@@ -1018,11 +1020,22 @@ fn execute_symbol_slice(args: &Value) -> (Value, Option<Value>, Option<String>, 
         .and_then(Value::as_bool)
         .unwrap_or(false);
 
+    let lod = args.get("lod").and_then(|v| {
+        if let Some(s) = v.as_str() {
+            s.parse::<ctxcut_core::LodLevel>().ok()
+        } else if let Some(n) = v.as_u64() {
+            n.to_string().parse::<ctxcut_core::LodLevel>().ok()
+        } else {
+            None
+        }
+    });
+
     let opts = SliceOptions {
         depth,
         include_types: !no_types,
         include_calls: !no_calls,
         budget,
+        lod,
     };
 
     let start_time = Instant::now();
@@ -1040,6 +1053,7 @@ fn execute_symbol_slice(args: &Value) -> (Value, Option<Value>, Option<String>, 
                         hoisted_types: Vec::new(),
                         hoisted_implementors: Vec::new(),
                         stripped_calls: Vec::new(),
+                        semantic_header: None,
                         stats: batch.stats.clone(),
                     };
                     TelemetryLogger::record_slice(
@@ -1434,8 +1448,66 @@ fn execute_patch_symbol(args: &Value) -> (Value, Option<Value>, Option<String>, 
         .and_then(Value::as_bool)
         .unwrap_or(false);
 
-    match AstPatcher::patch_symbol(Path::new(path_str), symbol, code, dry_run) {
-        Ok(patch_res) => {
+    let path = Path::new(path_str);
+    let Ok(source) = fs::read_to_string(path) else {
+        let err = format!("Failed to read file `{}`", path.display());
+        return (
+            json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            }),
+            None,
+            Some(err),
+            None,
+        );
+    };
+
+    let Some(lang) = SupportedLanguage::from_path(path) else {
+        let err = format!("Unsupported language for file `{}`", path.display());
+        return (
+            json!({
+                "isError": true,
+                "content": [{ "type": "text", "text": err }]
+            }),
+            None,
+            Some(err),
+            None,
+        );
+    };
+
+    match ctxcut_core::patch::graft::AstGraftEngine::graft_and_validate(
+        &source, lang, path, symbol, code,
+    ) {
+        Ok((graft_res, report)) => {
+            if !report.is_valid {
+                let err = format!("Syntax validation error: {:?}", report.errors);
+                let response = json!({
+                    "isError": true,
+                    "content": [{ "type": "text", "text": err }],
+                    "validation_report": report
+                });
+                return (response, None, Some(err), None);
+            }
+
+            let applied = if !dry_run {
+                if let Err(e) = fs::write(path, &graft_res.full_patched_source) {
+                    let err = format!("Failed to write patched file: {e}");
+                    return (
+                        json!({
+                            "isError": true,
+                            "content": [{ "type": "text", "text": err }]
+                        }),
+                        None,
+                        Some(err),
+                        None,
+                    );
+                }
+                true
+            } else {
+                false
+            };
+
+            let patch_res = graft_res.to_patch_result(applied);
             let response = json!({
                 "content": [{ "type": "text", "text": patch_res.diff }],
                 "patch": patch_res
@@ -1539,7 +1611,8 @@ fn execute_get_route_slice(args: &Value) -> (Value, Option<Value>, Option<String
         .or_else(|| args.get("channel"))
         .and_then(Value::as_str)
     else {
-        let err = "Missing required parameter 'path' (or 'procedure' / 'command' / 'channel')".to_string();
+        let err = "Missing required parameter 'path' (or 'procedure' / 'command' / 'channel')"
+            .to_string();
         return (
             json!({
                 "isError": true,
@@ -1621,6 +1694,7 @@ fn execute_impact_slice(args: &Value) -> (Value, Option<Value>, Option<String>, 
         budget,
         include_types: true,
         include_calls: true,
+        lod: None,
     };
 
     match ImpactAnalyzer::find_callers(&root_dir, target, target_file.as_deref(), &opts) {
@@ -1703,6 +1777,7 @@ fn execute_trace_slice(args: &Value) -> (Value, Option<Value>, Option<String>, O
         budget,
         include_types: true,
         include_calls: true,
+        lod: None,
     };
 
     match ExecutionTracer::trace(&root_dir, entry_point, &opts) {
@@ -1786,6 +1861,82 @@ fn execute_verify_patch(args: &Value) -> (Value, Option<Value>, Option<String>, 
     let dry_run = args.get("dry_run").and_then(Value::as_bool).unwrap_or(true);
     let typechecker = args.get("typechecker").and_then(Value::as_str);
     let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+
+    // In-memory AST grafting & validation pre-flight check
+    let (file_part, symbol_part) = match target.split_once(':') {
+        Some((f, s)) => (f, s),
+        None => (target.as_str(), ""),
+    };
+    let file_path = if Path::new(file_part).is_absolute() {
+        PathBuf::from(file_part)
+    } else {
+        current_dir.join(file_part)
+    };
+
+    if file_path.exists() {
+        if let Ok(source) = fs::read_to_string(&file_path) {
+            if let Some(lang) = SupportedLanguage::from_path(&file_path) {
+                if let Ok(adapter) = ctxcut_core::lang::LanguageRegistry::for_language(lang) {
+                    let ts_lang = adapter.tree_sitter_language(&file_path);
+                    if let Ok(graft_res) =
+                        ctxcut_core::patch::graft::AstGraftEngine::graft_with_adapter(
+                            &source,
+                            &*adapter,
+                            &file_path,
+                            symbol_part,
+                            replacement_code,
+                        )
+                    {
+                        if let Ok(val_rep) =
+                            ctxcut_core::patch::validate::SyntaxValidator::validate_graft_in_memory(
+                                &source,
+                                &graft_res.full_patched_source,
+                                &ts_lang,
+                                &file_path,
+                            )
+                        {
+                            if !val_rep.is_valid {
+                                let diag: Vec<ctxcut_core::VerifyDiagnostic> = val_rep
+                                    .errors
+                                    .iter()
+                                    .map(|e| ctxcut_core::VerifyDiagnostic {
+                                        severity: "error".to_string(),
+                                        line: Some(e.line),
+                                        column: Some(e.column),
+                                        message: format!("Syntax error: {}", e.snippet),
+                                        file: Some(file_path.to_string_lossy().to_string()),
+                                        code: Some(e.kind.clone()),
+                                    })
+                                    .collect();
+
+                                let verify_res = ctxcut_core::VerifyPatchResult {
+                                    file_path,
+                                    symbol_name: symbol_part.to_string(),
+                                    success: false,
+                                    applied: false,
+                                    dry_run,
+                                    diff: graft_res.diff,
+                                    typechecker_command: None,
+                                    exit_code: Some(1),
+                                    stdout: String::new(),
+                                    stderr: "AST Syntax Validation Failed (in-memory)".to_string(),
+                                    diagnostics: diag,
+                                    syntax_errors: val_rep.errors,
+                                    duration_ms: 0,
+                                };
+
+                                let response = json!({
+                                    "content": [{ "type": "text", "text": verify_res.to_markdown() }],
+                                    "verify_result": verify_res
+                                });
+                                return (response, None, None, None);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     match PatchVerifier::verify_patch(
         &current_dir,
@@ -2225,7 +2376,9 @@ fn execute_intent_slice(args: &Value) -> (Value, Option<Value>, Option<String>, 
     }
 }
 
-fn execute_patch_transaction(args: &Value) -> (Value, Option<Value>, Option<String>, Option<usize>) {
+fn execute_patch_transaction(
+    args: &Value,
+) -> (Value, Option<Value>, Option<String>, Option<usize>) {
     let patches_val = args.get("patches").unwrap_or(&Value::Null);
     let patches: Vec<SymbolPatchUnit> = match serde_json::from_value(patches_val.clone()) {
         Ok(p) => p,

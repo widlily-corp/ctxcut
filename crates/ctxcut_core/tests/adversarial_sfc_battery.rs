@@ -122,6 +122,7 @@ export function formatUserHeader(u: UserDto): string {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice = slicer
@@ -206,6 +207,7 @@ export async function submitLogin(): Promise<boolean> {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice = slicer
@@ -306,6 +308,7 @@ export function resetCount(): void {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice = slicer
@@ -367,6 +370,7 @@ button {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     // Slice handleClick
@@ -432,6 +436,7 @@ export function getUserDisplayName(u: SvelteUser): string {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice = slicer
@@ -528,6 +533,7 @@ export function buildPageTitle(p: BlogPost): string {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice = slicer
@@ -637,6 +643,7 @@ export function calculateSummary(raw: number[]): MetricSummary {{
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice_result = slicer
@@ -890,6 +897,7 @@ export function selectItem(item: NavigationItem): void {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice = slicer

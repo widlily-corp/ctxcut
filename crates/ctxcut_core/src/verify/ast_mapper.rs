@@ -186,7 +186,8 @@ mod tests {
 
     #[test]
     fn test_ast_diagnostic_mapper_inside_symbol() {
-        let replacement = "pub fn add(a: i32, b: i32) -> i32 {\n    let sum: String = a + b;\n    sum\n}";
+        let replacement =
+            "pub fn add(a: i32, b: i32) -> i32 {\n    let sum: String = a + b;\n    sum\n}";
         let patched_source = format!("// Header\n{replacement}\n// Footer\n");
 
         let sym_meta = PatchedSymbolMeta {

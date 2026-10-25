@@ -208,6 +208,7 @@ impl FrameworkAnalyzer for ExpressAnalyzer {
             include_types: true,
             include_calls: true,
             budget: None,
+            lod: None,
         };
 
         for dto_name in &dto_type_names {
@@ -269,7 +270,11 @@ impl NestJsAnalyzer {
             if t.starts_with("@Controller(") {
                 if let Some(p) = extract_path_or_string(t) {
                     let clean = p.trim_matches('/');
-                    controller_prefix = if clean.is_empty() { String::new() } else { format!("/{clean}") };
+                    controller_prefix = if clean.is_empty() {
+                        String::new()
+                    } else {
+                        format!("/{clean}")
+                    };
                 }
             }
         }
@@ -284,7 +289,11 @@ impl NestJsAnalyzer {
                     let sub = extract_path_or_string(t).unwrap_or_default();
                     let clean_sub = sub.trim_matches('/');
                     let full_path = if clean_sub.is_empty() {
-                        if controller_prefix.is_empty() { "/".to_string() } else { controller_prefix.clone() }
+                        if controller_prefix.is_empty() {
+                            "/".to_string()
+                        } else {
+                            controller_prefix.clone()
+                        }
                     } else if controller_prefix.is_empty() {
                         format!("/{clean_sub}")
                     } else {
@@ -298,7 +307,9 @@ impl NestJsAnalyzer {
                         let nt = next_line.trim();
                         if !nt.starts_with('@') && !nt.is_empty() {
                             handler_sig = nt.to_string();
-                            let clean = nt.trim_start_matches("async ").trim_start_matches("public ");
+                            let clean = nt
+                                .trim_start_matches("async ")
+                                .trim_start_matches("public ");
                             if let Some(paren) = clean.find('(') {
                                 handler_name = clean[..paren].trim().to_string();
                             }
@@ -475,6 +486,7 @@ impl FrameworkAnalyzer for NestJsAnalyzer {
             include_types: true,
             include_calls: true,
             budget: None,
+            lod: None,
         };
 
         for dto in &dto_names {
@@ -535,7 +547,11 @@ impl SpringAnalyzer {
             if t.starts_with("@RequestMapping(") || t.starts_with("@RestController(") {
                 if let Some(p) = extract_path_or_string(t) {
                     let clean = p.trim_matches('/');
-                    class_prefix = if clean.is_empty() { String::new() } else { format!("/{clean}") };
+                    class_prefix = if clean.is_empty() {
+                        String::new()
+                    } else {
+                        format!("/{clean}")
+                    };
                 }
             }
         }
@@ -543,14 +559,24 @@ impl SpringAnalyzer {
         // 2. Methods: @GetMapping, @PostMapping, @PutMapping, @DeleteMapping, @PatchMapping, @RequestMapping
         for (i, line) in lines.iter().enumerate() {
             let t = line.trim();
-            for method in &["GetMapping", "PostMapping", "PutMapping", "DeleteMapping", "PatchMapping"] {
+            for method in &[
+                "GetMapping",
+                "PostMapping",
+                "PutMapping",
+                "DeleteMapping",
+                "PatchMapping",
+            ] {
                 let http_m = method.trim_end_matches("Mapping").to_uppercase();
                 let pat = format!("@{method}");
                 if t.starts_with(&pat) {
                     let sub = extract_path_or_string(t).unwrap_or_default();
                     let clean_sub = sub.trim_matches('/');
                     let full_path = if clean_sub.is_empty() {
-                        if class_prefix.is_empty() { "/".to_string() } else { class_prefix.clone() }
+                        if class_prefix.is_empty() {
+                            "/".to_string()
+                        } else {
+                            class_prefix.clone()
+                        }
                     } else if class_prefix.is_empty() {
                         format!("/{clean_sub}")
                     } else {
@@ -561,10 +587,18 @@ impl SpringAnalyzer {
                     let mut handler_sig = String::new();
                     for next_line in lines.iter().skip(i + 1) {
                         let nt = next_line.trim();
-                        if !nt.starts_with('@') && (nt.contains("public ") || nt.contains("private ") || nt.contains("protected ")) {
+                        if !nt.starts_with('@')
+                            && (nt.contains("public ")
+                                || nt.contains("private ")
+                                || nt.contains("protected "))
+                        {
                             handler_sig = nt.to_string();
                             let clean = nt.split('(').next().unwrap_or(nt);
-                            handler_name = clean.split_whitespace().last().unwrap_or("handler").to_string();
+                            handler_name = clean
+                                .split_whitespace()
+                                .last()
+                                .unwrap_or("handler")
+                                .to_string();
                             break;
                         }
                     }
@@ -964,7 +998,9 @@ fn extract_path_from_args(s: &str) -> Option<String> {
 fn extract_express_handler_name(s: &str) -> String {
     let parts: Vec<&str> = s.split(',').collect();
     if parts.len() >= 2 {
-        let last = parts[parts.len() - 1].trim_matches([' ', ')', ';', '}']).trim();
+        let last = parts[parts.len() - 1]
+            .trim_matches([' ', ')', ';', '}'])
+            .trim();
         let name = last.split(['(', ' ']).next().unwrap_or("handler").trim();
         if !name.is_empty() {
             return name.to_string();
@@ -972,4 +1008,3 @@ fn extract_express_handler_name(s: &str) -> String {
     }
     "handler".to_string()
 }
-

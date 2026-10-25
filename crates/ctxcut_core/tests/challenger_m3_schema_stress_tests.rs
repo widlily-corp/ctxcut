@@ -230,6 +230,7 @@ export async function getTaskDetails(prisma: any, taskId: string) {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
     let slice_result = slicer
         .slice_symbol(&service_path, "getTaskDetails", &opts)
@@ -981,6 +982,7 @@ export function getAccount(prisma: any, id: number) {
         include_types: true,
         include_calls: true,
         budget: Some(60), // Tight budget
+        lod: None,
     };
 
     let (slice_result, report) = slicer
@@ -1060,6 +1062,7 @@ export function logAudit(db: any) {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let batch = slicer

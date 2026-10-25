@@ -212,7 +212,10 @@ impl WorkspaceGraphBuilder {
                 {
                     let node_id = format!("{rel_path}:{}", extracted_sym.name);
                     let final_node_id = if graph.nodes.contains_key(&node_id) {
-                        format!("{rel_path}:{}:{}", extracted_sym.name, extracted_sym.start_line)
+                        format!(
+                            "{rel_path}:{}:{}",
+                            extracted_sym.name, extracted_sym.start_line
+                        )
                     } else {
                         node_id
                     };
@@ -238,10 +241,8 @@ impl WorkspaceGraphBuilder {
 
                     graph.nodes.insert(final_node_id.clone(), graph_node);
                     file_node_ids.push(final_node_id.clone());
-                    node_symbol_map.insert(
-                        final_node_id,
-                        (abs_path.clone(), *lang, sym_name.clone()),
-                    );
+                    node_symbol_map
+                        .insert(final_node_id, (abs_path.clone(), *lang, sym_name.clone()));
                 }
             }
 
@@ -293,17 +294,20 @@ impl WorkspaceGraphBuilder {
             };
 
             let root_node = tree.root_node();
-            let (_, ast_node) = match adapter.locate_symbol(root_node, content, &node.name, abs_path) {
-                Ok(res) => res,
-                Err(_) => continue,
-            };
+            let (_, ast_node) =
+                match adapter.locate_symbol(root_node, content, &node.name, abs_path) {
+                    Ok(res) => res,
+                    Err(_) => continue,
+                };
 
             // A. Call dependencies
             if let Ok(stubs) = adapter.strip_calls(ast_node, root_node, content, abs_path) {
                 for stub in stubs {
                     if let Some(target_node_ids) = symbol_name_index.get(&stub.name) {
                         for target_id in target_node_ids {
-                            if target_id != node_id && !edge_set.contains(&(node_id.clone(), target_id.clone())) {
+                            if target_id != node_id
+                                && !edge_set.contains(&(node_id.clone(), target_id.clone()))
+                            {
                                 edge_set.insert((node_id.clone(), target_id.clone()));
                                 let edge = GraphEdge {
                                     from: node_id.clone(),
@@ -312,16 +316,16 @@ impl WorkspaceGraphBuilder {
                                     kind: EdgeKind::Call,
                                 };
                                 graph.edges.push(edge);
-                                graph
-                                    .outgoing
-                                    .entry(node_id.clone())
-                                    .or_default()
-                                    .push((target_id.clone(), 3.0, EdgeKind::Call));
-                                graph
-                                    .incoming
-                                    .entry(target_id.clone())
-                                    .or_default()
-                                    .push((node_id.clone(), 3.0, EdgeKind::Call));
+                                graph.outgoing.entry(node_id.clone()).or_default().push((
+                                    target_id.clone(),
+                                    3.0,
+                                    EdgeKind::Call,
+                                ));
+                                graph.incoming.entry(target_id.clone()).or_default().push((
+                                    node_id.clone(),
+                                    3.0,
+                                    EdgeKind::Call,
+                                ));
                             }
                         }
                     }
@@ -329,14 +333,17 @@ impl WorkspaceGraphBuilder {
             }
 
             // Direct AST call expressions & symbol name references scan
-            let call_nodes = crate::parser::AstUtils::find_descendants_by_kind(ast_node, "call_expression");
+            let call_nodes =
+                crate::parser::AstUtils::find_descendants_by_kind(ast_node, "call_expression");
             for call in call_nodes {
                 if let Some(fn_node) = call.child_by_field_name("function") {
                     let fn_name = crate::parser::AstUtils::node_text(fn_node, content).trim();
                     let simple_name = fn_name.split('.').next_back().unwrap_or(fn_name).trim();
                     if let Some(target_node_ids) = symbol_name_index.get(simple_name) {
                         for target_id in target_node_ids {
-                            if target_id != node_id && !edge_set.contains(&(node_id.clone(), target_id.clone())) {
+                            if target_id != node_id
+                                && !edge_set.contains(&(node_id.clone(), target_id.clone()))
+                            {
                                 edge_set.insert((node_id.clone(), target_id.clone()));
                                 let edge = GraphEdge {
                                     from: node_id.clone(),
@@ -345,16 +352,16 @@ impl WorkspaceGraphBuilder {
                                     kind: EdgeKind::Call,
                                 };
                                 graph.edges.push(edge);
-                                graph
-                                    .outgoing
-                                    .entry(node_id.clone())
-                                    .or_default()
-                                    .push((target_id.clone(), 3.0, EdgeKind::Call));
-                                graph
-                                    .incoming
-                                    .entry(target_id.clone())
-                                    .or_default()
-                                    .push((node_id.clone(), 3.0, EdgeKind::Call));
+                                graph.outgoing.entry(node_id.clone()).or_default().push((
+                                    target_id.clone(),
+                                    3.0,
+                                    EdgeKind::Call,
+                                ));
+                                graph.incoming.entry(target_id.clone()).or_default().push((
+                                    node_id.clone(),
+                                    3.0,
+                                    EdgeKind::Call,
+                                ));
                             }
                         }
                     }
@@ -385,16 +392,16 @@ impl WorkspaceGraphBuilder {
                                         kind: EdgeKind::TypeRef,
                                     };
                                     graph.edges.push(edge);
-                                    graph
-                                        .outgoing
-                                        .entry(node_id.clone())
-                                        .or_default()
-                                        .push((target_id.clone(), 2.0, EdgeKind::TypeRef));
-                                    graph
-                                        .incoming
-                                        .entry(target_id.clone())
-                                        .or_default()
-                                        .push((node_id.clone(), 2.0, EdgeKind::TypeRef));
+                                    graph.outgoing.entry(node_id.clone()).or_default().push((
+                                        target_id.clone(),
+                                        2.0,
+                                        EdgeKind::TypeRef,
+                                    ));
+                                    graph.incoming.entry(target_id.clone()).or_default().push((
+                                        node_id.clone(),
+                                        2.0,
+                                        EdgeKind::TypeRef,
+                                    ));
                                 }
                             }
                         }
@@ -416,16 +423,16 @@ impl WorkspaceGraphBuilder {
                             kind: EdgeKind::CoLocated,
                         };
                         graph.edges.push(edge);
-                        graph
-                            .outgoing
-                            .entry(node_id.clone())
-                            .or_default()
-                            .push((sibling_id.clone(), 1.0, EdgeKind::CoLocated));
-                        graph
-                            .incoming
-                            .entry(sibling_id.clone())
-                            .or_default()
-                            .push((node_id.clone(), 1.0, EdgeKind::CoLocated));
+                        graph.outgoing.entry(node_id.clone()).or_default().push((
+                            sibling_id.clone(),
+                            1.0,
+                            EdgeKind::CoLocated,
+                        ));
+                        graph.incoming.entry(sibling_id.clone()).or_default().push((
+                            node_id.clone(),
+                            1.0,
+                            EdgeKind::CoLocated,
+                        ));
                     }
                 }
             }
@@ -455,16 +462,16 @@ impl WorkspaceGraphBuilder {
                                     kind: EdgeKind::Import,
                                 };
                                 graph.edges.push(edge);
-                                graph
-                                    .outgoing
-                                    .entry(node_id.clone())
-                                    .or_default()
-                                    .push((target_id.clone(), 1.5, EdgeKind::Import));
-                                graph
-                                    .incoming
-                                    .entry(target_id.clone())
-                                    .or_default()
-                                    .push((node_id.clone(), 1.5, EdgeKind::Import));
+                                graph.outgoing.entry(node_id.clone()).or_default().push((
+                                    target_id.clone(),
+                                    1.5,
+                                    EdgeKind::Import,
+                                ));
+                                graph.incoming.entry(target_id.clone()).or_default().push((
+                                    node_id.clone(),
+                                    1.5,
+                                    EdgeKind::Import,
+                                ));
                             }
                         }
                     }
@@ -495,7 +502,8 @@ fn extract_types_from_file(
             | SupportedLanguage::Astro => match decl.kind() {
                 "interface_declaration" => {
                     if let Some(name_node) = decl.child_by_field_name("name") {
-                        let name = crate::parser::AstUtils::node_text(name_node, source).to_string();
+                        let name =
+                            crate::parser::AstUtils::node_text(name_node, source).to_string();
                         let def = crate::parser::AstUtils::node_text(child, source).to_string();
                         out_types.insert(
                             name.clone(),
@@ -510,7 +518,8 @@ fn extract_types_from_file(
                 }
                 "type_alias_declaration" => {
                     if let Some(name_node) = decl.child_by_field_name("name") {
-                        let name = crate::parser::AstUtils::node_text(name_node, source).to_string();
+                        let name =
+                            crate::parser::AstUtils::node_text(name_node, source).to_string();
                         let def = crate::parser::AstUtils::node_text(child, source).to_string();
                         out_types.insert(
                             name.clone(),
@@ -525,7 +534,8 @@ fn extract_types_from_file(
                 }
                 "enum_declaration" => {
                     if let Some(name_node) = decl.child_by_field_name("name") {
-                        let name = crate::parser::AstUtils::node_text(name_node, source).to_string();
+                        let name =
+                            crate::parser::AstUtils::node_text(name_node, source).to_string();
                         let def = crate::parser::AstUtils::node_text(child, source).to_string();
                         out_types.insert(
                             name.clone(),
@@ -543,7 +553,8 @@ fn extract_types_from_file(
             SupportedLanguage::Rust => match decl.kind() {
                 "struct_item" => {
                     if let Some(name_node) = decl.child_by_field_name("name") {
-                        let name = crate::parser::AstUtils::node_text(name_node, source).to_string();
+                        let name =
+                            crate::parser::AstUtils::node_text(name_node, source).to_string();
                         let def = crate::parser::AstUtils::node_text(decl, source).to_string();
                         out_types.insert(
                             name.clone(),
@@ -558,7 +569,8 @@ fn extract_types_from_file(
                 }
                 "enum_item" => {
                     if let Some(name_node) = decl.child_by_field_name("name") {
-                        let name = crate::parser::AstUtils::node_text(name_node, source).to_string();
+                        let name =
+                            crate::parser::AstUtils::node_text(name_node, source).to_string();
                         let def = crate::parser::AstUtils::node_text(decl, source).to_string();
                         out_types.insert(
                             name.clone(),
@@ -573,7 +585,8 @@ fn extract_types_from_file(
                 }
                 "trait_item" => {
                     if let Some(name_node) = decl.child_by_field_name("name") {
-                        let name = crate::parser::AstUtils::node_text(name_node, source).to_string();
+                        let name =
+                            crate::parser::AstUtils::node_text(name_node, source).to_string();
                         let def = crate::parser::AstUtils::node_text(decl, source).to_string();
                         out_types.insert(
                             name.clone(),
@@ -588,7 +601,8 @@ fn extract_types_from_file(
                 }
                 "type_item" => {
                     if let Some(name_node) = decl.child_by_field_name("name") {
-                        let name = crate::parser::AstUtils::node_text(name_node, source).to_string();
+                        let name =
+                            crate::parser::AstUtils::node_text(name_node, source).to_string();
                         let def = crate::parser::AstUtils::node_text(decl, source).to_string();
                         out_types.insert(
                             name.clone(),
@@ -609,9 +623,10 @@ fn extract_types_from_file(
                     for spec in decl.children(&mut type_cursor) {
                         if spec.kind() == "type_spec" {
                             if let Some(name_node) = spec.child_by_field_name("name") {
-                                let name =
-                                    crate::parser::AstUtils::node_text(name_node, source).to_string();
-                                let def = crate::parser::AstUtils::node_text(decl, source).to_string();
+                                let name = crate::parser::AstUtils::node_text(name_node, source)
+                                    .to_string();
+                                let def =
+                                    crate::parser::AstUtils::node_text(decl, source).to_string();
                                 out_types.insert(
                                     name.clone(),
                                     ExtractedType {
@@ -629,7 +644,8 @@ fn extract_types_from_file(
             SupportedLanguage::Python => {
                 if decl.kind() == "class_definition" {
                     if let Some(name_node) = decl.child_by_field_name("name") {
-                        let name = crate::parser::AstUtils::node_text(name_node, source).to_string();
+                        let name =
+                            crate::parser::AstUtils::node_text(name_node, source).to_string();
                         let def = crate::parser::AstUtils::node_text(decl, source).to_string();
                         out_types.insert(
                             name.clone(),
@@ -652,7 +668,8 @@ fn extract_types_from_file(
                         | "enum_declaration"
                 ) {
                     if let Some(name_node) = decl.child_by_field_name("name") {
-                        let name = crate::parser::AstUtils::node_text(name_node, source).to_string();
+                        let name =
+                            crate::parser::AstUtils::node_text(name_node, source).to_string();
                         let kind = decl.kind().replace("_declaration", "");
                         let def = crate::parser::AstUtils::node_text(decl, source).to_string();
                         out_types.insert(
@@ -673,7 +690,8 @@ fn extract_types_from_file(
                     "class_declaration" | "interface_declaration" | "enum_declaration"
                 ) {
                     if let Some(name_node) = decl.child_by_field_name("name") {
-                        let name = crate::parser::AstUtils::node_text(name_node, source).to_string();
+                        let name =
+                            crate::parser::AstUtils::node_text(name_node, source).to_string();
                         let kind = decl.kind().replace("_declaration", "");
                         let def = crate::parser::AstUtils::node_text(decl, source).to_string();
                         out_types.insert(
@@ -694,7 +712,8 @@ fn extract_types_from_file(
                     "struct_specifier" | "enum_specifier" | "class_specifier" | "type_definition"
                 ) {
                     if let Some(name_node) = decl.child_by_field_name("name") {
-                        let name = crate::parser::AstUtils::node_text(name_node, source).to_string();
+                        let name =
+                            crate::parser::AstUtils::node_text(name_node, source).to_string();
                         let def = crate::parser::AstUtils::node_text(decl, source).to_string();
                         out_types.insert(
                             name.clone(),

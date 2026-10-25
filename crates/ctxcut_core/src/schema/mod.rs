@@ -241,7 +241,10 @@ pub fn extract_schema_entities(path: &Path, source: &str) -> Vec<SchemaEntityRec
             }
         }
         "ts" | "tsx" | "js" | "jsx" => {
-            if source.contains("pgTable") || source.contains("mysqlTable") || source.contains("sqliteTable") {
+            if source.contains("pgTable")
+                || source.contains("mysqlTable")
+                || source.contains("sqliteTable")
+            {
                 let stitcher = DrizzleStitcher::new();
                 let parsed = stitcher.parse_schema(source, path);
                 for (_t_name, t_def) in parsed.tables {

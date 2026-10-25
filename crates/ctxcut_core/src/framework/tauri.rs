@@ -78,7 +78,11 @@ impl TauriAnalyzer {
         let mut unique = Vec::new();
         let mut seen = std::collections::HashSet::new();
         for r in routes {
-            let key = (r.framework.clone(), r.http_method.clone(), r.handler_symbol.clone());
+            let key = (
+                r.framework.clone(),
+                r.http_method.clone(),
+                r.handler_symbol.clone(),
+            );
             if seen.insert(key) {
                 unique.push(r);
             }
@@ -139,7 +143,10 @@ fn is_tauri_command_function(fn_node: Node<'_>, source: &str) -> bool {
     while let Some(sibling) = prev {
         if sibling.kind() == "attribute_item" {
             let attr_text = AstUtils::node_text(sibling, source).trim();
-            if attr_text.contains("tauri::command") || attr_text == "#[command]" || attr_text.starts_with("#[command(") {
+            if attr_text.contains("tauri::command")
+                || attr_text == "#[command]"
+                || attr_text.starts_with("#[command(")
+            {
                 return true;
             }
         } else {
@@ -165,7 +172,10 @@ fn extract_tauri_dtos(
                 if let Some(type_node) = param.child_by_field_name("type") {
                     let type_text = AstUtils::node_text(type_node, source).trim();
                     let clean_type = clean_rust_type_name(type_text);
-                    if !clean_type.is_empty() && !is_tauri_framework_type(&clean_type) && !is_primitive_type(&clean_type) {
+                    if !clean_type.is_empty()
+                        && !is_tauri_framework_type(&clean_type)
+                        && !is_primitive_type(&clean_type)
+                    {
                         if req_dto.is_none() {
                             req_dto = find_type_in_source(source, &clean_type, file_path);
                         }
@@ -180,7 +190,10 @@ fn extract_tauri_dtos(
         let ret_text = AstUtils::node_text(ret_node, source).trim();
         let unwrapped = unwrap_result_type(ret_text);
         let clean_type = clean_rust_type_name(&unwrapped);
-        if !clean_type.is_empty() && !is_tauri_framework_type(&clean_type) && !is_primitive_type(&clean_type) {
+        if !clean_type.is_empty()
+            && !is_tauri_framework_type(&clean_type)
+            && !is_primitive_type(&clean_type)
+        {
             res_dto = find_type_in_source(source, &clean_type, file_path);
         }
     }
@@ -191,7 +204,7 @@ fn extract_tauri_dtos(
 fn clean_rust_type_name(type_str: &str) -> String {
     let mut s = type_str.trim().trim_start_matches('&').trim();
     if let Some(pos) = s.find('<') {
-        s = &s[..pos].trim();
+        s = s[..pos].trim();
     }
     s.split("::").last().unwrap_or(s).trim().to_string()
 }
@@ -231,10 +244,29 @@ fn is_tauri_framework_type(t: &str) -> bool {
 fn is_primitive_type(t: &str) -> bool {
     matches!(
         t,
-        "()" | "bool" | "u8" | "u16" | "u32" | "u64" | "u128" | "usize"
-            | "i8" | "i16" | "i32" | "i64" | "i128" | "isize"
-            | "f32" | "f64" | "char" | "str" | "String" | "&str"
-            | "Value" | "serde_json::Value" | "Vec<u8>" | "Option"
+        "()" | "bool"
+            | "u8"
+            | "u16"
+            | "u32"
+            | "u64"
+            | "u128"
+            | "usize"
+            | "i8"
+            | "i16"
+            | "i32"
+            | "i64"
+            | "i128"
+            | "isize"
+            | "f32"
+            | "f64"
+            | "char"
+            | "str"
+            | "String"
+            | "&str"
+            | "Value"
+            | "serde_json::Value"
+            | "Vec<u8>"
+            | "Option"
     )
 }
 
@@ -248,7 +280,11 @@ fn find_type_in_source(source: &str, name: &str, file_path: &str) -> Option<Extr
         {
             return Some(ExtractedType {
                 name: name.to_string(),
-                kind: if trimmed.contains("struct") { "struct".to_string() } else { "enum".to_string() },
+                kind: if trimmed.contains("struct") {
+                    "struct".to_string()
+                } else {
+                    "enum".to_string()
+                },
                 file_path: file_path.to_string(),
                 definition: trimmed.to_string(),
             });
@@ -257,11 +293,7 @@ fn find_type_in_source(source: &str, name: &str, file_path: &str) -> Option<Extr
     None
 }
 
-fn scan_tauri_fallback(
-    source: &str,
-    file_path: &str,
-    routes: &mut Vec<ServerRouteEndpoint>,
-) {
+fn scan_tauri_fallback(source: &str, file_path: &str, routes: &mut Vec<ServerRouteEndpoint>) {
     let lines: Vec<&str> = source.lines().collect();
     for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim();

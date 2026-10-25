@@ -494,7 +494,12 @@ CREATE TABLE payments (
 
     // Act 1: Build SQLite index
     let mut engine = IndexEngine::open_or_create(dir.path()).expect("Failed to open index engine");
-    let sync = engine.sync_incremental(&IndexOptions { rebuild: true, max_depth: None }).unwrap();
+    let sync = engine
+        .sync_incremental(&IndexOptions {
+            rebuild: true,
+            max_depth: None,
+        })
+        .unwrap();
     assert!(sync.files_added >= 4);
 
     let tracer = FullstackExecutionTracer::new();
@@ -505,15 +510,27 @@ CREATE TABLE payments (
         .trace_api_with_depth(dir.path(), "/api/v1/payments", None, Some(3))
         .expect("Trace with depth 3 failed");
     let elapsed_3 = start_3.elapsed();
-    assert_eq!(trace_3.steps.len(), 3, "Expected exactly 3 bounded trace steps");
+    assert_eq!(
+        trace_3.steps.len(),
+        3,
+        "Expected exactly 3 bounded trace steps"
+    );
     assert_eq!(trace_3.total_steps, 3);
-    assert!(elapsed_3.as_millis() < 500, "Sub-second execution expected (took {}ms)", elapsed_3.as_millis());
+    assert!(
+        elapsed_3.as_millis() < 500,
+        "Sub-second execution expected (took {}ms)",
+        elapsed_3.as_millis()
+    );
 
     // Act 3: Test Hop Bounding (max_depth = 4)
     let trace_4 = tracer
         .trace_api_with_depth(dir.path(), "/api/v1/payments", None, Some(4))
         .expect("Trace with depth 4 failed");
-    assert_eq!(trace_4.steps.len(), 4, "Expected exactly 4 bounded trace steps");
+    assert_eq!(
+        trace_4.steps.len(),
+        4,
+        "Expected exactly 4 bounded trace steps"
+    );
 
     // Act 4: Test Hop Bounding (max_depth = 5 default)
     let trace_5 = tracer
@@ -525,15 +542,30 @@ CREATE TABLE payments (
     let trace_backward = tracer
         .trace_api_with_depth(dir.path(), "payments", None, Some(5))
         .expect("Backward trace from database table failed");
-    assert!(trace_backward.server_route.route_path.contains("/api/v1/payments") || trace_backward.server_route.handler_symbol == "handle_payment");
+    assert!(
+        trace_backward
+            .server_route
+            .route_path
+            .contains("/api/v1/payments")
+            || trace_backward.server_route.handler_symbol == "handle_payment"
+    );
     assert!(!trace_backward.steps.is_empty());
 
     // Act 6: CLI trace-api with --depth flag
     let runner = CliRunner::new();
     let output = runner
-        .run_in_dir(dir.path(), &["trace-api", "/api/v1/payments", "--root", dir.path().to_str().unwrap(), "--depth", "3"])
+        .run_in_dir(
+            dir.path(),
+            &[
+                "trace-api",
+                "/api/v1/payments",
+                "--root",
+                dir.path().to_str().unwrap(),
+                "--depth",
+                "3",
+            ],
+        )
         .expect("CLI trace-api command failed");
     output.assert_success();
     assert!(output.stdout.contains("Full-Stack Execution Trace"));
 }
-

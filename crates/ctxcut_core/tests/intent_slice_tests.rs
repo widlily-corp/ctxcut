@@ -91,7 +91,10 @@ fn test_bm25_idf_and_ranking_math() {
     let query_invoice = vec!["calculate".to_string(), "invoice".to_string()];
     let ranks_invoice = index.rank(&query_invoice);
     assert!(!ranks_invoice.is_empty());
-    assert_eq!(ranks_invoice[0].0, 1, "calculateInvoiceGrandTotal must rank first");
+    assert_eq!(
+        ranks_invoice[0].0, 1,
+        "calculateInvoiceGrandTotal must rank first"
+    );
 }
 
 #[test]
@@ -130,12 +133,17 @@ pub function reserveStock(item: StockItem): boolean {
     .unwrap();
 
     let mut engine = IndexEngine::open_or_create(dir.path()).expect("Failed to open index DB");
-    let sync_res = engine.sync_incremental(&IndexOptions::default()).expect("Sync failed");
+    let sync_res = engine
+        .sync_incremental(&IndexOptions::default())
+        .expect("Sync failed");
     assert!(sync_res.total_symbols >= 2);
 
     // Verify BM25 stats in SQLite
     let (total_docs, avg_len) = engine.get_bm25_stats().expect("Failed to get BM25 stats");
-    assert!(total_docs >= 2, "Expected at least 2 indexed BM25 documents");
+    assert!(
+        total_docs >= 2,
+        "Expected at least 2 indexed BM25 documents"
+    );
     assert!(avg_len > 0.0, "Average document length must be positive");
 
     // Benchmark search query latency (sub-5ms requirement)
@@ -167,6 +175,7 @@ fn test_hybrid_ast_ranker_degree_centrality_and_proximity() {
         signature: "function authenticateUser(creds: Credentials): UserSession".to_string(),
         body: "return session;".to_string(),
         language: "typescript".to_string(),
+        preprocessor_tag: None,
     };
 
     let sym2 = ExtractedSymbol {
@@ -179,6 +188,7 @@ fn test_hybrid_ast_ranker_degree_centrality_and_proximity() {
         signature: "function verifyToken(tok: string): boolean".to_string(),
         body: "return true;".to_string(),
         language: "typescript".to_string(),
+        preprocessor_tag: None,
     };
 
     let symbols = vec![sym1, sym2];
@@ -198,7 +208,13 @@ fn test_hybrid_ast_ranker_degree_centrality_and_proximity() {
     let type_deps = HashMap::new();
 
     let ranker = HybridAstRanker::default();
-    let ranked = ranker.rank(&symbols, &bm25_scores, &caller_counts, &call_deps, &type_deps);
+    let ranked = ranker.rank(
+        &symbols,
+        &bm25_scores,
+        &caller_counts,
+        &call_deps,
+        &type_deps,
+    );
 
     assert_eq!(ranked.len(), 2);
     assert_eq!(ranked[0].symbol.name, "authenticateUser");
@@ -257,15 +273,22 @@ export function hashPassword(plain: string): string {
         depth: 1,
     };
 
-    let result = slicer.slice_intent(dir.path(), &opts).expect("Slice intent failed");
+    let result = slicer
+        .slice_intent(dir.path(), &opts)
+        .expect("Slice intent failed");
 
     assert!(!result.target_symbols.is_empty());
     assert!(
-        result.target_symbols.iter().any(|s| s.name == "validateJwtToken"),
+        result
+            .target_symbols
+            .iter()
+            .any(|s| s.name == "validateJwtToken"),
         "Target symbols must include validateJwtToken"
     );
     assert!(
-        result.matched_intent_keywords.contains(&"validate".to_string()),
+        result
+            .matched_intent_keywords
+            .contains(&"validate".to_string()),
         "Keywords must include validate"
     );
 
@@ -340,7 +363,9 @@ export function calculateInvoiceGrandTotal(items: InvoiceItem[], taxRate: number
         depth: 1,
     };
 
-    let result = slicer.slice_intent(dir.path(), &opts).expect("Slice failed");
+    let result = slicer
+        .slice_intent(dir.path(), &opts)
+        .expect("Slice failed");
     assert_eq!(result.target_symbols[0].name, "calculateInvoiceGrandTotal");
 
     assert!(
@@ -387,7 +412,9 @@ pub fn dispatch_event(event_name: &str) -> usize {
         depth: 1,
     };
 
-    let result = slicer.slice_intent(dir.path(), &opts).expect("Polyglot slice failed");
+    let result = slicer
+        .slice_intent(dir.path(), &opts)
+        .expect("Polyglot slice failed");
     assert_eq!(result.target_symbols[0].name, "process_async_task");
     assert_eq!(result.target_symbols[0].language, "python");
 }
@@ -423,6 +450,8 @@ export function calculateDiscount(amount: number): number {
         depth: 1,
     };
 
-    let result_tight = slicer.slice_intent(dir.path(), &opts_tight).expect("Slice failed");
+    let result_tight = slicer
+        .slice_intent(dir.path(), &opts_tight)
+        .expect("Slice failed");
     assert!(result_tight.stats.sliced_tokens <= 150);
 }

@@ -331,6 +331,7 @@ mod tests {
     };
 }"#.to_string(),
                 language: "typescript".to_string(),
+                preprocessor_tag: None,
             },
             hoisted_types: vec![
                 ExtractedType {
@@ -362,6 +363,7 @@ mod tests {
                 },
             ],
             stats: TokenStats::calculate(500, 180, 50, 30),
+            semantic_header: None,
         }
     }
 

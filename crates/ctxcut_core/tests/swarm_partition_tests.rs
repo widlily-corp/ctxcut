@@ -13,8 +13,8 @@
 //! 10. JSON Manifest Serialization & Markdown report generation.
 
 use ctxcut_core::swarm::{
-    BoundaryStubGenerator, DefaultSwarmPartitioner, SwarmPartitionEngine,
-    SwarmPartitionManifest, WorkspaceGraphBuilder,
+    BoundaryStubGenerator, DefaultSwarmPartitioner, SwarmPartitionEngine, SwarmPartitionManifest,
+    WorkspaceGraphBuilder,
 };
 use ctxcut_core::SupportedLanguage;
 use std::collections::HashSet;
@@ -77,11 +77,14 @@ pub fn create_invoice(user_id: &str, amount: f64) -> Invoice {
     let auth_node = graph.find_nodes_by_seed("authenticate")[0];
     let session_node = graph.find_nodes_by_seed("validateSession")[0];
 
-    let has_co_location = graph
-        .edges
-        .iter()
-        .any(|e| (e.from == auth_node.id && e.to == session_node.id) || (e.from == session_node.id && e.to == auth_node.id));
-    assert!(has_co_location, "Expected co-location edge between same-file symbols");
+    let has_co_location = graph.edges.iter().any(|e| {
+        (e.from == auth_node.id && e.to == session_node.id)
+            || (e.from == session_node.id && e.to == auth_node.id)
+    });
+    assert!(
+        has_co_location,
+        "Expected co-location edge between same-file symbols"
+    );
 }
 
 #[test]
@@ -303,13 +306,19 @@ export function runOrderWorkflow(item: string): boolean {
     let workflow_pack = manifest
         .packs
         .iter()
-        .find(|p| p.internal_symbols.iter().any(|s| s.name == "runOrderWorkflow"))
+        .find(|p| {
+            p.internal_symbols
+                .iter()
+                .any(|s| s.name == "runOrderWorkflow")
+        })
         .expect("Workflow pack not found");
 
     // Assert: Mock contracts generated
     assert!(!workflow_pack.mock_contracts.is_empty());
     assert!(
-        workflow_pack.mock_contracts.contains("MockExternalContracts")
+        workflow_pack
+            .mock_contracts
+            .contains("MockExternalContracts")
             || workflow_pack.mock_contracts.contains("submitOrder")
             || workflow_pack.mock_contracts.contains("mockOrderPayload")
     );
@@ -379,7 +388,10 @@ fn test_adversarial_boundary_cases() {
         .expect("Oversized partition failed");
     assert_eq!(tiny_manifest.total_symbols, 1);
     assert_eq!(tiny_manifest.packs.len(), 1);
-    assert_eq!(tiny_manifest.packs[0].internal_symbols[0].name, "singleSymbol");
+    assert_eq!(
+        tiny_manifest.packs[0].internal_symbols[0].name,
+        "singleSymbol"
+    );
 
     // 3. K = 1 (Single agent pack)
     let single_agent_manifest = engine
@@ -441,16 +453,23 @@ fn test_json_manifest_and_markdown_serialization() {
 
 #[test]
 fn test_language_comment_formatting_tags() {
-    let ts_write = BoundaryStubGenerator::format_write_authority_tag("agent_0", SupportedLanguage::TypeScript);
-    let py_write = BoundaryStubGenerator::format_write_authority_tag("agent_1", SupportedLanguage::Python);
-    let rs_write = BoundaryStubGenerator::format_write_authority_tag("agent_2", SupportedLanguage::Rust);
+    let ts_write =
+        BoundaryStubGenerator::format_write_authority_tag("agent_0", SupportedLanguage::TypeScript);
+    let py_write =
+        BoundaryStubGenerator::format_write_authority_tag("agent_1", SupportedLanguage::Python);
+    let rs_write =
+        BoundaryStubGenerator::format_write_authority_tag("agent_2", SupportedLanguage::Rust);
 
     assert_eq!(ts_write, "// WRITE_AUTHORITY: agent_0");
     assert_eq!(py_write, "# WRITE_AUTHORITY: agent_1");
     assert_eq!(rs_write, "// WRITE_AUTHORITY: agent_2");
 
-    let ts_imm = BoundaryStubGenerator::format_immutable_contract_tag("agent_1", SupportedLanguage::TypeScript);
-    let py_imm = BoundaryStubGenerator::format_immutable_contract_tag("agent_2", SupportedLanguage::Python);
+    let ts_imm = BoundaryStubGenerator::format_immutable_contract_tag(
+        "agent_1",
+        SupportedLanguage::TypeScript,
+    );
+    let py_imm =
+        BoundaryStubGenerator::format_immutable_contract_tag("agent_2", SupportedLanguage::Python);
 
     assert_eq!(ts_imm, "// IMMUTABLE_CONTRACT: agent_1 (Read-Only)");
     assert_eq!(py_imm, "# IMMUTABLE_CONTRACT: agent_2 (Read-Only)");

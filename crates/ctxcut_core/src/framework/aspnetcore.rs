@@ -8,9 +8,9 @@
 
 use crate::error::Result;
 use crate::framework::FrameworkAnalyzer;
+use crate::fullstack::model::ServerRouteEndpoint;
 use crate::model::{CallSignatureStub, ExtractedType, SliceResult};
 use crate::parser::AstUtils;
-use crate::fullstack::model::ServerRouteEndpoint;
 use std::path::Path;
 use tree_sitter::Node;
 
@@ -56,7 +56,8 @@ impl AspNetCoreAnalyzer {
         }
 
         let base_prefix = if !controller_base_route.is_empty() {
-            let mut p = controller_base_route.replace("[controller]", &controller_name.to_lowercase());
+            let mut p =
+                controller_base_route.replace("[controller]", &controller_name.to_lowercase());
             if !p.starts_with('/') {
                 p = format!("/{p}");
             }
@@ -89,7 +90,11 @@ impl AspNetCoreAnalyzer {
                     };
 
                     let full_path = format!("{}{}", base_prefix.trim_end_matches('/'), sub_path);
-                    let final_path = if full_path.is_empty() { "/".to_string() } else { full_path };
+                    let final_path = if full_path.is_empty() {
+                        "/".to_string()
+                    } else {
+                        full_path
+                    };
 
                     // Next line or subsequent lines contain method signature
                     let mut handler_name = "Action".to_string();
@@ -101,13 +106,18 @@ impl AspNetCoreAnalyzer {
                             let after_public = nt.trim_start_matches("public ");
                             if let Some(paren) = after_public.find('(') {
                                 let before_paren = &after_public[..paren];
-                                handler_name = before_paren.split_whitespace().last().unwrap_or("Action").to_string();
+                                handler_name = before_paren
+                                    .split_whitespace()
+                                    .last()
+                                    .unwrap_or("Action")
+                                    .to_string();
                             }
                             break;
                         }
                     }
 
-                    let (req_dto, res_dto) = extract_aspnet_action_dtos(source, &handler_sig, &file_path);
+                    let (req_dto, res_dto) =
+                        extract_aspnet_action_dtos(source, &handler_sig, &file_path);
 
                     routes.push(ServerRouteEndpoint {
                         framework: "aspnetcore".to_string(),
@@ -131,7 +141,8 @@ impl AspNetCoreAnalyzer {
                         let after = &t[pos + pat.len()..];
                         if let Some(end) = after.find('"') {
                             let path_str = &after[..end];
-                            let (req_dto, res_dto) = extract_aspnet_action_dtos(source, t, &file_path);
+                            let (req_dto, res_dto) =
+                                extract_aspnet_action_dtos(source, t, &file_path);
                             routes.push(ServerRouteEndpoint {
                                 framework: "aspnetcore".to_string(),
                                 http_method: http_m.clone(),
@@ -152,7 +163,11 @@ impl AspNetCoreAnalyzer {
         let mut unique = Vec::new();
         let mut seen = std::collections::HashSet::new();
         for r in routes {
-            let key = (r.http_method.clone(), r.route_path.clone(), r.handler_symbol.clone());
+            let key = (
+                r.http_method.clone(),
+                r.route_path.clone(),
+                r.handler_symbol.clone(),
+            );
             if seen.insert(key) {
                 unique.push(r);
             }
@@ -173,7 +188,11 @@ fn extract_aspnet_action_dtos(
     if sig.contains("[FromBody]") {
         if let Some(pos) = sig.find("[FromBody]") {
             let after = &sig[pos + 10..].trim();
-            let type_name = after.split_whitespace().next().unwrap_or("").trim_matches([',', ')']);
+            let type_name = after
+                .split_whitespace()
+                .next()
+                .unwrap_or("")
+                .trim_matches([',', ')']);
             if !type_name.is_empty() {
                 req_dto = find_type_declaration(source, type_name, Path::new(file_path));
             }
@@ -198,7 +217,10 @@ fn extract_aspnet_action_dtos(
 fn find_type_declaration(source: &str, name: &str, file_path: &Path) -> Option<ExtractedType> {
     for line in source.lines() {
         let t = line.trim();
-        if t.contains(&format!("class {name}")) || t.contains(&format!("record {name}")) || t.contains(&format!("struct {name}")) {
+        if t.contains(&format!("class {name}"))
+            || t.contains(&format!("record {name}"))
+            || t.contains(&format!("struct {name}"))
+        {
             return Some(ExtractedType {
                 name: name.to_string(),
                 kind: "class".to_string(),

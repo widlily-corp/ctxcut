@@ -57,7 +57,11 @@ impl AxumActixAnalyzer {
         let mut unique = Vec::new();
         let mut seen = std::collections::HashSet::new();
         for r in routes {
-            let key = (r.http_method.clone(), r.route_path.clone(), r.handler_symbol.clone());
+            let key = (
+                r.http_method.clone(),
+                r.route_path.clone(),
+                r.handler_symbol.clone(),
+            );
             if seen.insert(key) {
                 unique.push(r);
             }
@@ -130,7 +134,8 @@ impl AxumActixAnalyzer {
                         for (method, handler_name) in parse_axum_handlers(handlers_part) {
                             let signature = find_fn_signature_in_source(source, &handler_name)
                                 .unwrap_or_else(|| format!("async fn {handler_name}(...)"));
-                            let (req_dto, res_dto) = find_dtos_for_handler(source, &handler_name, file_path);
+                            let (req_dto, res_dto) =
+                                find_dtos_for_handler(source, &handler_name, file_path);
                             routes.push(ServerRouteEndpoint {
                                 framework: "axum".to_string(),
                                 http_method: method.to_uppercase(),
@@ -165,7 +170,8 @@ impl AxumActixAnalyzer {
                     if let Some(path) = extract_quote_inside(trimmed, &pattern) {
                         // next line usually contains async fn handler_name
                         let next_line = lines.get(i + 1).unwrap_or(&"");
-                        let fn_name = extract_fn_name(next_line).unwrap_or_else(|| "handler".to_string());
+                        let fn_name =
+                            extract_fn_name(next_line).unwrap_or_else(|| "handler".to_string());
                         let (req_dto, res_dto) = find_dtos_for_handler(source, &fn_name, file_path);
                         routes.push(ServerRouteEndpoint {
                             framework: "actix".to_string(),
@@ -199,8 +205,11 @@ impl AxumActixAnalyzer {
                                         .trim();
                                     if !handler_name.is_empty() {
                                         let sig = find_fn_signature_in_source(source, handler_name)
-                                            .unwrap_or_else(|| format!("async fn {handler_name}(...)"));
-                                        let (req_dto, res_dto) = find_dtos_for_handler(source, handler_name, file_path);
+                                            .unwrap_or_else(|| {
+                                                format!("async fn {handler_name}(...)")
+                                            });
+                                        let (req_dto, res_dto) =
+                                            find_dtos_for_handler(source, handler_name, file_path);
                                         routes.push(ServerRouteEndpoint {
                                             framework: "axum".to_string(),
                                             http_method: m.to_uppercase(),
@@ -284,7 +293,11 @@ fn parse_axum_handlers(s: &str) -> Vec<(String, String)> {
         let pat = format!("{m}(");
         if let Some(pos) = s.find(&pat) {
             let after = &s[pos + pat.len()..];
-            let name = after.split(['(', ')', ',', ' ']).next().unwrap_or("").trim();
+            let name = after
+                .split(['(', ')', ',', ' '])
+                .next()
+                .unwrap_or("")
+                .trim();
             if !name.is_empty() {
                 result.push(((*m).to_string(), name.to_string()));
             }
@@ -330,7 +343,14 @@ fn extract_rust_dtos(
     let res_dto = None;
 
     // Search for Json<T>, web::Json<T>, Path<T>, Query<T>
-    for tag in &["Json<", "web::Json<", "Query<", "web::Query<", "Path<", "web::Path<"] {
+    for tag in &[
+        "Json<",
+        "web::Json<",
+        "Query<",
+        "web::Query<",
+        "Path<",
+        "web::Path<",
+    ] {
         if let Some(pos) = text.find(tag) {
             let after = &text[pos + tag.len()..];
             if let Some(end) = after.find('>') {

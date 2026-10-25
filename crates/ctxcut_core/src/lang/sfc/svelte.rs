@@ -137,6 +137,7 @@ fn find_svelte_prop_symbol(
                 signature,
                 body,
                 language: "svelte".to_string(),
+                preprocessor_tag: None,
             });
         }
     }

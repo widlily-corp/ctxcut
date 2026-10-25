@@ -28,7 +28,8 @@ fn test_cli_resolve_tauri_command_with_casing_normalization() {
             Ok(TaxResult { tax: input.amount * 0.2 })
         }
         "#,
-    ).unwrap();
+    )
+    .unwrap();
 
     let opts = SliceOptions::default();
 
@@ -65,7 +66,8 @@ fn test_cli_resolve_electron_channel() {
 
         ipcMain.handle('dialog:openFile', handleOpenFile);
         "#,
-    ).unwrap();
+    )
+    .unwrap();
 
     let opts = SliceOptions::default();
 
@@ -98,7 +100,8 @@ fn test_cli_resolve_trpc_procedures() {
             }),
         });
         "#,
-    ).unwrap();
+    )
+    .unwrap();
 
     let opts = SliceOptions::default();
 
@@ -125,7 +128,8 @@ fn test_cli_resolve_nextjs_server_action() {
             return { success: true };
         }
         "#,
-    ).unwrap();
+    )
+    .unwrap();
 
     let opts = SliceOptions::default();
 

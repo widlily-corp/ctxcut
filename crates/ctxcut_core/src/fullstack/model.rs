@@ -1,4 +1,4 @@
-﻿//! Data models, trace steps, and traits for full-stack cross-boundary execution tracing.
+//! Data models, trace steps, and traits for full-stack cross-boundary execution tracing.
 
 use crate::error::Result;
 use crate::model::{ExtractedType, TokenStats};
@@ -93,22 +93,58 @@ impl FullstackTraceResult {
     /// Formats the full-stack trace result as prompt-optimized Markdown.
     pub fn to_markdown(&self) -> String {
         let mut out = String::new();
-        out.push_str(&format!("# Full-Stack Execution Trace: {}\n\n", self.query_endpoint));
-        out.push_str(&format!("- **Framework**: {}\n", self.server_route.framework));
-        out.push_str(&format!("- **HTTP Method**: {}\n", self.server_route.http_method));
-        out.push_str(&format!("- **Route Path**: {}\n", self.server_route.route_path));
-        out.push_str(&format!("- **Handler**: `{}` ({}:{})\n", self.server_route.handler_symbol, self.server_route.handler_file, self.server_route.handler_signature));
+        out.push_str(&format!(
+            "# Full-Stack Execution Trace: {}\n\n",
+            self.query_endpoint
+        ));
+        out.push_str(&format!(
+            "- **Framework**: {}\n",
+            self.server_route.framework
+        ));
+        out.push_str(&format!(
+            "- **HTTP Method**: {}\n",
+            self.server_route.http_method
+        ));
+        out.push_str(&format!(
+            "- **Route Path**: {}\n",
+            self.server_route.route_path
+        ));
+        out.push_str(&format!(
+            "- **Handler**: `{}` ({}:{})\n",
+            self.server_route.handler_symbol,
+            self.server_route.handler_file,
+            self.server_route.handler_signature
+        ));
         if let Some(client) = &self.client_call {
-            out.push_str(&format!("- **Client Call**: {} at {}:{}\n", client.client_kind, client.file_path, client.line_number));
+            out.push_str(&format!(
+                "- **Client Call**: {} at {}:{}\n",
+                client.client_kind, client.file_path, client.line_number
+            ));
         }
-        out.push_str(&format!("- **Tokens**: {} (raw: {}, savings: {:.1}%)\n\n", self.stats.sliced_tokens, self.stats.raw_file_tokens, self.stats.savings_percentage));
+        out.push_str(&format!(
+            "- **Tokens**: {} (raw: {}, savings: {:.1}%)\n\n",
+            self.stats.sliced_tokens, self.stats.raw_file_tokens, self.stats.savings_percentage
+        ));
 
         for step in &self.steps {
-            out.push_str(&format!("## Step {}: {} (`{}`)\n", step.step_number, step.title, step.layer));
-            out.push_str(&format!("**File**: `{}:{}-{}`\n\n", step.file_path, step.start_line, step.end_line));
-            out.push_str(&format!("```{}\n{}\n```\n\n", step.language, step.snippet.trim()));
+            out.push_str(&format!(
+                "## Step {}: {} (`{}`)\n",
+                step.step_number, step.title, step.layer
+            ));
+            out.push_str(&format!(
+                "**File**: `{}:{}-{}`\n\n",
+                step.file_path, step.start_line, step.end_line
+            ));
+            out.push_str(&format!(
+                "```{}\n{}\n```\n\n",
+                step.language,
+                step.snippet.trim()
+            ));
             if let Some(contract) = &step.schema_contract {
-                out.push_str(&format!("**Schema Contract**:\n```\n{}\n```\n\n", contract.trim()));
+                out.push_str(&format!(
+                    "**Schema Contract**:\n```\n{}\n```\n\n",
+                    contract.trim()
+                ));
             }
         }
         out

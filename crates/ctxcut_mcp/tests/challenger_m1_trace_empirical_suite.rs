@@ -190,7 +190,11 @@ fn test_empirical_large_repo_subsecond_trace_and_partition() {
         execute_tool_with_timeout("get_fullstack_trace", &trace_args, 5000);
     let trace_duration = trace_start.elapsed();
 
-    assert!(error_opt.is_none(), "Expected no error, got: {:?}", error_opt);
+    assert!(
+        error_opt.is_none(),
+        "Expected no error, got: {:?}",
+        error_opt
+    );
     assert_ne!(response.get("isError"), Some(&json!(true)));
     println!("get_fullstack_trace duration: {:?}", trace_duration);
     assert!(
@@ -421,7 +425,12 @@ CREATE TABLE subscriptions (
 
     // Build index
     let mut engine = IndexEngine::open_or_create(root).unwrap();
-    engine.sync_incremental(&IndexOptions { rebuild: true, max_depth: None }).unwrap();
+    engine
+        .sync_incremental(&IndexOptions {
+            rebuild: true,
+            max_depth: None,
+        })
+        .unwrap();
 
     let tracer = FullstackExecutionTracer::new();
 
@@ -430,8 +439,14 @@ CREATE TABLE subscriptions (
         .trace_api_with_depth(root, "subscriptions", None, Some(5))
         .expect("Backward trace from DB table 'subscriptions'");
     assert!(
-        trace_db.server_route.route_path.contains("/api/v2/subscriptions")
-            || trace_db.server_route.handler_symbol.contains("subscription"),
+        trace_db
+            .server_route
+            .route_path
+            .contains("/api/v2/subscriptions")
+            || trace_db
+                .server_route
+                .handler_symbol
+                .contains("subscription"),
         "Resolved route from DB table entity"
     );
     assert_eq!(trace_db.steps.len(), 5);
@@ -441,8 +456,14 @@ CREATE TABLE subscriptions (
         .trace_api_with_depth(root, "persist_subscription", None, Some(5))
         .expect("Backward trace from repo method");
     assert!(
-        trace_repo_fn.server_route.route_path.contains("/api/v2/subscriptions")
-            || trace_repo_fn.server_route.handler_symbol.contains("subscription")
+        trace_repo_fn
+            .server_route
+            .route_path
+            .contains("/api/v2/subscriptions")
+            || trace_repo_fn
+                .server_route
+                .handler_symbol
+                .contains("subscription")
     );
 
     // 3. Backward Query: starting from Repository struct "SubscriptionRepository"
@@ -450,8 +471,14 @@ CREATE TABLE subscriptions (
         .trace_api_with_depth(root, "SubscriptionRepository", None, Some(5))
         .expect("Backward trace from repo struct");
     assert!(
-        trace_repo_struct.server_route.route_path.contains("/api/v2/subscriptions")
-            || trace_repo_struct.server_route.handler_symbol.contains("subscription")
+        trace_repo_struct
+            .server_route
+            .route_path
+            .contains("/api/v2/subscriptions")
+            || trace_repo_struct
+                .server_route
+                .handler_symbol
+                .contains("subscription")
     );
 
     // 4. Backward Query: starting from Service method "activate_subscription"
@@ -459,8 +486,14 @@ CREATE TABLE subscriptions (
         .trace_api_with_depth(root, "activate_subscription", None, Some(5))
         .expect("Backward trace from service method");
     assert!(
-        trace_service_fn.server_route.route_path.contains("/api/v2/subscriptions")
-            || trace_service_fn.server_route.handler_symbol.contains("subscription")
+        trace_service_fn
+            .server_route
+            .route_path
+            .contains("/api/v2/subscriptions")
+            || trace_service_fn
+                .server_route
+                .handler_symbol
+                .contains("subscription")
     );
 
     // 5. Backward Query: starting from Service struct "SubscriptionService"
@@ -468,8 +501,14 @@ CREATE TABLE subscriptions (
         .trace_api_with_depth(root, "SubscriptionService", None, Some(5))
         .expect("Backward trace from service struct");
     assert!(
-        trace_service_struct.server_route.route_path.contains("/api/v2/subscriptions")
-            || trace_service_struct.server_route.handler_symbol.contains("subscription")
+        trace_service_struct
+            .server_route
+            .route_path
+            .contains("/api/v2/subscriptions")
+            || trace_service_struct
+                .server_route
+                .handler_symbol
+                .contains("subscription")
     );
 
     // 6. Direct Route Query: starting from route path "/api/v2/subscriptions"
@@ -483,7 +522,10 @@ CREATE TABLE subscriptions (
     let trace_handler = tracer
         .trace_api_with_depth(root, "handle_create_subscription", None, Some(5))
         .expect("Direct trace from handler symbol");
-    assert_eq!(trace_handler.server_route.handler_symbol, "handle_create_subscription");
+    assert_eq!(
+        trace_handler.server_route.handler_symbol,
+        "handle_create_subscription"
+    );
 }
 
 #[test]
@@ -495,7 +537,12 @@ fn test_empirical_concurrency_and_timeout_resilience() {
 
     // Index
     let mut engine = IndexEngine::open_or_create(&root).unwrap();
-    engine.sync_incremental(&IndexOptions { rebuild: true, max_depth: None }).unwrap();
+    engine
+        .sync_incremental(&IndexOptions {
+            rebuild: true,
+            max_depth: None,
+        })
+        .unwrap();
 
     let root_path_str = root.to_string_lossy().to_string();
 
@@ -512,7 +559,8 @@ fn test_empirical_concurrency_and_timeout_resilience() {
                     "max_depth": 4,
                     "format": "json"
                 });
-                let (res, _, err, _) = execute_tool_with_timeout("get_fullstack_trace", &args, 5000);
+                let (res, _, err, _) =
+                    execute_tool_with_timeout("get_fullstack_trace", &args, 5000);
                 assert!(err.is_none());
                 assert_ne!(res.get("isError"), Some(&json!(true)));
             } else {
@@ -557,13 +605,22 @@ pub fn func_c() { func_a(); }
     .unwrap();
 
     let mut engine = IndexEngine::open_or_create(root).unwrap();
-    engine.sync_incremental(&IndexOptions { rebuild: true, max_depth: None }).unwrap();
+    engine
+        .sync_incremental(&IndexOptions {
+            rebuild: true,
+            max_depth: None,
+        })
+        .unwrap();
 
     let tracer = FullstackExecutionTracer::new();
 
     // Query non-existent symbol -> expects SymbolNotFound error cleanly
-    let not_found_result = tracer.trace_api_with_depth(root, "non_existent_symbol_999", None, Some(3));
-    assert!(not_found_result.is_err(), "Expected error for unknown symbol");
+    let not_found_result =
+        tracer.trace_api_with_depth(root, "non_existent_symbol_999", None, Some(3));
+    assert!(
+        not_found_result.is_err(),
+        "Expected error for unknown symbol"
+    );
 
     // MCP tool call for non-existent symbol returns structured error
     let args = json!({

@@ -178,7 +178,8 @@ impl IntentSliceResult {
 /// Abstract interface for intent-driven code slicing.
 pub trait IntentSlicer: Send + Sync {
     /// Extracts minimal critical AST bundle matching a natural language prompt.
-    fn slice_intent(&self, root_dir: &Path, opts: &IntentSliceOptions) -> Result<IntentSliceResult>;
+    fn slice_intent(&self, root_dir: &Path, opts: &IntentSliceOptions)
+        -> Result<IntentSliceResult>;
 }
 
 /// Default hybrid intent slicer combining BM25 lexical ranking with Tree-sitter AST graph traversal.
@@ -193,7 +194,11 @@ impl DefaultIntentSlicer {
 }
 
 impl IntentSlicer for DefaultIntentSlicer {
-    fn slice_intent(&self, root_dir: &Path, opts: &IntentSliceOptions) -> Result<IntentSliceResult> {
+    fn slice_intent(
+        &self,
+        root_dir: &Path,
+        opts: &IntentSliceOptions,
+    ) -> Result<IntentSliceResult> {
         let ws_root = root_dir
             .canonicalize()
             .unwrap_or_else(|_| root_dir.to_path_buf());
@@ -263,9 +268,13 @@ impl IntentSlicer for DefaultIntentSlicer {
                     start_line,
                     end_line,
                     doc_comment: sym_ov.doc_summary.clone(),
-                    signature: sym_ov.signature.clone().unwrap_or_else(|| sym_ov.name.clone()),
+                    signature: sym_ov
+                        .signature
+                        .clone()
+                        .unwrap_or_else(|| sym_ov.name.clone()),
                     body: body.clone(),
                     language: lang_str,
+                    preprocessor_tag: None,
                 };
 
                 let doc = extract_symbol_tokens(
@@ -353,12 +362,8 @@ impl IntentSlicer for DefaultIntentSlicer {
         };
 
         // 6. Assemble Critical AST Bundle
-        let bundle = assemble_critical_bundle(
-            &ws_root,
-            top_targets,
-            &candidate_files,
-            opts.budget,
-        )?;
+        let bundle =
+            assemble_critical_bundle(&ws_root, top_targets, &candidate_files, opts.budget)?;
 
         Ok(IntentSliceResult {
             prompt: opts.prompt.clone(),
@@ -375,7 +380,11 @@ impl IntentSlicer for DefaultIntentSlicer {
 }
 
 fn guess_lang(file_path: &str) -> &'static str {
-    let ext = file_path.split('.').next_back().unwrap_or("").to_lowercase();
+    let ext = file_path
+        .split('.')
+        .next_back()
+        .unwrap_or("")
+        .to_lowercase();
     match ext.as_str() {
         "ts" | "tsx" => "typescript",
         "js" | "jsx" => "javascript",

@@ -357,6 +357,55 @@ ctxcut tui
 
 ---
 
+## 🎮 C# & GameDev Intelligence Suite (v2.1)
+
+`ctxcut` 2.1 transforms C# and GameDev development (Unity, Godot, .NET Core) into an intelligent, low-token experience tailored for AI coding agents:
+
+```csharp
+// [META] Callers: CombatSystem.cs:42, Projectile.cs:88
+// [META] Events emitted: OnHealthChanged (Subscribers: HealthBarView.cs)
+// [META] Allocations: 0 GC alloc detected in this method
+// [Active under: UNITY_EDITOR || DEBUG]
+public class PlayerHealth : MonoBehaviour, IDamageable 
+{
+    [SerializeField] private HealthConfig _config;
+    private float _currentHealth;
+
+    // [LOD 1: Collapsed context]
+    private void Awake() { ... }
+    private void OnDisable() { ... }
+
+    // [TARGET SYMBOL: FULL BODY]
+    public void TakeDamage(DamageData data) 
+    {
+        if (_currentHealth <= 0) return;
+        _currentHealth = Mathf.Max(0, _currentHealth - data.Amount);
+        OnHealthChanged?.Invoke(_currentHealth);
+    }
+}
+```
+
+### 1. Level of Detail (LOD) Slicing
+- **`LOD 0` (Signature):** Signature + XML documentation comments only. Ideal for quick API auditing.
+- **`LOD 1` (Skeleton + Focus):** Full target implementation body while keeping the enclosing class as a structural skeleton. All `[SerializeField]` attributes, properties, and state fields are preserved, while sibling lifecycle and helper methods are collapsed into single-line stubs (`void Awake() { ... }`).
+- **`LOD 2` (Transitive Slice):** Full target implementation + automatic inlining of direct private helper methods $\le 15$ LOC defined in the same class.
+
+### 2. AST Syntax Grafting & In-Memory Pre-Flight Verification
+- **AST Branch Grafting:** Replaces syntax nodes in-place using Tree-Sitter rather than fragile string matches. Respects original file indentation (Spaces vs Tabs), newlines (`\r\n` vs `\n`), and surrounding comments/attributes.
+- **In-Memory Pre-Flight Compiler Guard:** Runs AST syntax validation entirely in-memory before writing to disk. Broken syntax returns instant diagnostic feedback with exact line/column positions, ensuring zero corrupted files on disk.
+
+### 3. Preprocessor & Macro Context (`#if UNITY_EDITOR`)
+- **Dual-Branch Syntax Parsing:** Parses both `#if` and `#else` blocks as first-class syntax nodes, ensuring code under `#if UNITY_EDITOR` or `#if DEBUG` is fully indexed and searchable.
+- **Active Context Tags:** Automatically tags extracted symbols with `// [Active under: CONDITION]` to prevent AI models from generating Editor-only code in runtime build paths.
+
+### 4. Semantic Bridge: Architectural Metadata Headers
+Automatically prepends a compact, 5-line header to every sliced method:
+- **`Callers:`** Top 5 upstream invocation sites (`CombatSystem.cs:42, Projectile.cs:88`).
+- **`Events Emitted:`** Detects C# `event Action` / `UnityEvent` declarations, invocations (`.Invoke()`), and cross-file subscribers (`+=`).
+- **`Allocations:`** Static heuristic detecting 0 GC allocations vs heap allocations (`new `), LINQ queries (`.Where()`, `.Select()`), boxing, and coroutines.
+
+---
+
 ## 🌐 Supported Language Ecosystems & SFCs
 
 | Language / Framework | Extensions | AST Parser | Advanced Capabilities |

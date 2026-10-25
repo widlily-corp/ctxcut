@@ -66,6 +66,7 @@ export class OrderRepository {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = ExecutionTracer::trace(ws, "OrderController.createOrderHandler", &opts)
@@ -119,6 +120,7 @@ export class LoopB {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = ExecutionTracer::trace(ws, "LoopA.stepA", &opts).expect("trace cycle");
@@ -190,6 +192,7 @@ export class Repo {
         include_types: true,
         include_calls: true,
         budget: Some(250), // Strict budget forcing folding
+        lod: None,
     };
 
     let result = ExecutionTracer::trace(ws, "handleRequest", &opts).expect("trace budget");

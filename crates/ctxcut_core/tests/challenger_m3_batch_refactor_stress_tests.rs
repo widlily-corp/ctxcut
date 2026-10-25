@@ -13,9 +13,7 @@
 
 use ctxcut_core::error::CoreError;
 use ctxcut_core::model::VerifyDiagnostic;
-use ctxcut_core::refactor::batch::{
-    BatchAstPatcher, PatchTransactionRequest, SymbolPatchUnit,
-};
+use ctxcut_core::refactor::batch::{BatchAstPatcher, PatchTransactionRequest, SymbolPatchUnit};
 use ctxcut_core::verify::ast_mapper::{AstDiagnosticMapper, PatchedFileInfo, PatchedSymbolMeta};
 use ctxcut_core::verify::multi_rollback::MultiFileRollbackGuard;
 use std::fs;
@@ -187,9 +185,19 @@ export function getEnv(): string {
     assert!(result.success, "Transaction should report success");
     assert!(result.applied, "Changes should be committed to disk");
     assert!(!result.rolled_back, "Should not be rolled back");
-    assert_eq!(result.files_modified_count, 6, "All 6 files should be modified");
-    assert_eq!(result.symbols_patched_count, 12, "All 12 symbols should be patched");
-    assert_eq!(result.diffs.len(), 6, "Should contain diffs for all 6 files");
+    assert_eq!(
+        result.files_modified_count, 6,
+        "All 6 files should be modified"
+    );
+    assert_eq!(
+        result.symbols_patched_count, 12,
+        "All 12 symbols should be patched"
+    );
+    assert_eq!(
+        result.diffs.len(),
+        6,
+        "Should contain diffs for all 6 files"
+    );
 
     // Verify disk content modifications
     let f1_mod = fs::read_to_string(&f1_path).unwrap();
@@ -288,18 +296,42 @@ fn test_adversarial_failing_syntax_in_one_symbol_100_percent_rollback_exact_byte
         timeout_ms: Some(5000),
     };
 
-    let result = BatchAstPatcher::apply_transaction(&req).expect("Transaction should execute pre-check");
+    let result =
+        BatchAstPatcher::apply_transaction(&req).expect("Transaction should execute pre-check");
 
     assert!(!result.success, "Transaction must fail due to syntax error");
     assert!(!result.applied, "Must NOT apply any modifications to disk");
-    assert!(!result.syntax_errors.is_empty(), "Syntax errors must be reported");
+    assert!(
+        !result.syntax_errors.is_empty(),
+        "Syntax errors must be reported"
+    );
 
     // 100% Byte-for-byte exact equality verification
-    assert_eq!(read_bytes(&f1_path), f1_bytes, "f1 must match exact pre-transaction bytes");
-    assert_eq!(read_bytes(&f2_path), f2_bytes, "f2 must match exact pre-transaction bytes");
-    assert_eq!(read_bytes(&f3_path), f3_bytes, "f3 must match exact pre-transaction bytes");
-    assert_eq!(read_bytes(&f4_path), f4_bytes, "f4 must match exact pre-transaction bytes");
-    assert_eq!(read_bytes(&f5_path), f5_bytes, "f5 must match exact pre-transaction bytes");
+    assert_eq!(
+        read_bytes(&f1_path),
+        f1_bytes,
+        "f1 must match exact pre-transaction bytes"
+    );
+    assert_eq!(
+        read_bytes(&f2_path),
+        f2_bytes,
+        "f2 must match exact pre-transaction bytes"
+    );
+    assert_eq!(
+        read_bytes(&f3_path),
+        f3_bytes,
+        "f3 must match exact pre-transaction bytes"
+    );
+    assert_eq!(
+        read_bytes(&f4_path),
+        f4_bytes,
+        "f4 must match exact pre-transaction bytes"
+    );
+    assert_eq!(
+        read_bytes(&f5_path),
+        f5_bytes,
+        "f5 must match exact pre-transaction bytes"
+    );
 
     assert_eq!(fs::read_to_string(&f1_path).unwrap(), f1_orig);
     assert_eq!(fs::read_to_string(&f2_path).unwrap(), f2_orig);
@@ -341,7 +373,8 @@ fn test_adversarial_failing_typecheck_rollback_and_ast_diagnostic_mapping() {
             SymbolPatchUnit {
                 file_path: f1_path.clone(),
                 symbol_query: "add_values".to_string(),
-                replacement_code: "pub fn add_values(a: i32, b: i32) -> i32 {\n    \"string\"\n}".to_string(),
+                replacement_code: "pub fn add_values(a: i32, b: i32) -> i32 {\n    \"string\"\n}"
+                    .to_string(),
             },
             SymbolPatchUnit {
                 file_path: f2_path.clone(),
@@ -356,16 +389,33 @@ fn test_adversarial_failing_typecheck_rollback_and_ast_diagnostic_mapping() {
 
     let result = BatchAstPatcher::apply_transaction(&req).expect("Transaction should run");
 
-    assert!(!result.success, "Typecheck failure should mark transaction unsuccessful");
+    assert!(
+        !result.success,
+        "Typecheck failure should mark transaction unsuccessful"
+    );
     assert!(!result.applied, "Changes should not be applied");
-    assert!(result.rolled_back, "MultiFileRollbackGuard must trigger rollback");
+    assert!(
+        result.rolled_back,
+        "MultiFileRollbackGuard must trigger rollback"
+    );
 
     // Verify 100% disk restoration
-    assert_eq!(read_bytes(&f1_path), f1_bytes, "calc.rs must roll back to exact original bytes");
-    assert_eq!(read_bytes(&f2_path), f2_bytes, "util.rs must roll back to exact original bytes");
+    assert_eq!(
+        read_bytes(&f1_path),
+        f1_bytes,
+        "calc.rs must roll back to exact original bytes"
+    );
+    assert_eq!(
+        read_bytes(&f2_path),
+        f2_bytes,
+        "util.rs must roll back to exact original bytes"
+    );
 
     // Verify diagnostic mapping
-    assert!(!result.diagnostics.is_empty(), "Should capture typechecker diagnostics");
+    assert!(
+        !result.diagnostics.is_empty(),
+        "Should capture typechecker diagnostics"
+    );
     let mapped = &result.diagnostics[0];
     assert_eq!(mapped.severity, "error");
     assert_eq!(mapped.symbol_name.as_deref(), Some("add_values"));
@@ -397,7 +447,11 @@ fn test_adversarial_dry_run_mode_zero_disk_writes() {
         .map(|(i, p)| SymbolPatchUnit {
             file_path: p.clone(),
             symbol_query: format!("func_{}", i + 1),
-            replacement_code: format!("export function func_{}() {{\n    return {};\n}}", i + 1, (i + 1) * 100),
+            replacement_code: format!(
+                "export function func_{}() {{\n    return {};\n}}",
+                i + 1,
+                (i + 1) * 100
+            ),
         })
         .collect();
 
@@ -413,7 +467,10 @@ fn test_adversarial_dry_run_mode_zero_disk_writes() {
 
     assert!(result.success, "Dry run with valid code must succeed");
     assert!(!result.applied, "Dry run must NOT persist to disk");
-    assert!(result.rolled_back, "Dry run must roll back temporary disk state");
+    assert!(
+        result.rolled_back,
+        "Dry run must roll back temporary disk state"
+    );
     assert_eq!(result.files_modified_count, 5);
     assert_eq!(result.symbols_patched_count, 5);
     assert_eq!(result.diffs.len(), 5);
@@ -467,7 +524,10 @@ pub fn outer() {
         Err(CoreError::PatchRangeError { .. }) => {
             // Expected error
         }
-        other => panic!("Expected PatchRangeError for overlapping symbols, got: {:?}", other),
+        other => panic!(
+            "Expected PatchRangeError for overlapping symbols, got: {:?}",
+            other
+        ),
     }
 
     // Disk remains untouched
@@ -545,7 +605,10 @@ fn test_adversarial_multifile_rollback_guard_raii_drop() {
 
     assert_eq!(fs::read_to_string(&f1).unwrap(), "orig1");
     assert_eq!(fs::read_to_string(&f2).unwrap(), "orig2");
-    assert!(!f3_new.exists(), "Newly created file must be deleted on rollback");
+    assert!(
+        !f3_new.exists(),
+        "Newly created file must be deleted on rollback"
+    );
 }
 
 /// 8. AstDiagnosticMapper polyglot compiler output formats & edge cases
@@ -567,7 +630,8 @@ pub fn calc_two(z: bool) -> bool {
         node_kind: "function".to_string(),
         start_line: 2,
         end_line: 5,
-        replacement_code: "pub fn calc_one(x: i32) -> i32 {\n    let y: String = x;\n    y\n}".to_string(),
+        replacement_code: "pub fn calc_one(x: i32) -> i32 {\n    let y: String = x;\n    y\n}"
+            .to_string(),
     };
 
     let file_info = PatchedFileInfo {
@@ -618,13 +682,21 @@ pub fn calc_two(z: bool) -> bool {
     assert_eq!(mapped[0].symbol_name.as_deref(), Some("calc_one"));
     assert_eq!(mapped[0].node_kind.as_deref(), Some("function"));
     assert_eq!(mapped[0].patch_relative_line, Some(2));
-    assert!(mapped[0].code_snippet.as_ref().unwrap().contains("let y: String = x;"));
+    assert!(mapped[0]
+        .code_snippet
+        .as_ref()
+        .unwrap()
+        .contains("let y: String = x;"));
 
     // Diag 2: outside symbol
     assert_eq!(mapped[1].symbol_name, None);
     assert_eq!(mapped[1].node_kind, None);
     assert_eq!(mapped[1].patch_relative_line, None);
-    assert!(mapped[1].code_snippet.as_ref().unwrap().contains("pub fn calc_two"));
+    assert!(mapped[1]
+        .code_snippet
+        .as_ref()
+        .unwrap()
+        .contains("pub fn calc_two"));
 
     // Diag 3: unrelated file
     assert_eq!(mapped[2].symbol_name, None);

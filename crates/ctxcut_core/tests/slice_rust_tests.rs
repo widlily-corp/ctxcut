@@ -53,6 +53,7 @@ fn test_slice_rust_result_and_enum_hoisting() {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -85,6 +86,7 @@ fn test_slice_rust_generic_where_clause_and_trait_bounds() {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -157,6 +159,7 @@ fn test_slice_rust_cross_module_resolution() {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -200,6 +203,7 @@ fn test_slice_rust_call_stripping_semicolon_termination() {
         include_types: false,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -224,6 +228,7 @@ fn test_slice_rust_circular_recursive_enum() {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -295,6 +300,7 @@ fn test_slice_rust_disabled_options() {
         include_types: false,
         include_calls: false,
         budget: None,
+        lod: None,
     };
 
     let result = slicer

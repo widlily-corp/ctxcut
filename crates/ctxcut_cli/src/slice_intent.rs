@@ -42,7 +42,12 @@ pub fn run_slice_intent_command(opts: SliceIntentCliOptions<'_>) -> Result<()> {
     let slicer = DefaultIntentSlicer::new();
     let result = slicer
         .slice_intent(workspace_root, &intent_opts)
-        .with_context(|| format!("Failed to extract semantic intent slice for \"{}\"", opts.prompt))?;
+        .with_context(|| {
+            format!(
+                "Failed to extract semantic intent slice for \"{}\"",
+                opts.prompt
+            )
+        })?;
 
     let rendered = if opts.format.eq_ignore_ascii_case("json") {
         result.to_json()
@@ -67,10 +72,7 @@ pub fn run_slice_intent_command(opts: SliceIntentCliOptions<'_>) -> Result<()> {
     if opts.clip {
         if let Ok(mut clipboard) = Clipboard::new() {
             if clipboard.set_text(&rendered).is_ok() {
-                eprintln!(
-                    "{} Intent context slice copied to clipboard!",
-                    "✔".green()
-                );
+                eprintln!("{} Intent context slice copied to clipboard!", "✔".green());
             }
         }
     }

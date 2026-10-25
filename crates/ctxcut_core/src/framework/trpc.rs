@@ -36,10 +36,7 @@ impl TrpcAnalyzer {
             .and_then(|e| e.to_str())
             .unwrap_or("")
             .to_lowercase();
-        if !matches!(
-            ext.as_str(),
-            "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs"
-        ) {
+        if !matches!(ext.as_str(), "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs") {
             return routes;
         }
 
@@ -70,7 +67,11 @@ impl TrpcAnalyzer {
         let mut unique = Vec::new();
         let mut seen = std::collections::HashSet::new();
         for r in routes {
-            let key = (r.http_method.clone(), r.route_path.clone(), r.handler_symbol.clone());
+            let key = (
+                r.http_method.clone(),
+                r.route_path.clone(),
+                r.handler_symbol.clone(),
+            );
             if seen.insert(key) {
                 unique.push(r);
             }
@@ -88,7 +89,9 @@ impl TrpcAnalyzer {
         let key_node = node.child_by_field_name("key")?;
         let val_node = node.child_by_field_name("value")?;
 
-        let key_text = AstUtils::node_text(key_node, source).trim().trim_matches(['\'', '"', '`']);
+        let key_text = AstUtils::node_text(key_node, source)
+            .trim()
+            .trim_matches(['\'', '"', '`']);
         if key_text.is_empty() {
             return None;
         }
@@ -148,7 +151,8 @@ impl FrameworkAnalyzer for TrpcAnalyzer {
             || source.contains("createTRPCRouter")
             || source.contains("publicProcedure")
             || source.contains("protectedProcedure")
-            || (source.contains("router({") && (source.contains(".query(") || source.contains(".mutation(")))
+            || (source.contains("router({")
+                && (source.contains(".query(") || source.contains(".mutation(")))
     }
 
     fn enhance_slice(
@@ -162,7 +166,11 @@ impl FrameworkAnalyzer for TrpcAnalyzer {
     }
 }
 
-fn extract_trpc_input_schema(val_text: &str, source: &str, file_path: &str) -> Option<ExtractedType> {
+fn extract_trpc_input_schema(
+    val_text: &str,
+    source: &str,
+    file_path: &str,
+) -> Option<ExtractedType> {
     if let Some(pos) = val_text.find(".input(") {
         let after = &val_text[pos + 7..];
         let inside = after.split(')').next()?.trim();
@@ -190,18 +198,16 @@ fn extract_trpc_input_schema(val_text: &str, source: &str, file_path: &str) -> O
     None
 }
 
-fn scan_trpc_fallback(
-    source: &str,
-    file_path: &str,
-    routes: &mut Vec<ServerRouteEndpoint>,
-) {
+fn scan_trpc_fallback(source: &str, file_path: &str, routes: &mut Vec<ServerRouteEndpoint>) {
     for line in source.lines() {
         let trimmed = line.trim();
-        if (trimmed.contains(".query(") || trimmed.contains(".mutation(")) && trimmed.contains(':') {
+        if (trimmed.contains(".query(") || trimmed.contains(".mutation(")) && trimmed.contains(':')
+        {
             let parts: Vec<&str> = trimmed.split(':').collect();
             if parts.len() >= 2 {
                 let proc_name = parts[0].trim().trim_matches(['\'', '"', '`']);
-                if !proc_name.is_empty() && !proc_name.contains(' ') && !proc_name.starts_with("//") {
+                if !proc_name.is_empty() && !proc_name.contains(' ') && !proc_name.starts_with("//")
+                {
                     let is_mutation = trimmed.contains(".mutation(");
                     let method = if is_mutation { "MUTATION" } else { "QUERY" };
                     routes.push(ServerRouteEndpoint {

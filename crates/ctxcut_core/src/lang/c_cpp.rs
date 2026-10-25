@@ -554,6 +554,7 @@ fn build_c_cpp_symbol(
         signature,
         body,
         language: lang_name.to_string(),
+        preprocessor_tag: None,
     }
 }
 
@@ -638,6 +639,7 @@ fn fallback_c_cpp_source_scan(
                     signature,
                     body,
                     language: lang_name.to_string(),
+                    preprocessor_tag: None,
                 });
             }
         }

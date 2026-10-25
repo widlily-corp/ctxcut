@@ -2,9 +2,12 @@
 
 pub mod c_cpp;
 pub mod csharp;
+pub mod csharp_lod;
+pub mod csharp_preproc;
 pub mod go;
 pub mod java_lang;
 pub mod kotlin_lang;
+pub mod preprocessor;
 pub mod python;
 pub mod rust_lang;
 pub mod sfc;
@@ -20,9 +23,12 @@ use tree_sitter::{Language, Node};
 
 pub use c_cpp::{CAdapter, CppAdapter};
 pub use csharp::CSharpAdapter;
+pub use csharp_lod::{slice_csharp_lod, CSharpLodEngine};
+pub use csharp_preproc::CSharpPreprocessorDetector;
 pub use go::GoAdapter;
 pub use java_lang::JavaAdapter;
 pub use kotlin_lang::KotlinAdapter;
+pub use preprocessor::{format_preprocessor_tag, PreprocessorContextDetector};
 pub use python::PythonAdapter;
 pub use rust_lang::RustAdapter;
 pub use sfc::{AstroAdapter, SfcBlock, SfcDocument, SvelteAdapter, VueAdapter};

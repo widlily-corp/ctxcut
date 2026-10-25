@@ -41,6 +41,7 @@ mod tests {
                 signature: "function test(): void".to_string(),
                 body: "function test() {}".to_string(),
                 language: "typescript".to_string(),
+                preprocessor_tag: None,
             },
             hoisted_types: vec![ExtractedType {
                 name: "T".to_string(),
@@ -56,6 +57,7 @@ mod tests {
                 signature: "function call(): void;".to_string(),
             }],
             stats: TokenStats::calculate(100, 20, 20, 10),
+            semantic_header: None,
         };
 
         let json = JsonFormatter::format_pretty(&result).expect("Failed to serialize to JSON");

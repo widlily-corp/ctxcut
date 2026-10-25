@@ -622,6 +622,7 @@ fn build_go_symbol(node: Node<'_>, source: &str, file_path: &Path, kind: &str) -
         signature,
         body,
         language: "go".to_string(),
+        preprocessor_tag: None,
     }
 }
 
@@ -772,5 +773,6 @@ fn fallback_go_source_scan(
         signature,
         body,
         language: "go".to_string(),
+        preprocessor_tag: None,
     })
 }

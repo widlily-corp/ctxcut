@@ -74,6 +74,7 @@ type Config struct {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice_empty = slicer
@@ -181,6 +182,7 @@ func (l *Logger) Info(msg string) {}
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice = slicer
@@ -270,6 +272,7 @@ where
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice = slicer
@@ -361,6 +364,7 @@ export class Helper {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice = slicer
@@ -427,6 +431,7 @@ def publish_telemetry(collector: LocalCollector, metric: str, count: int) -> Non
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice = slicer
@@ -507,6 +512,7 @@ class DatadogCollector(MetricCollector):
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let slice = slicer
@@ -568,6 +574,7 @@ pub fn execute_obscure(t: &dyn ObscureTrait) {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     // Slicing normal function -> 0 implementors
@@ -607,6 +614,7 @@ pub trait ServiceHandler {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     // Direct slice of a trait symbol

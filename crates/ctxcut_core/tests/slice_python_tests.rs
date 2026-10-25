@@ -59,6 +59,7 @@ fn test_slice_python_pydantic_local_hoisting() {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -133,6 +134,7 @@ fn test_slice_python_cross_file_payment_service() {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -198,6 +200,7 @@ fn test_slice_python_circular_models_cycle_protection() {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -269,6 +272,7 @@ fn test_slice_python_disabled_options() {
         include_types: false,
         include_calls: false,
         budget: None,
+        lod: None,
     };
 
     let result = slicer

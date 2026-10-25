@@ -59,6 +59,7 @@ async def execute_secure_transaction(
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -148,6 +149,7 @@ class UserStore[T]:
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -209,6 +211,7 @@ def traverse_ring(start: NodeA) -> NodeJ:
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let start = Instant::now();
@@ -269,6 +272,7 @@ func (p *DataPipeline[T, R]) Transform(filter FilterFunc[T]) ([]StreamElement[T]
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -352,6 +356,7 @@ func (a *AuditLogger) LogEvent(message string) error {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -422,6 +427,7 @@ impl<S> GatewayClient<S> {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer
@@ -506,6 +512,7 @@ pub fn evaluate_ast(root: Expression) -> i64 {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let result = slicer

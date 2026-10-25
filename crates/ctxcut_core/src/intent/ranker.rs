@@ -99,7 +99,8 @@ impl HybridAstRanker {
                 .map(|set| set.len())
                 .unwrap_or(0);
             let total_degree = in_degree + out_degree;
-            let degree_centrality = ((total_degree as f64 + 1.0).ln() / (10.0f64).ln()).clamp(0.0, 1.0);
+            let degree_centrality =
+                ((total_degree as f64 + 1.0).ln() / (10.0f64).ln()).clamp(0.0, 1.0);
 
             // Calculate AST Graph Proximity to Seed Targets
             let proximity = if seed_names.contains(&sym.name) {

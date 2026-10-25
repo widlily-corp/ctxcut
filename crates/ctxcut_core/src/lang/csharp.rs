@@ -471,6 +471,7 @@ fn build_csharp_symbol(
         signature,
         body,
         language: "csharp".to_string(),
+        preprocessor_tag: None,
     }
 }
 
@@ -546,6 +547,7 @@ fn fallback_csharp_source_scan(
                     signature,
                     body,
                     language: "csharp".to_string(),
+                    preprocessor_tag: None,
                 });
             }
         }

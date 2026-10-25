@@ -106,7 +106,9 @@ impl ClientDetector {
         file_path: &str,
     ) -> Option<ClientApiCall> {
         let function_node = node.child_by_field_name("function")?;
-        let func_text = AstUtils::node_text(function_node, source).trim().to_string();
+        let func_text = AstUtils::node_text(function_node, source)
+            .trim()
+            .to_string();
         let line_number = node.start_position().row + 1;
         let call_snippet = AstUtils::node_text(node, source).trim().to_string();
 
@@ -119,7 +121,14 @@ impl ClientDetector {
             || (clean_func.ends_with(".invoke") && !clean_func.contains("ipcRenderer")))
             && !clean_func.contains("ipcRenderer")
         {
-            if let Some(call) = self.parse_tauri_invoke(node, &func_text, source, file_path, line_number, &call_snippet) {
+            if let Some(call) = self.parse_tauri_invoke(
+                node,
+                &func_text,
+                source,
+                file_path,
+                line_number,
+                &call_snippet,
+            ) {
                 return Some(call);
             }
         }
@@ -129,14 +138,28 @@ impl ClientDetector {
             || func_text.starts_with("ipc.")
             || func_text.starts_with("electronAPI.")
         {
-            if let Some(call) = self.parse_electron_call(node, &func_text, source, file_path, line_number, &call_snippet) {
+            if let Some(call) = self.parse_electron_call(
+                node,
+                &func_text,
+                source,
+                file_path,
+                line_number,
+                &call_snippet,
+            ) {
                 return Some(call);
             }
         }
 
         // 3. Next.js Server Action React Hooks: useActionState(actionFn, ...), useFormState(actionFn, ...)
         if func_text == "useActionState" || func_text == "useFormState" {
-            if let Some(call) = self.parse_server_action_hook(node, &func_text, source, file_path, line_number, &call_snippet) {
+            if let Some(call) = self.parse_server_action_hook(
+                node,
+                &func_text,
+                source,
+                file_path,
+                line_number,
+                &call_snippet,
+            ) {
                 return Some(call);
             }
         }
@@ -168,13 +191,21 @@ impl ClientDetector {
             || func_text.starts_with("http.")
             || func_text.starts_with("request.")
         {
-            if let Some(call) = self.parse_axios_call(node, &func_text, source, file_path, line_number, &call_snippet) {
+            if let Some(call) = self.parse_axios_call(
+                node,
+                &func_text,
+                source,
+                file_path,
+                line_number,
+                &call_snippet,
+            ) {
                 return Some(call);
             }
         }
 
         // 6. React Query & Apollo GraphQL hooks: useQuery, useMutation, useInfiniteQuery
-        if func_text == "useQuery" || func_text == "useMutation" || func_text == "useInfiniteQuery" {
+        if func_text == "useQuery" || func_text == "useMutation" || func_text == "useInfiniteQuery"
+        {
             let is_graphql = source.contains("@apollo")
                 || source.contains("urql")
                 || source.contains("gql`")
@@ -183,16 +214,32 @@ impl ClientDetector {
                 || source.contains("MUTATION");
 
             if is_graphql {
-                if let Some(call) = self.parse_graphql_call(node, &func_text, source, file_path, line_number, &call_snippet) {
+                if let Some(call) = self.parse_graphql_call(
+                    node,
+                    &func_text,
+                    source,
+                    file_path,
+                    line_number,
+                    &call_snippet,
+                ) {
                     return Some(call);
                 }
-            } else if let Some(call) = self.parse_react_query_call(node, &func_text, source, file_path, line_number, &call_snippet) {
+            } else if let Some(call) = self.parse_react_query_call(
+                node,
+                &func_text,
+                source,
+                file_path,
+                line_number,
+                &call_snippet,
+            ) {
                 return Some(call);
             }
         }
 
         // 7. tRPC calls: trpc.user.getById.useQuery, trpcClient.user.getById.query, api.user.get.useQuery
-        if (func_text.starts_with("trpc.") || func_text.starts_with("trpcClient.") || func_text.starts_with("api."))
+        if (func_text.starts_with("trpc.")
+            || func_text.starts_with("trpcClient.")
+            || func_text.starts_with("api."))
             && (func_text.ends_with(".useQuery")
                 || func_text.ends_with(".useMutation")
                 || func_text.ends_with(".useInfiniteQuery")
@@ -219,16 +266,36 @@ impl ClientDetector {
         }
 
         // 8. GraphQL client calls: client.query, client.mutate, useQuery(GQL), useMutation(GQL)
-        if func_text.contains("graphql") || func_text.ends_with(".query") || func_text.ends_with(".mutate") {
-            if let Some(call) = self.parse_graphql_call(node, &func_text, source, file_path, line_number, &call_snippet) {
+        if func_text.contains("graphql")
+            || func_text.ends_with(".query")
+            || func_text.ends_with(".mutate")
+        {
+            if let Some(call) = self.parse_graphql_call(
+                node,
+                &func_text,
+                source,
+                file_path,
+                line_number,
+                &call_snippet,
+            ) {
                 return Some(call);
             }
         }
 
         // 9. gRPC-web calls: grpc.unary, client.getUser(req, ...), userService.createUser(req, ...)
         let lower_func = func_text.to_lowercase();
-        if lower_func.starts_with("grpc.") || lower_func.contains("client.") || lower_func.contains("service.") {
-            if let Some(call) = self.parse_grpc_web_call(node, &func_text, source, file_path, line_number, &call_snippet) {
+        if lower_func.starts_with("grpc.")
+            || lower_func.contains("client.")
+            || lower_func.contains("service.")
+        {
+            if let Some(call) = self.parse_grpc_web_call(
+                node,
+                &func_text,
+                source,
+                file_path,
+                line_number,
+                &call_snippet,
+            ) {
                 return Some(call);
             }
         }
@@ -242,24 +309,30 @@ impl ClientDetector {
         source: &str,
         file_path: &str,
     ) -> Option<ClientApiCall> {
-        let name_node = node.child_by_field_name("name")
-            .or_else(|| node.child(0))?;
+        let name_node = node.child_by_field_name("name").or_else(|| node.child(0))?;
         let attr_name = AstUtils::node_text(name_node, source).trim();
 
         if attr_name == "action" || attr_name == "formAction" {
-            let value_node = node.child_by_field_name("value")
-                .or_else(|| if node.named_child_count() >= 2 { node.named_child(1) } else { None })?;
+            let value_node = node.child_by_field_name("value").or_else(|| {
+                if node.named_child_count() >= 2 {
+                    node.named_child(1)
+                } else {
+                    None
+                }
+            })?;
             let val_text = AstUtils::node_text(value_node, source).trim();
 
-            let clean_ident = val_text
-                .trim_matches(['{', '}', '"', '\'', ' '])
-                .trim();
+            let clean_ident = val_text.trim_matches(['{', '}', '"', '\'', ' ']).trim();
 
             if !clean_ident.is_empty()
                 && !clean_ident.starts_with('/')
                 && !clean_ident.starts_with("http")
                 && !clean_ident.contains('(')
-                && clean_ident.chars().next().map(|c| c.is_alphabetic() || c == '_').unwrap_or(false)
+                && clean_ident
+                    .chars()
+                    .next()
+                    .map(|c| c.is_alphabetic() || c == '_')
+                    .unwrap_or(false)
             {
                 let line_number = node.start_position().row + 1;
                 let call_snippet = AstUtils::node_text(node, source).trim().to_string();
@@ -384,7 +457,12 @@ impl ClientDetector {
         &self,
         args_node: Node<'_>,
         source: &str,
-    ) -> (Option<String>, Option<String>, Option<String>, Option<String>) {
+    ) -> (
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+    ) {
         let mut endpoint = None;
         let mut method = None;
         let mut req_dto = None;
@@ -402,7 +480,11 @@ impl ClientDetector {
                 if obj_text.contains("body:") {
                     if let Some(pos) = obj_text.find("body:") {
                         let after = &obj_text[pos + 5..].trim();
-                        let candidate = after.split_whitespace().next().unwrap_or("").trim_matches([',', '}']);
+                        let candidate = after
+                            .split_whitespace()
+                            .next()
+                            .unwrap_or("")
+                            .trim_matches([',', '}']);
                         if !candidate.is_empty() {
                             req_dto = Some(candidate.to_string());
                         }
@@ -457,8 +539,18 @@ impl ClientDetector {
                         if t.contains(arg_text) && t.contains(':') {
                             if let Some(pos) = t.find(&format!("{arg_text}:")) {
                                 let after = &t[pos + arg_text.len() + 1..].trim();
-                                let candidate = after.split([',', ')', ';', '{', ' ']).next().unwrap_or("").trim();
-                                if !candidate.is_empty() && candidate.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
+                                let candidate = after
+                                    .split([',', ')', ';', '{', ' '])
+                                    .next()
+                                    .unwrap_or("")
+                                    .trim();
+                                if !candidate.is_empty()
+                                    && candidate
+                                        .chars()
+                                        .next()
+                                        .map(|c| c.is_uppercase())
+                                        .unwrap_or(false)
+                                {
                                     req_dto = Some(candidate.to_string());
                                     break;
                                 }
@@ -500,7 +592,11 @@ impl ClientDetector {
 
         // Search for nested url literal in queryFn/mutationFn or queryKey
         for line in snippet.lines() {
-            if line.contains("/api/") || line.contains("/v1/") || line.contains("/v2/") || line.contains("/graphql") {
+            if line.contains("/api/")
+                || line.contains("/v1/")
+                || line.contains("/v2/")
+                || line.contains("/graphql")
+            {
                 if let Some(url) = extract_first_path_string(line) {
                     endpoint = Some(url);
                     break;
@@ -508,7 +604,10 @@ impl ClientDetector {
             }
         }
 
-        if snippet.contains(".post(") || snippet.contains("method: 'POST'") || snippet.contains("method: \"POST\"") {
+        if snippet.contains(".post(")
+            || snippet.contains("method: 'POST'")
+            || snippet.contains("method: \"POST\"")
+        {
             method = Some("POST".to_string());
         } else if snippet.contains(".put(") {
             method = Some("PUT".to_string());
@@ -599,7 +698,11 @@ impl ClientDetector {
         } else {
             let parts: Vec<&str> = func_text.split('.').collect();
             if parts.len() >= 2 {
-                Some(format!("{}.{}", parts[parts.len() - 2], parts[parts.len() - 1]))
+                Some(format!(
+                    "{}.{}",
+                    parts[parts.len() - 2],
+                    parts[parts.len() - 1]
+                ))
             } else {
                 Some(func_text.to_string())
             }
@@ -639,7 +742,10 @@ impl ClientDetector {
         let text = AstUtils::node_text(node, source).trim();
         if text.starts_with('\'') || text.starts_with('"') || text.starts_with('`') {
             let clean = text.trim_matches(['\'', '"', '`']);
-            if clean.starts_with('/') || clean.starts_with("http://") || clean.starts_with("https://") {
+            if clean.starts_with('/')
+                || clean.starts_with("http://")
+                || clean.starts_with("https://")
+            {
                 return Some(clean.to_string());
             }
         }
@@ -649,11 +755,15 @@ impl ClientDetector {
         None
     }
 
-    fn extract_type_arguments(&self, node: Node<'_>, source: &str) -> (Option<String>, Option<String>) {
-        let type_args_opt = node.child_by_field_name("type_arguments")
-            .or_else(|| {
-                node.named_children(&mut node.walk()).find(|c| c.kind() == "type_arguments")
-            });
+    fn extract_type_arguments(
+        &self,
+        node: Node<'_>,
+        source: &str,
+    ) -> (Option<String>, Option<String>) {
+        let type_args_opt = node.child_by_field_name("type_arguments").or_else(|| {
+            node.named_children(&mut node.walk())
+                .find(|c| c.kind() == "type_arguments")
+        });
         if let Some(type_args) = type_args_opt {
             let types: Vec<String> = type_args
                 .named_children(&mut type_args.walk())
@@ -690,18 +800,16 @@ impl ClientDetector {
     }
 }
 
-fn scan_fallback_patterns(
-    source: &str,
-    file_path: &str,
-    results: &mut Vec<ClientApiCall>,
-) {
+fn scan_fallback_patterns(source: &str, file_path: &str, results: &mut Vec<ClientApiCall>) {
     for (idx, line) in source.lines().enumerate() {
         let line_num = idx + 1;
         let trimmed = line.trim();
 
         // Tauri pattern: invoke('cmd_name', ...) or invoke<Type>('cmd_name', ...)
         if trimmed.contains("invoke(") || trimmed.contains("invoke<") {
-            if !trimmed.contains("ipcRenderer") && !results.iter().any(|r| r.line_number == line_num) {
+            if !trimmed.contains("ipcRenderer")
+                && !results.iter().any(|r| r.line_number == line_num)
+            {
                 if let Some(cmd) = extract_string_in_parentheses(trimmed) {
                     let res_dto = if let Some(start_t) = trimmed.find("invoke<") {
                         let after = &trimmed[start_t + 7..];
@@ -742,7 +850,11 @@ fn scan_fallback_patterns(
                 let is_send = trimmed.contains(".send(");
                 results.push(ClientApiCall {
                     client_kind: "electron".to_string(),
-                    http_method: Some(if is_send { "IPC_ON".to_string() } else { "IPC_HANDLE".to_string() }),
+                    http_method: Some(if is_send {
+                        "IPC_ON".to_string()
+                    } else {
+                        "IPC_HANDLE".to_string()
+                    }),
                     endpoint_url: Some(format!("electron://{channel}")),
                     rpc_procedure: Some(channel),
                     file_path: file_path.to_string(),
@@ -760,7 +872,11 @@ fn scan_fallback_patterns(
             && !results.iter().any(|r| r.line_number == line_num)
         {
             if let Some(url) = extract_first_path_string(trimmed) {
-                let method = if trimmed.contains("POST") { "POST" } else { "GET" };
+                let method = if trimmed.contains("POST") {
+                    "POST"
+                } else {
+                    "GET"
+                };
                 results.push(ClientApiCall {
                     client_kind: "fetch".to_string(),
                     http_method: Some(method.to_string()),
@@ -806,11 +922,18 @@ fn scan_fallback_patterns(
 
         // trpc pattern: trpc.<something>.useQuery / mutate
         if (trimmed.contains("trpc.") || trimmed.contains("api."))
-            && (trimmed.contains(".useQuery") || trimmed.contains(".useMutation") || trimmed.contains(".query(") || trimmed.contains(".mutate("))
+            && (trimmed.contains(".useQuery")
+                || trimmed.contains(".useMutation")
+                || trimmed.contains(".query(")
+                || trimmed.contains(".mutate("))
             && !results.iter().any(|r| r.line_number == line_num)
         {
             let proc = extract_trpc_proc_from_line(trimmed);
-            let method = if trimmed.contains("Mutation") || trimmed.contains("mutate") { "POST" } else { "GET" };
+            let method = if trimmed.contains("Mutation") || trimmed.contains("mutate") {
+                "POST"
+            } else {
+                "GET"
+            };
             results.push(ClientApiCall {
                 client_kind: "trpc".to_string(),
                 http_method: Some(method.to_string()),
@@ -825,7 +948,9 @@ fn scan_fallback_patterns(
         }
 
         // Next.js Server Action pattern: action={actionFn} or formAction={actionFn}
-        if (trimmed.contains("action={") || trimmed.contains("formAction={") || trimmed.contains("useActionState("))
+        if (trimmed.contains("action={")
+            || trimmed.contains("formAction={")
+            || trimmed.contains("useActionState("))
             && !results.iter().any(|r| r.line_number == line_num)
         {
             if let Some(action_name) = extract_action_ident_from_line(trimmed) {
@@ -849,7 +974,11 @@ fn extract_property_string(obj_str: &str, prop_name: &str) -> Option<String> {
     let pattern = format!("{prop_name}:");
     if let Some(pos) = obj_str.find(&pattern) {
         let after = &obj_str[pos + pattern.len()..].trim();
-        let clean = after.split([',', '}', ';', '\n']).next().unwrap_or(after).trim();
+        let clean = after
+            .split([',', '}', ';', '\n'])
+            .next()
+            .unwrap_or(after)
+            .trim();
         let val = clean.trim_matches(['\'', '"', '`']).trim();
         if !val.is_empty() {
             return Some(val.to_string());
@@ -900,7 +1029,10 @@ fn extract_trpc_proc_from_line(line: &str) -> Option<String> {
 
     if let Some(pos) = line.find(prefix) {
         let after = &line[pos + prefix.len()..];
-        let token = after.split(['(', ' ', ',', ';', '{']).next().unwrap_or(after);
+        let token = after
+            .split(['(', ' ', ',', ';', '{'])
+            .next()
+            .unwrap_or(after);
         let proc = token
             .trim_end_matches(".useQuery")
             .trim_end_matches(".useMutation")
@@ -915,11 +1047,20 @@ fn extract_trpc_proc_from_line(line: &str) -> Option<String> {
 }
 
 fn extract_action_ident_from_line(line: &str) -> Option<String> {
-    for pat in &["action={", "formAction={", "useActionState(", "useFormState("] {
+    for pat in &[
+        "action={",
+        "formAction={",
+        "useActionState(",
+        "useFormState(",
+    ] {
         if let Some(pos) = line.find(pat) {
             let after = &line[pos + pat.len()..];
             let ident = after.split(['}', ')', ',', ' ']).next()?.trim();
-            if !ident.is_empty() && !ident.starts_with('/') && !ident.starts_with("http") && !ident.contains('(') {
+            if !ident.is_empty()
+                && !ident.starts_with('/')
+                && !ident.starts_with("http")
+                && !ident.contains('(')
+            {
                 return Some(ident.to_string());
             }
         }

@@ -57,7 +57,11 @@ export async function processOrder(data: any) {
     let (response, metrics, error_opt, tokens_saved) =
         execute_tool_with_timeout("get_fullstack_trace", &args, 5000);
 
-    assert!(error_opt.is_none(), "Expected no error, got: {:?}", error_opt);
+    assert!(
+        error_opt.is_none(),
+        "Expected no error, got: {:?}",
+        error_opt
+    );
     assert_ne!(response.get("isError"), Some(&json!(true)));
 
     let text = response["content"][0]["text"].as_str().unwrap();
@@ -102,7 +106,11 @@ export function validateSession(session: UserSession): boolean {
     let (response, metrics, error_opt, tokens_saved) =
         execute_tool_with_timeout("get_intent_slice", &args, 5000);
 
-    assert!(error_opt.is_none(), "Expected no error, got: {:?}", error_opt);
+    assert!(
+        error_opt.is_none(),
+        "Expected no error, got: {:?}",
+        error_opt
+    );
     assert_ne!(response.get("isError"), Some(&json!(true)));
 
     let text = response["content"][0]["text"].as_str().unwrap();
@@ -149,7 +157,11 @@ export function calculateDiscount(total: number): number {
     let (response, metrics, error_opt, _) =
         execute_tool_with_timeout("patch_transaction", &dry_run_args, 5000);
 
-    assert!(error_opt.is_none(), "Expected dry-run success, got: {:?}", error_opt);
+    assert!(
+        error_opt.is_none(),
+        "Expected dry-run success, got: {:?}",
+        error_opt
+    );
     assert_ne!(response.get("isError"), Some(&json!(true)));
     let text = response["content"][0]["text"].as_str().unwrap();
     assert!(text.contains("calculateTax"));
@@ -175,7 +187,11 @@ export function calculateDiscount(total: number): number {
     let (apply_resp, apply_metrics, apply_err, _) =
         execute_tool_with_timeout("patch_transaction", &apply_args, 5000);
 
-    assert!(apply_err.is_none(), "Expected apply success, got: {:?}", apply_err);
+    assert!(
+        apply_err.is_none(),
+        "Expected apply success, got: {:?}",
+        apply_err
+    );
     assert_ne!(apply_resp.get("isError"), Some(&json!(true)));
     assert!(apply_metrics.is_some());
 
@@ -218,7 +234,11 @@ export function refund(id: string): boolean { return id.length > 0; }
     let (response, metrics, error_opt, tokens_saved) =
         execute_tool_with_timeout("pack_agent_context", &args, 5000);
 
-    assert!(error_opt.is_none(), "Expected no error, got: {:?}", error_opt);
+    assert!(
+        error_opt.is_none(),
+        "Expected no error, got: {:?}",
+        error_opt
+    );
     assert_ne!(response.get("isError"), Some(&json!(true)));
 
     let text = response["content"][0]["text"].as_str().unwrap();
@@ -278,13 +298,21 @@ export async function processOrder(data: any) {
     let (response, metrics, error_opt, tokens_saved) =
         execute_tool_with_timeout("get_fullstack_trace", &args, 5000);
 
-    assert!(error_opt.is_none(), "Expected no error, got: {:?}", error_opt);
+    assert!(
+        error_opt.is_none(),
+        "Expected no error, got: {:?}",
+        error_opt
+    );
     assert_ne!(response.get("isError"), Some(&json!(true)));
 
     let text = response["content"][0]["text"].as_str().unwrap();
     let val: serde_json::Value = serde_json::from_str(text).expect("Valid JSON expected");
     let steps = val["steps"].as_array().expect("Steps array expected");
-    assert_eq!(steps.len(), 3, "Expected exactly 3 trace steps bounded by max_depth");
+    assert_eq!(
+        steps.len(),
+        3,
+        "Expected exactly 3 trace steps bounded by max_depth"
+    );
 
     assert!(metrics.is_some());
     assert!(tokens_saved.is_some());
@@ -319,7 +347,12 @@ export function refund(id: string): boolean { return id.length > 0; }
 
     // Index first to populate SQLite precomputed clusters
     let mut engine = IndexEngine::open_or_create(root).unwrap();
-    engine.sync_incremental(&IndexOptions { rebuild: true, max_depth: None }).unwrap();
+    engine
+        .sync_incremental(&IndexOptions {
+            rebuild: true,
+            max_depth: None,
+        })
+        .unwrap();
 
     let args = json!({
         "root_dir": root.to_string_lossy(),
@@ -332,9 +365,17 @@ export function refund(id: string): boolean { return id.length > 0; }
         execute_tool_with_timeout("pack_agent_context", &args, 5000);
     let elapsed = start.elapsed();
 
-    assert!(error_opt.is_none(), "Expected no error, got: {:?}", error_opt);
+    assert!(
+        error_opt.is_none(),
+        "Expected no error, got: {:?}",
+        error_opt
+    );
     assert_ne!(response.get("isError"), Some(&json!(true)));
-    assert!(elapsed.as_millis() < 200, "Fast SQLite lookup expected (took {}ms)", elapsed.as_millis());
+    assert!(
+        elapsed.as_millis() < 200,
+        "Fast SQLite lookup expected (took {}ms)",
+        elapsed.as_millis()
+    );
 
     let text = response["content"][0]["text"].as_str().unwrap();
     let manifest_val: serde_json::Value = serde_json::from_str(text).unwrap();
@@ -342,4 +383,3 @@ export function refund(id: string): boolean { return id.length > 0; }
     assert!(metrics.is_some());
     assert!(tokens_saved.is_some());
 }
-

@@ -232,7 +232,9 @@ fn collect_symbols_recursive(node: Node<'_>, source: &str, out: &mut Vec<String>
             }
             "pair" => {
                 if let Some(key_node) = decl.child_by_field_name("key") {
-                    let key_text = AstUtils::node_text(key_node, source).trim().trim_matches(['\'', '"', '`']);
+                    let key_text = AstUtils::node_text(key_node, source)
+                        .trim()
+                        .trim_matches(['\'', '"', '`']);
                     if !key_text.is_empty() && !out.contains(&key_text.to_string()) {
                         out.push(key_text.to_string());
                     }
@@ -311,7 +313,9 @@ fn find_symbol_recursive<'a>(
                         }
                     }
                     if let Some(val) = declarator.child_by_field_name("value") {
-                        if let Some(found) = find_symbol_recursive(val, source, target_name, file_path, language) {
+                        if let Some(found) =
+                            find_symbol_recursive(val, source, target_name, file_path, language)
+                        {
                             return Some(found);
                         }
                     }
@@ -383,7 +387,9 @@ fn find_symbol_recursive<'a>(
             }
             "pair" => {
                 if let Some(key_node) = decl.child_by_field_name("key") {
-                    let key_text = AstUtils::node_text(key_node, source).trim().trim_matches(['\'', '"', '`']);
+                    let key_text = AstUtils::node_text(key_node, source)
+                        .trim()
+                        .trim_matches(['\'', '"', '`']);
                     if key_text == target_name {
                         let sym = build_symbol(
                             decl,
@@ -540,6 +546,7 @@ fn fallback_source_scan(
         signature,
         body,
         language: language.to_string(),
+        preprocessor_tag: None,
     })
 }
 
@@ -597,6 +604,7 @@ fn build_symbol(
         signature,
         body,
         language: language.to_string(),
+        preprocessor_tag: None,
     }
 }
 

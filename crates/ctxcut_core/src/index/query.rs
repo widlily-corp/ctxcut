@@ -62,6 +62,7 @@ impl IndexEngine {
                 signature,
                 body,
                 language,
+                preprocessor_tag: None,
             }))
         } else {
             Ok(None)
@@ -104,6 +105,7 @@ impl IndexEngine {
                     signature,
                     body,
                     language,
+                    preprocessor_tag: None,
                 })
             })
             .map_err(|e| CoreError::DatabaseError(format!("Failed to execute query: {e}")))?;

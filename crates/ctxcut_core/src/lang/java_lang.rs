@@ -441,6 +441,7 @@ fn build_java_symbol(
         signature,
         body,
         language: "java".to_string(),
+        preprocessor_tag: None,
     }
 }
 
@@ -512,6 +513,7 @@ fn fallback_java_source_scan(
                     signature,
                     body,
                     language: "java".to_string(),
+                    preprocessor_tag: None,
                 });
             }
         }

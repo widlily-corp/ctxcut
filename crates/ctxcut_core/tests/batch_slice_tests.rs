@@ -51,6 +51,7 @@ function notifyUser(id: string): void {
         include_types: true,
         include_calls: true,
         budget: None,
+        lod: None,
     };
 
     let batch = slicer

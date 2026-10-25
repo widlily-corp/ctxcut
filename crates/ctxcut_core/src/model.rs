@@ -1,5 +1,7 @@
 //! Core data models, extracted AST symbols, slicing configuration, and results.
 
+pub use crate::framework::semantic_bridge::SemanticMetadataHeader;
+pub use crate::slice::lod::LodLevel;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -141,6 +143,9 @@ pub struct SliceOptions {
     pub include_calls: bool,
     /// Adaptive token budget limit for progressive semantic degradation (optional).
     pub budget: Option<usize>,
+    /// Level of Detail (LOD) specification for slicing and context extraction (optional).
+    #[serde(default)]
+    pub lod: Option<LodLevel>,
 }
 
 impl Default for SliceOptions {
@@ -150,6 +155,7 @@ impl Default for SliceOptions {
             include_types: true,
             include_calls: true,
             budget: None,
+            lod: None,
         }
     }
 }
@@ -175,6 +181,9 @@ pub struct ExtractedSymbol {
     pub body: String,
     /// Source language identifier (e.g. `"typescript"`, `"javascript"`).
     pub language: String,
+    /// Preprocessor condition tag (e.g. `"// [Active under: UNITY_EDITOR]"`), if symbol is inside `#if`.
+    #[serde(default)]
+    pub preprocessor_tag: Option<String>,
 }
 
 /// Referenced type definition hoisted from the local file or imported modules.
@@ -256,6 +265,9 @@ pub struct SliceResult {
     pub hoisted_implementors: Vec<ExtractedImplementor>,
     /// Body-stripped signature stubs of external called functions/methods.
     pub stripped_calls: Vec<CallSignatureStub>,
+    /// Semantic intelligence metadata header (e.g. Callers, Events, 0 GC Alloc).
+    #[serde(default)]
+    pub semantic_header: Option<SemanticMetadataHeader>,
     /// Token reduction and line metrics.
     pub stats: TokenStats,
 }
